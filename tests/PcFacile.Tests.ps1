@@ -645,3 +645,44 @@ Describe 'Integrita file distribuiti' {
         $crlf | Should -Be $lfTotali
     }
 }
+
+# Rilevamento McAfee nel launcher (solo Windows: esegue davvero cmd.exe).
+# Estraggo le subroutine :mcafee_rileva / :mcafee_voce da PC Facile.bat in un
+# .bat temporaneo e le lancio, senza avviare nessun disinstallatore.
+Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
+    BeforeAll {
+        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile.bat'))
+        $i = $bat.IndexOf("`n:mcafee_rileva") + 1   # la definizione, non 'call :mcafee_rileva'
+        $j = $bat.IndexOf("REM Avvia il disinstallatore ufficiale")
+        $corpo = $bat.Substring($i, $j - $i)
+        $testa = "@echo off`r`nsetlocal EnableDelayedExpansion`r`ncall :mcafee_rileva`r`necho N=!MC_N!`r`necho NOME=!MC_NOME_1!`r`necho UNS=!MC_UNS_1!`r`nexit /b 0`r`n"
+        $script:BatProva = Join-Path ([System.IO.Path]::GetTempPath()) ('pcf-mcafee-' + [guid]::NewGuid().ToString('N') + '.bat')
+        [System.IO.File]::WriteAllText($script:BatProva, $testa + $corpo, [System.Text.Encoding]::ASCII)
+        $script:ChiaveFinta = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PcFacileProvaMcAfee'
+        function script:Rileva { @(& cmd.exe /d /c "`"$script:BatProva`"" 2>&1) }
+    }
+    AfterAll {
+        Remove-Item -LiteralPath $script:BatProva -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $script:ChiaveFinta -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    It 'trova una voce McAfee nelle chiavi Uninstall con nome e disinstallatore' {
+        New-Item -Path $script:ChiaveFinta -Force | Out-Null
+        Set-ItemProperty -Path $script:ChiaveFinta -Name DisplayName -Value 'McAfee Prova (x64)'
+        Set-ItemProperty -Path $script:ChiaveFinta -Name UninstallString -Value '"C:\Program Files\McAfee\finto.exe" /id:uninstall'
+        $out = Rileva
+        $n = [int](($out | Where-Object { $_ -like 'N=*' }) -replace '^N=', '')
+        $n | Should -BeGreaterOrEqual 1
+        $out | Should -Contain 'NOME=McAfee Prova (x64)'
+        $out | Should -Contain 'UNS="C:\Program Files\McAfee\finto.exe" /id:uninstall'
+        Remove-Item -LiteralPath $script:ChiaveFinta -Recurse -Force
+    }
+    It 'ignora le voci senza McAfee nel nome' {
+        New-Item -Path $script:ChiaveFinta -Force | Out-Null
+        Set-ItemProperty -Path $script:ChiaveFinta -Name DisplayName -Value 'Altro programma'
+        Set-ItemProperty -Path $script:ChiaveFinta -Name Publisher -Value 'McAfee, LLC'
+        Set-ItemProperty -Path $script:ChiaveFinta -Name UninstallString -Value 'finto.exe'
+        $out = Rileva
+        $out | Should -Not -Contain 'NOME=Altro programma'
+        Remove-Item -LiteralPath $script:ChiaveFinta -Recurse -Force
+    }
+}
