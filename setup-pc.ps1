@@ -1964,7 +1964,7 @@ function Open-PannelloOperatore {
         <div id="completionBanner" class="banner-complete" role="status">
             <h2 id="completionTitle">&#10003; Configurazione completata</h2>
             <ul id="completionAvvisi"></ul>
-            <p>La scheda di consegna (HTML e PDF) &egrave; sul Desktop di questo PC: <strong>Scheda-Consegna-Cliente</strong>.</p>
+            <p>Sul Desktop di questo PC c'&egrave; solo la scheda di consegna: <strong>Scheda-Consegna-Cliente.pdf</strong> (se il PDF non si crea, resta la versione <strong>.html</strong> da stampare). Il riepilogo tecnico &egrave; in <code>C:\ProgramData\PCFacile\log</code>.</p>
         </div>
 
         <!-- SCHEDE -->
@@ -4009,6 +4009,87 @@ function Get-DesktopDir {
     return $env:TEMP
 }
 
+# SCHEDA DI CONSEGNA: sul Desktop del cliente deve restare UN solo file, il PDF.
+# L'HTML si scrive in una cartella di lavoro (ProgramData\PCFacile\consegna) e
+# Edge headless lo converte in PDF. Solo se il PDF esiste ed e' > 0 byte lo
+# sposto sul Desktop e cancello l'HTML. Se la conversione fallisce l'HTML va
+# sul Desktop come ripiego (si stampa / salva in PDF dal browser). In ogni caso
+# tolgo dal Desktop il vecchio riepilogo TXT e, se c'e' il PDF, il vecchio HTML
+# (lasciati da versioni precedenti o da una sessione ripresa).
+# -Convertitore: scriptblock (percorsoHtml, percorsoPdf) usato dai test; di
+# default Edge headless con un profilo temporaneo (non disturba il pannello
+# gia' aperto in Edge). Restituisce Esito PDF / HTML / ERRORE e il percorso.
+function Save-SchedaConsegna {
+    param(
+        [Parameter(Mandatory = $true)][string]$HtmlDoc,
+        [Parameter(Mandatory = $true)][string]$DesktopDir,
+        [Parameter(Mandatory = $true)][string]$CartellaLavoro,
+        [scriptblock]$Convertitore
+    )
+    $nomeBase    = 'Scheda-Consegna-Cliente'
+    $htmlLavoro  = Join-Path $CartellaLavoro "$nomeBase.html"
+    $pdfLavoro   = Join-Path $CartellaLavoro "$nomeBase.pdf"
+    $pdfDesktop  = Join-Path $DesktopDir "$nomeBase.pdf"
+    $htmlDesktop = Join-Path $DesktopDir "$nomeBase.html"
+    $txtDesktop  = Join-Path $DesktopDir 'Riepilogo-Configurazione-PC.txt'
+    $fileOk = { param($p) (Test-Path -LiteralPath $p -PathType Leaf) -and ((Get-Item -LiteralPath $p -ErrorAction SilentlyContinue).Length -gt 0) }
+
+    # Il riepilogo TXT non va mai sul Desktop (sta nel log tecnico).
+    Remove-Item -LiteralPath $txtDesktop -Force -ErrorAction SilentlyContinue
+
+    try {
+        if (-not (Test-Path -LiteralPath $CartellaLavoro)) { New-Item -Path $CartellaLavoro -ItemType Directory -Force -ErrorAction Stop | Out-Null }
+        Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        Set-Content -LiteralPath $htmlLavoro -Value $HtmlDoc -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $null; Messaggio = "scheda HTML non scritta: $($_.Exception.Message)" }
+    }
+
+    if (-not $Convertitore) {
+        $Convertitore = {
+            param($PercorsoHtml, $PercorsoPdf)
+            $edge = Get-EdgePath
+            if (-not $edge) { return }
+            $profilo = Join-Path (Split-Path -Parent $PercorsoPdf) 'edge-profilo'
+            $uri = ([System.Uri]$PercorsoHtml).AbsoluteUri
+            $argEdge = @('--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+                         '--run-all-compositor-stages-before-draw', '--no-pdf-header-footer', '--print-to-pdf-no-header',
+                         "--user-data-dir=`"$profilo`"", "--print-to-pdf=`"$PercorsoPdf`"", "`"$uri`"") -join ' '
+            $proc = Start-Process -FilePath $edge -ArgumentList $argEdge -WindowStyle Hidden -PassThru -ErrorAction Stop
+            if ($proc -and -not $proc.WaitForExit(90000)) { try { $proc.Kill() } catch {} }
+            # Edge puo' finire di scrivere il file un attimo dopo l'uscita: attendo max 10 s.
+            for ($i = 0; $i -lt 20 -and -not (Test-Path -LiteralPath $PercorsoPdf); $i++) { Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Milliseconds 500
+            Remove-Item -LiteralPath $profilo -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    try { & $Convertitore $htmlLavoro $pdfLavoro } catch {}
+
+    $pdfOk = [bool](& $fileOk $pdfLavoro)
+    if ($pdfOk) {
+        # Copia (non Move): il file prende i permessi del Desktop, non quelli di
+        # ProgramData, cosi' il cliente puo' gestirlo senza richieste UAC.
+        try { Copy-Item -LiteralPath $pdfLavoro -Destination $pdfDesktop -Force -ErrorAction Stop } catch { $pdfOk = $false }
+        $pdfOk = $pdfOk -and [bool](& $fileOk $pdfDesktop)
+    }
+    if ($pdfOk) {
+        Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $htmlDesktop -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        return [pscustomobject]@{ Esito = 'PDF'; Percorso = $pdfDesktop; Messaggio = 'PDF creato sul Desktop' }
+    }
+
+    # Ripiego: PDF non creato (o vuoto) -> l'HTML stampabile va sul Desktop.
+    Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+    try {
+        Copy-Item -LiteralPath $htmlLavoro -Destination $htmlDesktop -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        return [pscustomobject]@{ Esito = 'HTML'; Percorso = $htmlDesktop; Messaggio = 'PDF non creato: sul Desktop resta la scheda HTML' }
+    } catch {
+        return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $htmlLavoro; Messaggio = "PDF non creato e HTML non copiato sul Desktop: $($_.Exception.Message)" }
+    }
+}
+
 # Disattiva schermate iniziali di benvenuto e tour di Edge per un avvio immediato
 function Set-EdgeFirstRunPolicies {
     if (-not $RunReale) { return }
@@ -5352,15 +5433,15 @@ if ($Diagnostica) {
         Write-Errore "winget NON disponibile: impossibile validare i pacchetti."
     }
 
-    # Test scrittura sul Desktop (il report/riepilogo finale si salva qui)
+    # Test scrittura sul Desktop (la scheda di consegna PDF si salva qui)
     Write-Host ""
     try {
         $tf = Join-Path (Get-DesktopDir) "pcfacile_test.tmp"
         "test" | Set-Content -Path $tf -ErrorAction Stop
         Remove-Item $tf -Force -ErrorAction SilentlyContinue
-        Write-OK "Desktop scrivibile (report/riepilogo OK): $(Get-DesktopDir)"
+        Write-OK "Desktop scrivibile (scheda di consegna PDF OK): $(Get-DesktopDir)"
     } catch {
-        Write-Errore "Desktop NON scrivibile: il file riepilogo potrebbe non salvarsi."
+        Write-Errore "Desktop NON scrivibile: la scheda di consegna potrebbe non salvarsi."
     }
 
     # Office installato? (per attivazione perpetuo serve ospp.vbs)
@@ -7674,54 +7755,25 @@ per averlo sempre a disposizione in caso di necessita'.
 
         $sep = "------------------------------------------------------------"
 
-        # === CREDENZIALI: raccolgo TUTTO in un unico posto. Vanno IN CIMA al
-        #     riepilogo (le prime cose che deve vedere l'operatore) e in un file
-        #     dedicato. Ordine: account principale, poi Cyber Protection /
-        #     antivirus attivati in questa sessione. ===
-        $blank = "______________________________"
+        # Le CREDENZIALI del cliente vanno SOLO nella scheda di consegna (PDF sul
+        # Desktop): il riepilogo testuale qui sotto finisce nel log tecnico in
+        # ProgramData\PCFacile\log e NON contiene password ne' recovery key.
         $provNome = if ($Global:credProvider) { $Global:credProvider } elseif ($prov) { $prov.Nome } else { "Microsoft" }
-        $credList = @()
-        $credList += [pscustomobject]@{
-            Servizio = "ACCOUNT PRINCIPALE ($provNome)"
-            Utente   = $credMsAccount; Password = $credMsPassword
-            Extra    = "Serve per Windows, Office e antivirus"
-        }
-        foreach ($a in $av) {
-            $svc = ($a.Voce -replace ' \(antivirus\)', '' -replace ' \(protezione\)', '').Trim()
-            if ($a.Voce -like '*protezione*') {
-                $credList += [pscustomobject]@{ Servizio = "$svc (Cyber Protection)"; Utente = $credMsAccount; Password = "(creata dal sito: arriva via email al cliente)"; Extra = "PIN card grattata: __________" }
-            } else {
-                $credList += [pscustomobject]@{ Servizio = "$svc (Antivirus)"; Utente = $credMsAccount; Password = $credMsPassword; Extra = "Attivato con l'account principale - PIN card: __________" }
-            }
-        }
-        # Blocco testo delle credenziali (riusato in cima al riepilogo e nel file).
-        $credBlocco = @()
-        $credBlocco += "############################################################"
-        $credBlocco += "#   CREDENZIALI E ACCOUNT DEL CLIENTE                       #"
-        $credBlocco += "#   Dati in chiaro: consegnali al cliente, non diffonderli  #"
-        $credBlocco += "############################################################"
-        foreach ($c in $credList) {
-            $credBlocco += ""
-            $credBlocco += ">>> $($c.Servizio)"
-            $credBlocco += "      Email / utente : $(if ($c.Utente)   { $c.Utente }   else { $blank })"
-            $credBlocco += "      Password       : $(if ($c.Password) { $c.Password } else { $blank })"
-            if ($c.Extra) { $credBlocco += "      Nota           : $($c.Extra)" }
-        }
 
         $clienteDisplay = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser -or $env:USERNAME.ToUpper() -eq "OEM") { "Utente" } else { $env:USERNAME }
         $pcDisplay = if ($pcNuovo) { $pcNuovo } elseif ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$' -or $env:COMPUTERNAME.ToUpper() -eq "OEM") { "PC-$clienteDisplay" } else { $env:COMPUTERNAME }
 
         $f = @()
         $f += "============================================================"
-        $f += "   IL TUO NUOVO PC E' PRONTO"
+        $f += "   RIEPILOGO TECNICO CONFIGURAZIONE PC (log assistenza)"
         $f += "============================================================"
         $f += ""
         $f += "Data     : $(Get-Date -Format 'dd/MM/yyyy HH:mm')"
         $f += "Cliente  : $clienteDisplay"
         $f += "Nome PC  : $pcDisplay"
         $f += "Utente   : $clienteDisplay"
-        $f += ""
-        $f += $credBlocco
+        $f += "Account  : $credMsAccount ($provNome)"
+        $f += "           (password e credenziali: solo nella scheda di consegna PDF sul Desktop)"
         $f += ""
         $f += $sep
         $f += "HARDWARE, SERIALE & GARANZIA LEGALE"
@@ -7758,17 +7810,17 @@ per averlo sempre a disposizione in caso di necessita'.
         if ($av.Count -gt 0) { foreach ($a in $av) { $f += "  - $($a.Voce)" } } else { $f += "  (da verificare)" }
         $f += ""
         $f += $sep
-        # DATO SENSIBILE: la recovery key da' accesso completo al disco. Sta qui
-        # apposta, cosi' resta col PC del cliente e non si perde.
-        $f += "CHIAVE DI RIPRISTINO BITLOCKER  (DATO SENSIBILE: accesso al disco)"
+        # La recovery key da' accesso completo al disco: NON va nel log (resta
+        # nella scheda di consegna e nel file "NON CANCELLARE" sul Desktop).
+        $f += "CHIAVE DI RIPRISTINO BITLOCKER"
         $f += $sep
         if ($bitlocker) {
             $f += "  Volume        : $($bitlocker.Volume)"
             $f += "  Cifratura     : $($bitlocker.Stato)"
             if ($bitlocker.RecoveryKey) {
                 $f += "  ID chiave     : $($bitlocker.KeyId)"
-                $f += "  Recovery key  : $($bitlocker.RecoveryKey)"
-                $f += "  >> NOTA: Salvata anche nel file 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt' sul Desktop."
+                $f += "  Recovery key  : (non riportata nel log: e' nella scheda di consegna e nel file"
+                $f += "                  'NON CANCELLARE - Chiave di Ripristino BitLocker.txt' sul Desktop)"
             } else {
                 $f += "  $($bitlocker.Messaggio)"
             }
@@ -7803,27 +7855,34 @@ per averlo sempre a disposizione in caso di necessita'.
         $f += "  Unieuro - Assistenza Tecnica & Installazioni PC"
         $f += "============================================================"
 
-        # Il riepilogo tecnico testuale viene archiviato nei log di sistema E salvato sul Desktop
-        $txtDesktop = Join-Path (Get-DesktopDir) "Riepilogo-Configurazione-PC.txt"
+        # Il riepilogo tecnico testuale va SOLO nel log tecnico (ProgramData\PCFacile\log),
+        # mai sul Desktop: al cliente resta soltanto la scheda di consegna PDF.
+        $baseDati = if ($env:ProgramData) { $env:ProgramData } else { [System.IO.Path]::GetTempPath() }
         try {
-            $f | Set-Content -Path $txtDesktop -Encoding UTF8
-            Write-OK "Riepilogo configurazione PC (.txt) salvato sul Desktop: $txtDesktop"
-        } catch {}
-
-        try {
-            $logDir = Join-Path $env:ProgramData "PCFacile\log"
+            $logDir = Join-Path $baseDati "PCFacile\log"
             if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
-            $f | Set-Content -Path (Join-Path $logDir "riepilogo-tecnico.txt") -Encoding UTF8
+            $txtLog = Join-Path $logDir "riepilogo-tecnico.txt"
+            $f | Set-Content -Path $txtLog -Encoding UTF8
+            Write-OK "Riepilogo tecnico salvato nel log (non sul Desktop): $txtLog"
         } catch {}
 
-        # Scheda di Consegna Cliente HTML stampabile con grafica moderna Unieuro (unico documento di consegna)
+        # Scheda di Consegna Cliente con grafica Unieuro: UNICO documento per il
+        # cliente. HTML generato in ProgramData\PCFacile\consegna, convertito in
+        # PDF sul Desktop e poi cancellato (Save-SchedaConsegna).
         try {
-            $htmlFile = Join-Path (Get-DesktopDir) ("Scheda-Consegna-Cliente.html")
             $appInstallate = @($Report | Where-Object { $_.Voce -like '*installazione*' -and $_.Esito -eq 'OK' } | ForEach-Object { ($_.Voce -replace ' \(installazione\)', '' -replace ' \(installazione offline\)', '').Trim() })
             $appItems = ""
             foreach ($app in $appInstallate) { $appItems += "<div class='app-badge'>&#10003; <strong>$app</strong></div>" }
             if (-not $appItems) { $appItems = "<div class='app-badge'>&#10003; <strong>Applicazioni base configurate</strong></div>" }
 
+            # Antivirus / Cyber Protection attivati in questa sessione: prima stavano
+            # solo nel riepilogo TXT sul Desktop, ora nella scheda (unico documento).
+            $avRighe = ""
+            foreach ($a in $av) {
+                $svcAv = [System.Net.WebUtility]::HtmlEncode(($a.Voce -replace ' \(antivirus\)', '' -replace ' \(protezione\)', '').Trim())
+                $notaAv = if ($a.Voce -like '*protezione*') { "Cyber Protection: password creata dal sito, arriva via email al cliente &bull; PIN card: __________" } else { "Attivato con l'account principale &bull; PIN card: __________" }
+                $avRighe += "<tr><td style='font-weight: 600;'>$($svcAv):</td><td>$notaAv</td></tr>"
+            }
             $credBox = ""
             if ($credMsAccount -or $credMsPassword) {
                 $credBox = @"
@@ -7834,6 +7893,7 @@ per averlo sempre a disposizione in caso di necessita'.
                     <tr><td style='font-weight: 600;'>Password iniziale:</td><td><code style='font-size: 14px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px;'>$credMsPassword</code> <em style='color: #64748b; font-size: 11px; margin-left: 8px;'>(da personalizzare al primo accesso)</em></td></tr>
                     <tr><td style='font-weight: 600;'>Account Windows:</td><td><code>$clienteDisplay</code></td></tr>
                     <tr><td style='font-weight: 600;'>Servizi inclusi:</td><td>Windows 11, Office / Microsoft 365, Antivirus &bull; Card PIN annotato</td></tr>
+                    $avRighe
                 </table>
             </div>
 "@
@@ -7962,33 +8022,38 @@ per averlo sempre a disposizione in caso di necessita'.
 </body>
 </html>
 "@
-            $htmlDoc | Set-Content -Path $htmlFile -Encoding UTF8
-            Write-OK "Scheda di consegna HTML salvata sul Desktop: $htmlFile"
-
-            # Generazione automatica PDF della Scheda di Consegna direttamente sul Desktop via Edge headless
-            try {
-                $pdfDesktop = Join-Path (Get-DesktopDir) "Scheda-Consegna-Cliente.pdf"
-                $edgeExe = Get-EdgePath
-                if ($edgeExe -and (Test-Path $htmlFile)) {
-                    Start-Process -FilePath $edgeExe -ArgumentList "--headless --disable-gpu --run-all-compositor-stages-before-draw --print-to-pdf=`"$pdfDesktop`" `"$htmlFile`"" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
-                    if (Test-Path $pdfDesktop) {
-                        Write-OK "Scheda di Consegna PDF salvata sul Desktop: $pdfDesktop"
-                    }
+            $scheda = Save-SchedaConsegna -HtmlDoc $htmlDoc -DesktopDir (Get-DesktopDir) -CartellaLavoro (Join-Path $baseDati "PCFacile\consegna")
+            switch ($scheda.Esito) {
+                'PDF'  {
+                    Write-OK "Scheda di consegna PDF salvata sul Desktop (unico file per il cliente): $($scheda.Percorso)"
+                    Add-Report "Scheda di consegna PDF sul Desktop" "OK"
                 }
-            } catch {}
-
-            try { Start-Process $htmlFile } catch {}
-        } catch {}
+                'HTML' {
+                    Write-Errore "PDF della scheda non creato: sul Desktop resta la scheda HTML ($($scheda.Percorso))."
+                    Write-Info "Aprila e usa 'Stampa / Salva in PDF' dal browser."
+                    Add-Report "Scheda di consegna PDF (ripiego HTML sul Desktop)" "AVVISO"
+                }
+                default {
+                    Write-Errore "Scheda di consegna non salvata: $($scheda.Messaggio)"
+                    Add-Report "Scheda di consegna" "ERRORE"
+                }
+            }
+            if ($scheda.Percorso -and (Test-Path -LiteralPath $scheda.Percorso)) {
+                try { Start-Process -FilePath $scheda.Percorso } catch {}
+            }
+        } catch {
+            Write-Info "Scheda di consegna non creata: $_"
+        }
 
         # ---------------------------------------------------------------------
         # LOG STRUTTURATO (JSON + CSV) per l'assistenza/statistiche. NON sul
         # Desktop (non e' roba per il cliente): va in ProgramData\PCFacile\log.
         # Il JSON contiene tutto (sistema, esiti, verifica, errori imprevisti);
         # il CSV e' la tabella piatta degli esiti, comoda da aprire in Excel.
-        # NIENTE credenziali nel log: restano solo nel .txt del cliente.
+        # NIENTE credenziali nel log: restano solo nella scheda di consegna.
         # ---------------------------------------------------------------------
         try {
-            $logDir = Join-Path $env:ProgramData "PCFacile\log"
+            $logDir = Join-Path $baseDati "PCFacile\log"
             if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
             $stamp   = Get-Date -Format 'yyyyMMdd_HHmmss'
             $baseLog = Join-Path $logDir ("setup_{0}_{1}" -f $env:COMPUTERNAME, $stamp)
@@ -8021,7 +8086,7 @@ per averlo sempre a disposizione in caso di necessita'.
             Write-Info "Log strutturato non salvato: $_"
         }
     } catch {
-        Write-Info "Impossibile creare il file riepilogo: $_"
+        Write-Info "Impossibile creare riepilogo e scheda di consegna: $_"
     }
     Repair-DesktopShortcuts
     Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
@@ -8031,8 +8096,8 @@ per averlo sempre a disposizione in caso di necessita'.
 # PULIZIA FINALE: PC Facile non lascia tracce di se' sul PC del cliente.
 # Cancella la copia dello script scaricata in %TEMP% dal launcher e i due valori
 # di registro dei colori (console riportata allo stato di fabbrica). Remove-Item
-# cancella in modo PERMANENTE, NON passa dal Cestino. Il REPORT sul Desktop
-# resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
+# cancella in modo PERMANENTE, NON passa dal Cestino. La SCHEDA DI CONSEGNA
+# (PDF) sul Desktop resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
 # locale NON viene toccata. Fatto PRIMA dell'eventuale riavvio, cosi' parte sempre.
 # -----------------------------------------------------------------------------
 if ($RunReale) {
@@ -8067,7 +8132,7 @@ if ($RunReale) {
         # prosegue dalla memoria. Cosi' non resta nulla sul disco del cliente.
         try { Remove-Item -LiteralPath $ioStesso -Force -ErrorAction SilentlyContinue } catch {}
     }
-    Write-OK "Pulizia finale: PC Facile rimosso dal PC (il report resta sul Desktop)."
+    Write-OK "Pulizia finale: PC Facile rimosso dal PC (la scheda di consegna resta sul Desktop)."
 }
 
 # AGGIORNAMENTI WINDOWS: erano in DOWNLOAD in background. Ora (dopo driver e

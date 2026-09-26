@@ -4,6 +4,17 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Modificato — solo PDF sul Desktop
+- A fine lavoro sul Desktop del cliente resta **solo** `Scheda-Consegna-Cliente.pdf`.
+  L'HTML si genera in `C:\ProgramData\PCFacile\consegna`, Edge headless (profilo
+  temporaneo, senza intestazioni) lo converte e, solo se il PDF esiste ed è
+  > 0 byte, l'HTML viene cancellato. Se il PDF fallisce resta sul Desktop
+  l'HTML come ripiego. `Riepilogo-Configurazione-PC.txt` non va più sul Desktop
+  (anche quello lasciato da versioni precedenti viene tolto): il riepilogo è in
+  `C:\ProgramData\PCFacile\log\riepilogo-tecnico.txt`, ora senza password né
+  recovery key BitLocker. Antivirus / Cyber Protection attivati compaiono
+  nella scheda.
+
 ### Modificato — avvio unico
 - **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →
   auto-aggiornamento → fase 1 subito → pannello locale aperto dallo script dove

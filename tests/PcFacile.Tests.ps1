@@ -33,7 +33,8 @@ BeforeAll {
         'Test-DatiClienteConfermati', 'Start-ServerPannello',
         'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
         'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
-        'Start-LavoriInBackground', 'Complete-LavoriInBackground'
+        'Start-LavoriInBackground', 'Complete-LavoriInBackground',
+        'Save-SchedaConsegna'
     )
     $allFns = $ast.FindAll({
         param($n)
@@ -587,11 +588,17 @@ Describe 'Rimozione Bloatware, Booking, Dropbox e Unpin Taskbar' {
 }
 
 Describe 'Salvataggio Report Desktop' {
-    It 'setup-pc.ps1 contiene il salvataggio sul Desktop di Riepilogo-Configurazione-PC.txt e Scheda-Consegna-Cliente.pdf' {
+    It 'setup-pc.ps1 salva sul Desktop solo la Scheda-Consegna-Cliente.pdf (TXT nel log, HTML in ProgramData)' {
         $content = Get-Content $script:SetupPath -Raw
-        $content | Should -Match 'Riepilogo-Configurazione-PC\.txt'
-        $content | Should -Match 'Scheda-Consegna-Cliente\.pdf'
+        $content | Should -Match 'Scheda-Consegna-Cliente'
+        $content | Should -Match '\.pdf'
         $content | Should -Match '--print-to-pdf='
+        $content | Should -Match 'Save-SchedaConsegna -HtmlDoc'
+        $content | Should -Match 'PCFacile\\consegna'
+        $content | Should -Match 'riepilogo-tecnico\.txt'
+        # Il riepilogo TXT non si scrive piu' sul Desktop (solo rimosso se lasciato da versioni vecchie)
+        $content | Should -Not -Match 'Set-Content -Path \$txtDesktop'
+        $content | Should -Not -Match 'Join-Path \(Get-DesktopDir\) \(?"Scheda-Consegna-Cliente\.html'
         $content | Should -Match 'Start-LocalCredServer'
         $content | Should -Match 'Stop-LocalCredServer'
     }
@@ -601,6 +608,75 @@ Describe 'Salvataggio Report Desktop' {
         $content | Should -Not -Match 'Punto di Ripristino di Sicurezza \(5% SSD\)'
         $content | Should -Match 'stato === ''done'' \|\| stato === ''skipped'''
         $content | Should -Match 'Ottimizzato SSD'
+    }
+}
+
+# Scheda di consegna: sul Desktop resta SOLO il PDF (o l'HTML se il PDF fallisce).
+Describe 'Save-SchedaConsegna' {
+    BeforeEach {
+        $script:Base    = Join-Path ([System.IO.Path]::GetTempPath()) ("pcf-scheda-" + [guid]::NewGuid().ToString('N'))
+        $script:Desk    = Join-Path $script:Base 'Desktop'
+        $script:Lavoro  = Join-Path $script:Base 'ProgramData/PCFacile/consegna'
+        New-Item -ItemType Directory -Path $script:Desk -Force | Out-Null
+        $script:Html    = '<!DOCTYPE html><html><body>Scheda</body></html>'
+        $script:PdfBuono = { param($h, $p) Test-Path -LiteralPath $h | Should -BeTrue; [System.IO.File]::WriteAllText($p, '%PDF-1.4 finto') }
+    }
+    AfterEach {
+        Remove-Item -LiteralPath $script:Base -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    It 'PDF riuscito: sul Desktop resta solo il PDF, HTML di lavoro cancellato' {
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        $r.Percorso | Should -Be (Join-Path $script:Desk 'Scheda-Consegna-Cliente.pdf')
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.pdf')
+        (Get-Item -LiteralPath $r.Percorso).Length | Should -BeGreaterThan 0
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.html') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.pdf') | Should -BeFalse
+    }
+    It 'PDF riuscito: toglie dal Desktop TXT e HTML lasciati da versioni precedenti (altri file intatti)' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Riepilogo-Configurazione-PC.txt') -Value 'vecchio'
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Scheda-Consegna-Cliente.html') -Value 'vecchio'
+        Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force | Sort-Object Name).Name |
+            Should -Be @('NON CANCELLARE - Chiave di Ripristino BitLocker.txt', 'Scheda-Consegna-Cliente.pdf')
+    }
+    It 'PDF vuoto (0 byte): ripiego HTML sul Desktop, niente PDF e niente TXT' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Riepilogo-Configurazione-PC.txt') -Value 'vecchio'
+        $vuoto = { param($h, $p) [System.IO.File]::WriteAllBytes($p, [byte[]]@()) }
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $vuoto
+        $r.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+        (Get-Content -LiteralPath $r.Percorso -Raw) | Should -Match 'Scheda'
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.pdf') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.html') | Should -BeFalse
+    }
+    It 'conversione che fallisce (eccezione o nessun file): ripiego HTML sul Desktop' {
+        $rotto = { param($h, $p) throw 'Edge non trovato' }
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $rotto
+        $r.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+
+        Remove-Item -LiteralPath (Join-Path $script:Desk 'Scheda-Consegna-Cliente.html') -Force
+        $nulla = { param($h, $p) }
+        $r2 = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $nulla
+        $r2.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+    }
+    It 'crea la cartella di lavoro se manca' {
+        Test-Path -LiteralPath $script:Lavoro | Should -BeFalse
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        Test-Path -LiteralPath $script:Lavoro | Should -BeTrue
+    }
+}
+
+Describe 'Riepilogo tecnico nel log senza credenziali' {
+    It 'il riepilogo testuale non contiene piu'' il blocco credenziali ne'' la recovery key in chiaro' {
+        $content = Get-Content $script:SetupPath -Raw
+        $content | Should -Not -Match '\$f \+= \$credBlocco'
+        $content | Should -Not -Match '\$f \+= "  Recovery key  : \$\(\$bitlocker\.RecoveryKey\)"'
     }
 }
 
