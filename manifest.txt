@@ -3,7 +3,7 @@
 # Include i file Wi-Fi del negozio (wifi/wifi.txt, wifi/UNIEURO_EXPO.xml).
 9ef0cb6cfc6baf79cb2b8fd44d93a47ac33600a8ea70d32e9d63e4d6653ee618  setup-pc.ps1
 8177e092a163adc14c1cdc890206e477f604eb22daf58f1a340f4b09ed7775df  setup-pc.ps1.sha256
-dc539ea57963d4e120597e608f6f79e596e59830ef10576621cc381b5d8a94de  PC Facile.bat
+77c32db938f716ea70173b82210f33ffff56655b760cf58537514e0de4a1ed72  PC Facile.bat
 427bd218885cf29519bf0ef45cbbe4c44c39584462bf1a7992e61e0474e8cef7  PC Facile.command
 e6c035dac85bd77eaf1e34b901a2c1ad898a67652c5cb156b8de7909d294d330  setup-mac.sh
 15ea303bd37051088800f309c4ddc56c9a5d375e44fa5ac356866b935966c71d  setup-mac.sh.sha256
