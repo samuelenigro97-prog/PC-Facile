@@ -65,6 +65,12 @@ if %errorlevel% neq 0 (
     powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $dirs=@('%~dp0wifi','%~dp0'); foreach($d in $dirs){ if(Test-Path $d){ Get-ChildItem -Path $d -Filter '*.xml' | ForEach-Object { $c=Get-Content $_.FullName -Raw; if($c -match '<name>(.*?)</name>'){ & netsh wlan add profile filename=$_.FullName user=all >nul 2>&1; & netsh wlan connect name=$Matches[1] >nul 2>&1 } }; if(Test-Path (Join-Path $d 'wifi.txt')){ $lines=Get-Content (Join-Path $d 'wifi.txt'); $s=''; $p=''; foreach($l in $lines){ if($l -match '^(SSID|WIFI|RETE)\s*[:=]\s*(.+)$'){$s=$Matches[2].Trim()} elseif($l -match '^(PASS|PASSWORD|KEY|CHIAVE)\s*[:=]\s*(.+)$'){$p=$Matches[2].Trim()} }; if($s -and $p){ $xml = '<?xml version=\"1.0\"?><WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>'+$s+'</name><SSIDConfig><SSID><name>'+$s+'</name></SSID></SSIDConfig><connectionType>ESS</connectionType><connectionMode>auto</connectionMode><MSM><security><authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>'+$p+'</keyMaterial></sharedKey></security></MSM></WLANProfile>'; $t=$env:TEMP+'\w.xml'; [IO.File]::WriteAllText($t,$xml); & netsh wlan add profile filename=$t user=all >nul 2>&1; & netsh wlan connect name=$s >nul 2>&1; Remove-Item $t -Force } } } }; Start-Sleep -Seconds 3" >nul 2>&1
 )
 
+REM --- 2b. McAfee (antivirus di prova preinstallato) PRIMA di scaricare lo script ---
+REM  Il suo modulo AMSI blocca setup-pc.ps1 ("ScriptContainedMaliciousContent").
+REM  Si usa solo il disinstallatore ufficiale di McAfee (o il suo strumento MCPR),
+REM  con l'operatore che conferma e segue le finestre: nessuna disattivazione silenziosa.
+call :mcafee
+
 REM --- 3. Scarica l'ultima versione da GitHub (con fallback offline) ---
 set "HAS_LOCAL="
 if exist "%~dp0setup-pc.ps1" set "HAS_LOCAL=1"
@@ -115,3 +121,108 @@ echo ============================================================
 echo   Operazione terminata. Premi un tasto per chiudere.
 echo ============================================================
 pause >nul
+goto :eof
+
+REM ============================================================
+REM  McAfee: rilevamento e rimozione con gli strumenti ufficiali
+REM ============================================================
+:mcafee
+setlocal EnableDelayedExpansion
+call :mcafee_rileva
+if "!MC_N!"=="0" if not defined MC_SVC (
+    endlocal
+    exit /b 0
+)
+echo.
+echo ============================================================
+echo   ATTENZIONE: su questo PC e' installato McAfee.
+echo   McAfee blocca PC Facile ^(lo segnala come "contenuto dannoso"^):
+echo   va rimosso PRIMA di continuare, con il suo disinstallatore ufficiale.
+echo ============================================================
+for /l %%I in (1,1,!MC_N!) do echo     - !MC_NOME_%%I!
+if defined MC_SVC echo     - servizi McAfee attivi
+echo.
+choice /c SN /n /m "Rimuovo McAfee adesso? [S] Si' (consigliato)   [N] No, continua comunque: "
+if errorlevel 2 goto :mcafee_fine
+if "!MC_N!"=="0" goto :mcafee_mcpr
+for /l %%I in (1,1,!MC_N!) do call :mcafee_uno %%I
+call :mcafee_rileva
+if "!MC_N!"=="0" if not defined MC_SVC goto :mcafee_riavvio
+echo.
+echo McAfee risulta ancora presente ^(a volte serve un riavvio per completare^).
+:mcafee_mcpr
+echo.
+echo Strumento ufficiale di rimozione McAfee ^(MCPR^): toglie McAfee del tutto.
+choice /c SRC /n /m "[S] Avvia MCPR   [R] Riavvia prima il PC   [C] Continua comunque: "
+if errorlevel 3 goto :mcafee_fine
+if errorlevel 2 goto :mcafee_riavvio
+set "MCPR="
+if exist "%~dp0installers\MCPR.exe" set "MCPR=%~dp0installers\MCPR.exe"
+if defined MCPR goto :mcafee_mcpr_firma
+set "MCPR=%TEMP%\MCPR.exe"
+del "%MCPR%" /f /q >nul 2>&1
+echo Scarico MCPR dal sito ufficiale McAfee...
+curl.exe -fsSL -o "%MCPR%" "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" >nul 2>&1
+if not exist "%MCPR%" powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe' -OutFile '%MCPR%' -UseBasicParsing" >nul 2>&1
+:mcafee_mcpr_firma
+set "MC_OK="
+if exist "%MCPR%" powershell -NoProfile -Command "$s=Get-AuthenticodeSignature -LiteralPath '%MCPR%'; if ($s.Status -eq 'Valid' -and $s.SignerCertificate.Subject -match 'McAfee') { exit 0 } else { exit 1 }" >nul 2>&1 && set "MC_OK=1"
+if not defined MC_OK (
+    echo [ATTENZIONE] MCPR non scaricato o firma McAfee non valida: non lo avvio.
+    echo     Si apre la pagina ufficiale: scaricalo ed eseguilo a mano.
+    start "" "https://www.mcafee.com/support/s/article/000002766"
+    echo Premi un tasto quando hai finito...
+    pause >nul
+    goto :mcafee_riavvio
+)
+echo Avvio MCPR: Avanti, accetta, scrivi il codice di verifica mostrato, poi attendi
+echo "CleanUp Successful". Quando MCPR chiede di riavviare, chiudilo e torna qui.
+start "" /wait "%MCPR%"
+echo Premi un tasto quando MCPR ha finito...
+pause >nul
+:mcafee_riavvio
+echo.
+echo ============================================================
+echo   Per completare la rimozione di McAfee serve un RIAVVIO.
+echo   Dopo il riavvio riapri "PC Facile.bat" dalla chiavetta.
+echo ============================================================
+choice /c RC /n /m "[R] Riavvia ora (consigliato)   [C] Continua senza riavviare: "
+if errorlevel 2 goto :mcafee_fine
+shutdown /r /t 10 /c "PC Facile: riavvio per completare la rimozione di McAfee. Poi riapri PC Facile.bat"
+exit
+:mcafee_fine
+endlocal
+exit /b 0
+
+REM Elenca i programmi McAfee (chiavi Uninstall del registro) e i suoi servizi.
+:mcafee_rileva
+set "MC_N=0"
+set "MC_SVC="
+for %%R in ("HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall") do (
+    for /f "delims=" %%K in ('reg query %%R /s /f "McAfee" /d 2^>nul ^| findstr /b /i "HKEY_"') do call :mcafee_voce "%%K"
+)
+for %%S in (mfemms mfevtp mfefire) do sc query %%S >nul 2>&1 && set "MC_SVC=1"
+exit /b 0
+
+:mcafee_voce
+set "MC_NOME="
+set "MC_UNS="
+for /f "tokens=2,*" %%A in ('reg query "%~1" /v DisplayName 2^>nul ^| findstr /i /c:"DisplayName"') do set "MC_NOME=%%B"
+for /f "tokens=2,*" %%A in ('reg query "%~1" /v UninstallString 2^>nul ^| findstr /i /c:"UninstallString"') do set "MC_UNS=%%B"
+if not defined MC_NOME exit /b 0
+if "!MC_NOME:McAfee=!"=="!MC_NOME!" exit /b 0
+if not defined MC_UNS exit /b 0
+set /a MC_N+=1
+set "MC_NOME_!MC_N!=!MC_NOME!"
+set "MC_UNS_!MC_N!=!MC_UNS!"
+exit /b 0
+
+REM Avvia il disinstallatore ufficiale registrato da McAfee e aspetta l'operatore.
+:mcafee_uno
+echo.
+echo Avvio la disinstallazione di: !MC_NOME_%1!
+echo Segui la finestra di McAfee fino alla fine ^(Rimuovi / Avanti^).
+cmd /c "!MC_UNS_%1!"
+echo Quando la disinstallazione e' finita, premi un tasto per continuare...
+pause >nul
+exit /b 0
