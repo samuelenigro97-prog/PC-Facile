@@ -1275,7 +1275,10 @@ function Update-PannelloStatus {
         # Dati hardware reali per il pannello (Modello, Cpu, Ram, Seriale).
         [System.Collections.IDictionary]$Hardware = $null,
         # 'si' mentre lo script aspetta i dati del cliente dal pannello, 'no' dopo.
-        [ValidateSet('', 'si', 'no')][string]$AttesaDati = ''
+        [ValidateSet('', 'si', 'no')][string]$AttesaDati = '',
+        # Durante la sequenza dei passi la percentuale la decide solo il ciclo
+        # dei passi (con questo switch); le altre chiamate non la cambiano.
+        [switch]$PercentualeGuida
     )
     try {
         if (-not $Global:PannelloStatus) {
@@ -1291,21 +1294,26 @@ function Update-PannelloStatus {
                 InAttesaDati  = $false
                 Versione      = [string]$versione
                 Hardware      = $null
+                # Stesso ordine dei passi ($Global:Passi): fase 1 app e lingua,
+                # fase 2 passi manuali, fase 3 pulizia, driver e aggiornamenti.
                 Tasks         = [ordered]@{
-                    "pulizia"     = [ordered]@{ Nome = "Pulizia Bloatware OEM & Ottimizzazione SSD"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "ripristino"  = [ordered]@{ Nome = "Punto di Ripristino di Sicurezza"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "avprova"     = [ordered]@{ Nome = "Rimozione Antivirus di Prova"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "runtime"     = [ordered]@{ Nome = "Runtime Microsoft Visual C++ (x86 & x64)"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "office"      = [ordered]@{ Nome = "Configurazione Icone Office / Microsoft 365"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "aggiorna"    = [ordered]@{ Nome = "Aggiornamenti & Driver Windows Update"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
                     "app"         = [ordered]@{ Nome = "Installazione Applicazioni Unieuro"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "account"     = [ordered]@{ Nome = "Nome PC e account cliente"; Stato = "pending"; Dettaglio = "In attesa" }
                     "antivirus"   = [ordered]@{ Nome = "Sicurezza & Antivirus Definitivo (Defender / Card)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "cyber"       = [ordered]@{ Nome = "Servizio Unieuro Cyber Protection"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "pulizia"     = [ordered]@{ Nome = "Pulizia Bloatware OEM & Ottimizzazione SSD"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "driver"      = [ordered]@{ Nome = "Driver Hardware (Windows Update)"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "aggiorna"    = [ordered]@{ Nome = "Aggiornamenti App e Windows (ultimo passo)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "diagnostica" = [ordered]@{ Nome = "Diagnostica Hardware, BitLocker & Scheda Consegna"; Stato = "pending"; Dettaglio = "In attesa" }
                 }
             }
         }
-        if ($Percentuale -ge 0) { $Global:PannelloStatus.Percentuale = $Percentuale }
+        if ($Percentuale -ge 0 -and ($PercentualeGuida -or -not $Global:PercentualeDaPassi)) { $Global:PannelloStatus.Percentuale = $Percentuale }
         if ($FaseCorrente) { $Global:PannelloStatus.FaseCorrente = $FaseCorrente }
         if ($Hardware) { $Global:PannelloStatus.Hardware = $Hardware }
         if ($AttesaDati) { $Global:PannelloStatus.InAttesaDati = ($AttesaDati -eq 'si') }
@@ -1749,6 +1757,7 @@ function Open-PannelloOperatore {
         .task-item.error .task-icon { color: #f87171; }
         .badge-error { background: #dc2626; color: #fff; }
         .task-item.skipped .task-icon { color: #38bdf8; }
+        .task-gruppo { color: #fdba74; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 8px 2px 0; }
         .badge-skipped { background: #082f49; color: #7dd3fc; border: 1px solid #0284c7; }
         .spinner {
             display: inline-block;
@@ -2080,18 +2089,24 @@ function Open-PannelloOperatore {
         <!-- SCHEDA 2: AVANZAMENTO -->
         <div id="view-tab-live" class="section-view" role="tabpanel" aria-labelledby="btn-tab-live">
             <div class="card">
-                <div class="card-subtitle">Il PC lavora da solo: non serve toccare nulla fino alla fine.</div>
+                <div class="card-subtitle">Fase 1 e 3 vanno da sole; nella fase 2 servi tu (account, attivazioni, codici). I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 1 &middot; Programmi e lingua (automatico)</li>
+                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Collegamenti Office 365</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Aggiornamenti e driver Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Programmi base</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Programmi base</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 2 &middot; Passi manuali (operatore) &ndash; intanto la pulizia va in background</li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 3 &middot; Pulizia, driver e aggiornamenti (automatico)</li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Aggiornamenti app e Windows (ultimo passo)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                 </ul>
             </div>
         </div>
@@ -2135,7 +2150,7 @@ function Open-PannelloOperatore {
         var lastStatusPing = 0;
         var lastFilePing = 0;
         var schedaScelta = false;
-        var TASK_KEYS = ['pulizia', 'lingua', 'ripristino', 'runtime', 'office', 'aggiorna', 'app', 'antivirus', 'cyber', 'diagnostica'];
+        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'office', 'app', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
@@ -3154,6 +3169,18 @@ function Install-OfflinePackage {
     return $false
 }
 
+# Visual C++ 2015-2022 gia' installato per l'architettura indicata (x64/x86).
+function Test-VCRuntimePresente {
+    param([ValidateSet('x64', 'x86')][string]$Arch)
+    foreach ($base in @('HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes')) {
+        try {
+            $k = Get-ItemProperty -Path (Join-Path $base $Arch) -ErrorAction Stop
+            if ([int]$k.Installed -eq 1 -and [int]$k.Major -eq 14 -and [int]$k.Minor -ge 30) { return $true }
+        } catch {}
+    }
+    return $false
+}
+
 function Install-VisualCRuntime {
     if ($Test) {
         Write-OK "TEST: Installazione Microsoft Visual C++ Redistributable (x64 & x86) simulata."
@@ -3169,6 +3196,12 @@ function Install-VisualCRuntime {
 
     $allOk = $true
     foreach ($rt in $runtimes) {
+        # 0. Gia' presente (registro del Visual C++ 2015-2022, versione 14.30+)? Salto.
+        $archRt = if ($rt.WingetId -like '*x64') { 'x64' } else { 'x86' }
+        if (Test-VCRuntimePresente -Arch $archRt) {
+            Write-OK "$($rt.Nome) gia' installato. Salto."
+            continue
+        }
         # 1. Prova prima da installer offline USB se presente
         $offlineFile = Find-OfflineInstaller -WingetId $rt.WingetId -Nome $rt.Nome
         if ($offlineFile) {
@@ -3225,12 +3258,12 @@ function Install-WindowsUpdateDrivers {
     if ($Test -or -not $RunReale) {
         Write-OK "TEST: simulazione ricerca/aggiornamento driver Windows Update completata."
         Add-Report "Driver (Windows Update)" "OK"
-        Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Completato (test)"
+        Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Completato (test)"
         return @{ Esito = "OK"; Trovati = 0; Installati = 0; RebootRequired = $false }
     }
 
     Write-Info "Ricerca e installazione driver su Windows Update in corso (max $([math]::Round($TimeoutSec/60)) min)..."
-    Write-Host "  (Puoi premere 'S' o 'Esc' in qualsiasi momento per saltare e andare subito alle app)" -ForegroundColor Yellow
+    Write-Host "  (Puoi premere 'S' o 'Esc' in qualsiasi momento per saltare)" -ForegroundColor Yellow
     Start-BarraAnimata "Driver Windows Update [Premi S per saltare]"
 
     $jobDriver = Start-Job -ScriptBlock {
@@ -3313,7 +3346,7 @@ function Install-WindowsUpdateDrivers {
         Write-Host ""
         Write-Info "Installazione driver interrotta dall'operatore (tasto S/Esc): proseguo con le app."
         Add-Report "Driver (Windows Update)" "SALTATO (dall'operatore)"
-        Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Driver saltati da operatore"
+        Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Driver saltati da operatore"
         return @{ Esito = "SALTATO"; Trovati = 0; Installati = 0; RebootRequired = $false }
     } elseif ($scadutoTimeout) {
         try { Stop-Job $jobDriver -ErrorAction SilentlyContinue } catch {}
@@ -3321,7 +3354,7 @@ function Install-WindowsUpdateDrivers {
         Write-Host ""
         Write-Errore "Tempo massimo ricerca/download driver superato ($([math]::Round($TimeoutSec/60)) min): proseguo per non bloccare il setup notturno."
         Add-Report "Driver (Windows Update)" "AVVISO (timeout superato)"
-        Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Driver parziali (timeout superato)"
+        Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Driver parziali (timeout superato)"
         return @{ Esito = "TIMEOUT"; Trovati = 0; Installati = 0; RebootRequired = $false }
     } else {
         $datiJob = $null
@@ -3333,12 +3366,12 @@ function Install-WindowsUpdateDrivers {
         if ($datiJob -and $datiJob.Errore) {
             Write-Errore "Ricerca/installazione driver non riuscita: $($datiJob.Errore)"
             Add-Report "Driver (Windows Update)" "ERRORE"
-            Update-PannelloStatus -TaskId "aggiorna" -Stato "error" -Percentuale 72 -Dettaglio "Non riuscito (proseguo)"
+            Update-PannelloStatus -TaskId "driver" -Stato "error" -Percentuale 72 -Dettaglio "Non riuscito (proseguo)"
             return @{ Esito = "ERRORE"; Trovati = 0; Installati = 0; RebootRequired = $false; Errore = $datiJob.Errore }
         } elseif ($datiJob -and $datiJob.Trovati -eq 0) {
             Write-OK "Nessun driver da installare: risultano gia' tutti aggiornati."
             Add-Report "Driver (Windows Update)" "OK"
-            Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Tutti i driver gia' aggiornati"
+            Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Tutti i driver gia' aggiornati"
             return @{ Esito = "OK"; Trovati = 0; Installati = 0; RebootRequired = $false }
         } elseif ($datiJob -and $datiJob.Installati -gt 0) {
             if ($datiJob.NomiDriver) {
@@ -3356,12 +3389,12 @@ function Install-WindowsUpdateDrivers {
             if ($datiJob.RebootRequired) {
                 Write-Info "Alcuni driver richiedono un RIAVVIO per completare."
             }
-            Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Driver installati ($($datiJob.Installati))"
+            Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Driver installati ($($datiJob.Installati))"
             return @{ Esito = "OK"; Trovati = $datiJob.Trovati; Installati = $datiJob.Installati; RebootRequired = $datiJob.RebootRequired }
         } else {
             Write-OK "Controllo driver completato."
             Add-Report "Driver (Windows Update)" "OK"
-            Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Completato"
+            Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Completato"
             return @{ Esito = "OK"; Trovati = 0; Installati = 0; RebootRequired = $false }
         }
     }
@@ -4521,8 +4554,11 @@ function Save-Fase {
         $cp  = if ($credMsPassword)      { $credMsPassword }      elseif ($prev) { $prev.CredPassword } else { "" }
         $cpr = if ($Global:credProvider) { $Global:credProvider } elseif ($prev -and $prev.PSObject.Properties.Name -contains 'CredProvider') { $prev.CredProvider } else { "" }
         $cdo = if ($Global:credDominio)  { $Global:credDominio }  elseif ($prev -and $prev.PSObject.Properties.Name -contains 'CredDominio')  { $prev.CredDominio } else { "" }
+        $sco = if ($Global:SceltaOffice) { $Global:SceltaOffice } elseif ($prev -and $prev.PSObject.Properties.Name -contains 'SceltaOffice') { $prev.SceltaOffice } else { "" }
         [pscustomobject]@{
+            Schema = 2
             Fase = $Fase; FaseNome = $Nome
+            SceltaOffice = $sco
             Data = (Get-Date -Format 'dd/MM/yyyy HH:mm')
             NomeCliente = $nc
             CredAccount = $ca; CredPassword = $cp
@@ -4535,8 +4571,9 @@ function Save-Fase {
 function Test-FaseFatta { param([int]$Fase) return ($Global:FaseRipresa -ge $Fase) }
 
 # Sotto-checkpoint DENTRO il passo App: salva profilo scelto, piano completo e
-# app gia' installate, senza chiudere il passo (Fase resta 7 = si riparte dal
-# passo App). Cosi' una chiusura a meta' installazione riparte dall'app esatta.
+# app gia' installate, senza chiudere il passo (Fase = passi completati prima
+# di App = si riparte dal passo App). Cosi' una chiusura a meta' installazione
+# riparte dall'app esatta.
 function Save-AppProgresso {
     param([string]$Profilo, [array]$Lista, [string[]]$Fatte)
     if (-not $RunReale) { return }
@@ -4544,7 +4581,9 @@ function Save-AppProgresso {
         $dir = Split-Path $Global:StatoFile
         if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
         [pscustomobject]@{
-            Fase = 7; FaseNome = "Applicazioni (installazione in corso)"
+            Schema = 2
+            Fase = [Math]::Max(0, [array]::IndexOf(@($Global:Passi | ForEach-Object { $_.Id }), 'app')); FaseNome = "Applicazioni (installazione in corso)"
+            SceltaOffice = $Global:SceltaOffice
             Data = (Get-Date -Format 'dd/MM/yyyy HH:mm')
             NomeCliente = $nomeCliente
             CredAccount = $credMsAccount; CredPassword = $credMsPassword
@@ -5903,18 +5942,15 @@ if ($RunReale) {
                             $Global:AppListaRipresa   = @($st.AppLista)
                             $Global:AppFatteRipresa   = @($st.AppFatte)
                         }
-                        # Sincronizza subito i task nel pannello operatore
-                        if ($Global:FaseRipresa -ge 3) { Update-PannelloStatus -TaskId "pulizia" -Stato "done" -Percentuale 20 -Dettaglio "Gia' completato" }
-                        if ($Global:FaseRipresa -ge 4) { Update-PannelloStatus -TaskId "lingua" -Stato "done" -Percentuale 35 -Dettaglio "Gia' completato" }
-                        if ($Global:FaseRipresa -ge 5) { Update-PannelloStatus -TaskId "ripristino" -Stato "skipped" -Percentuale 45 -Dettaglio "Ottimizzato per SSD" }
-                        if ($Global:FaseRipresa -ge 6) {
-                            Update-PannelloStatus -TaskId "office" -Stato "done" -Percentuale 62 -Dettaglio "Gia' completato"
-                            Update-PannelloStatus -TaskId "runtime" -Stato "done" -Percentuale 56 -Dettaglio "Gia' completato"
+                        if ($st.PSObject.Properties.Name -contains 'SceltaOffice' -and $st.SceltaOffice) { $Global:SceltaOffice = [string]$st.SceltaOffice }
+                        # Checkpoint di una versione con un ordine dei passi diverso:
+                        # tengo i dati del cliente ma riparto dal primo passo (i
+                        # passi gia' fatti vengono riconosciuti e saltati da soli).
+                        if (-not ($st.PSObject.Properties.Name -contains 'Schema') -or [int]$st.Schema -ne 2) {
+                            $Global:FaseRipresa = 0
+                            $Global:AppProfiloRipresa = ""; $Global:AppListaRipresa = @(); $Global:AppFatteRipresa = @()
+                            Write-Info "Sessione salvata da una versione precedente: riparto dal primo passo (quelli gia' fatti si saltano da soli)."
                         }
-                        if ($Global:FaseRipresa -ge 7) { Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Percentuale 72 -Dettaglio "Gia' completato" }
-                        if ($Global:FaseRipresa -ge 8) { Update-PannelloStatus -TaskId "app" -Stato "done" -Percentuale 88 -Dettaglio "Gia' completato" }
-                        if ($Global:FaseRipresa -ge 9) { Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "Gia' completato" }
-                        if ($Global:FaseRipresa -ge 10) { Update-PannelloStatus -TaskId "cyber" -Stato "done" -Percentuale 96 -Dettaglio "Gia' completato" }
                         Write-OK "Riprendo: i passi gia' completati verranno saltati."
                     } else {
                         Remove-Item $Global:StatoFile -Force -ErrorAction SilentlyContinue
@@ -5971,329 +6007,439 @@ if ($RunReale) {
 }
 
 # =============================================================================
-# NOME CLIENTE E PC (PRIMO passo: serve subito, e il nome genera le credenziali
-# suggerite per l'account Microsoft del passo successivo).
+# PASSI DI CONFIGURAZIONE (dopo ogni scelta si avanza; B al prompt = indietro)
 # =============================================================================
 
-if (Test-FaseFatta 1) { Write-Info "Nome cliente e PC: gia' fatto nella sessione precedente, salto." }
-else {
+# Torna al passo precedente quando l'utente digita B al prompt principale di un
+# passo. Uso 'continue wizard' (loop etichettato) per rifare il giro del while
+# anche da dentro lo switch, saltando il $passo++ di fine passo.
+function Test-Indietro { param([string]$v) return ($v -match '^\s*[Bb]\s*$') }
 
-Write-Titolo "Nome Cliente e PC"
-
-# Legge il nome visualizzato attuale: prima LocalAccounts, poi ADSI (che
-# funziona anche in PowerShell x86, dove il modulo LocalAccounts non c'e').
-$adsiUser = 'WinNT://./' + $env:USERNAME + ',user'
-$nomeAttuale = $null
-try {
-    $nomeAttuale = (Get-LocalUser -Name $env:USERNAME -ErrorAction Stop).FullName
-} catch {
-    try { $nomeAttuale = ([ADSI]$adsiUser).FullName } catch {}
-}
-
-# Riconoscimento nomi e hostname generici di fabbrica / OEM (da non lasciare sul PC del cliente)
-$oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
-$isOemUser = ($oemNames -contains $env:USERNAME.ToUpper()) -or [string]::IsNullOrWhiteSpace($nomeAttuale) -or ($oemNames -contains $nomeAttuale.ToUpper())
-$isOemComputer = ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$') -or ($oemNames -contains $env:COMPUTERNAME.ToUpper())
-
-# Se siamo in modalita' Espresso o Automatica, controlla se il pannello operatore ha gia' salvato credenziali
-if (-not $nomeCliente -or $nomeCliente -match '^(Cliente|OEM|Utente)$') {
-    Get-CredenzialiSalvatePannello | Out-Null
-    if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(Cliente|OEM|Utente)$') {
-        $nomeCliente = $Global:nomeCliente
-    }
-}
-
-if (-not $nomeCliente -and -not $Global:ModoEspresso -and -not $Global:ModoAutomatico) {
-    $defaultSuggerito = if ($isOemUser) { "Utente" } else { $env:USERNAME }
-    $nomeCliente = (Attendi-Risposta "Nome del cliente (account E nome PC) [default: $defaultSuggerito]").Trim()
-    if (-not $nomeCliente) { $nomeCliente = $defaultSuggerito }
-}
-
-if (-not $nomeCliente) {
-    if ($isOemUser -or $env:USERNAME -match '^(telef|oem|admin|user|utente)$') {
-        $nomeCliente = "Utente"
-    } else {
-        $nomeCliente = $env:USERNAME
-    }
-}
-
-Write-Info "Utente di sistema: $env:USERNAME"
-Write-Info "Nome cliente / account: $(if ($nomeCliente) { $nomeCliente } elseif ($nomeAttuale) { $nomeAttuale } else { 'Utente' })"
-Write-Info "Nome PC attuale: $env:COMPUTERNAME"
-Write-Host ""
-
-if ($nomeCliente -and $nomeCliente -ne "") {
-    $nomeOk = $false
-    # 1) Metodo moderno (modulo LocalAccounts)
-    try {
-        Set-LocalUser -Name $env:USERNAME -FullName $nomeCliente -ErrorAction Stop
-        $nomeOk = $true
-    } catch {
-        # 2) Fallback ADSI/WinNT
-        try {
-            $u = [ADSI]$adsiUser
-            $u.FullName = $nomeCliente
-            $u.SetInfo()
-            $nomeOk = $true
-        } catch {}
-    }
-    if ($nomeOk) {
-        Write-OK "Nome account utente impostato su: $nomeCliente"
-        Add-Report "Nome cliente ($nomeCliente)" "OK"
-    } else {
-        Write-Info "Nome visualizzato account: $env:USERNAME"
-        Add-Report "Nome cliente" "OK"
-    }
-
-    # Rinomina il PC in 'PC-Cognome' o 'PC-Nome' o 'PC-Utente' (max 15 char)
-    $cleanPc = ($nomeCliente -replace '[^A-Za-z0-9]', '')
-    if (-not $cleanPc -or $cleanPc.ToUpper() -eq "OEM") { $cleanPc = "Utente" }
-    $pcNuovo = "PC-$cleanPc"
-    if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
-
-    if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
-        try {
-            Rename-Computer -NewName $pcNuovo -Force -ErrorAction Stop
-            Write-OK "Nome PC aggiornato in '$pcNuovo' (attivo dopo il riavvio)."
-            Add-Report "Nome PC ($pcNuovo)" "OK"
-        } catch {
-            Write-Info "Rinomina PC in '$pcNuovo' completata per la configurazione."
-            Add-Report "Nome PC ($pcNuovo)" "OK"
-        }
-    }
-} else {
-    Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
-    Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
-}
-
-Save-Fase 1 "Nome cliente e PC"
-}
-
-# (nessuna pausa: si avanza da solo)
-
-# =============================================================================
-# ACCOUNT MICROSOFT (SECONDO passo: crealo/accedi ORA col cliente davanti, cosi'
-# dopo Office e antivirus fanno 'Accedi con Microsoft' senza altri OTP).
-# =============================================================================
-
-if (Test-FaseFatta 2) { Write-Info "Account/email cliente: gia' fatto nella sessione precedente, salto." }
-else {
-
-Write-Titolo "Account / Email cliente"
-
-if ($Global:ModoEspresso -or $Global:ModoAutomatico) {
-    if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
-    if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
-    if ($Global:credProvider) { $provNome = $Global:credProvider }
-
-    $basePerNome = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser) { "utente" } else { $env:USERNAME }
-    if (-not $credMsAccount) {
-        $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
-        $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
-    }
-    if (-not $credMsPassword) { $credMsPassword = New-PasswordCliente -Base $basePerNome }
-    Write-Host "  Account cliente gestito in parallelo dal Pannello Operatore aperto nel browser." -ForegroundColor DarkCyan
-    Write-Host "  Credenziali suggerite per il riepilogo: $credMsAccount / $credMsPassword" -ForegroundColor Gray
-    Write-OK "Account cliente gestito in parallelo dal Pannello Operatore aperto nel browser."
-    Write-Info "Credenziali suggerite per il riepilogo: $credMsAccount / $credMsPassword"
-    Add-Report "Account cliente" "Pannello Operatore (browser)"
-} else {
-    Write-Host "Crea/accedi ORA all'account del cliente. Scegli quale aprire:" -ForegroundColor White
-    Write-Host "  1) Microsoft   (consigliato: serve per Office e antivirus)" -ForegroundColor White
-    Write-Host "  2) Google / Gmail" -ForegroundColor White
-    Write-Host "  3) Proton Mail" -ForegroundColor White
-    Write-Host "  4) Outlook.com (nuova email Microsoft)" -ForegroundColor White
-    Write-Host "  S) Salta" -ForegroundColor White
+# Funzioni dei passi Antivirus/Unieuro: definite QUI (prima del wizard) perche'
+# ora l'Antivirus e' l'ultimo passo mentre Unieuro gira prima e usa
+# Attiva-ServizioWeb: cosi' entrambe sono gia' disponibili quando servono.
+# Mostra le credenziali da usare in una pagina web e le mette PRONTE negli
+# appunti, cosi' l'operatore incolla con CTRL+V invece di digitarle (non e'
+# possibile compilare da soli i campi di siti terzi in modo affidabile: questo
+# e' l'aiuto concreto e sicuro).
+#
+# MENU APPUNTI che RESTA attivo: premi E o P per (ri)copiare Email o Password
+# quante volte vuoi e in QUALSIASI ordine (comodo per il campo "conferma
+# password" o se sbagli campo), INVIO quando hai finito. Le credenziali restano
+# scritte a schermo per averle sott'occhio.
+function Mostra-CredenzialiPagina {
+    param([string]$Utente, [string]$Password)
+    if (-not ($Utente -or $Password)) { return }
     Write-Host ""
-
-    # Domanda ESSENZIALE: cambia da cliente a cliente, quindi la chiedo SEMPRE.
-    # INVIO = Microsoft (il caso piu' comune).
-    $sceltaAcc = Attendi-Risposta "Scelta (1-4, INVIO = Microsoft, S = salta)"
-    if ($RunReale -and [string]::IsNullOrWhiteSpace($sceltaAcc)) { $sceltaAcc = "1" }
-
-    # Mappa scelta -> nome provider, pagina da aprire e dominio email suggerito.
-    $prov = switch -Regex ($sceltaAcc) {
-        '^1' { @{ Nome = "Microsoft"; Url = "https://account.microsoft.com";                 Dominio = "outlook.it" } }
-        '^2' { @{ Nome = "Google";    Url = "https://accounts.google.com/signup";             Dominio = "gmail.com" } }
-        '^3' { @{ Nome = "Proton";    Url = "https://account.proton.me/signup";               Dominio = "proton.me" } }
-        '^4' { @{ Nome = "Outlook";   Url = "https://signup.live.com";                        Dominio = "outlook.it" } }
-        default { $null }
-    }
-
-    if ($prov) {
-        # Ricordo il provider scelto (nome + dominio) per il riepilogo e la ripresa.
-        $Global:credProvider = $prov.Nome
-        $Global:credDominio  = $prov.Dominio
-        Start-Process $prov.Url
-        Write-OK "Aperto $($prov.Url) nel browser ($($prov.Nome))."
-        if ($prov.Nome -ne "Microsoft") {
-            Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
-            Write-Info "    con $($prov.Nome) crei solo l'email del cliente."
-        }
-
-        # Credenziali per il riepilogo.
-        if ($RunReale) {
-            $haAccount = Attendi-Risposta "Il cliente ha GIA' una sua email/password che usa? (S = le inserisco io / N = ne genero una nuova)"
-            if ($haAccount -match "^[Ss]") {
-                $credMsAccount  = (Attendi-Risposta "  Email del cliente").Trim()
-                $credMsPassword = (Attendi-Risposta "  Password del cliente").Trim()
-                Write-OK "Uso le credenziali del cliente (finiscono nel riepilogo)."
-            } else {
-                $credMsAccount  = New-EmailCliente -Base $nomeCliente -Dominio $prov.Dominio
-                $credMsPassword = New-PasswordCliente -Base $nomeCliente
-                Write-Host ""
-                Write-Host "  Credenziali SUGGERITE per il nuovo account (gia' nel riepilogo):" -ForegroundColor White
-                Write-Info  "Email suggerita : $credMsAccount"
-                Write-Info  "Password        : $credMsPassword"
-                Write-Host "  Se in registrazione ne usi altre, correggi il file." -ForegroundColor Gray
-            }
-            if ($credMsPassword) { try { Set-Clipboard -Value $credMsPassword; Write-Info "Password copiata negli appunti." } catch {} }
-            Write-Host ""
-        }
-
-        Write-Info "Accedi o crea l'account, poi torna qui. Usa lo stesso browser per i login dopo."
-        Add-Report "Account $($prov.Nome)" "OK"
-        Pausa
-    } else {
-        Write-Info "Account/email saltato."
-        Add-Report "Account cliente" "SALTATO"
-    }
-}
-
-Save-Fase 2 "Account/email cliente"
-}
-
-# =============================================================================
-# PULIZIA E OTTIMIZZAZIONE INIZIALE - un solo passaggio, una sola domanda:
-#   1/3 rimuove gli antivirus di PROVA (evita conflitti e blocchi)
-#   2/3 rimuove il bloatware + pulisce l'avvio automatico (boot piu' veloce)
-#   3/3 comodita' Windows (estensioni, Questo PC) + disinstalla OneDrive
-# =============================================================================
-
-if (Test-FaseFatta 3) {
-    Write-Info "Pulizia e ottimizzazione: gia' fatto nella sessione precedente, salto."
-    Update-PannelloStatus -TaskId "pulizia" -Stato "done" -Percentuale 20 -Dettaglio "Gia' completato"
-} else {
-
-Write-Titolo "Pulizia e Ottimizzazione Iniziale"
-Update-PannelloStatus -TaskId "pulizia" -Stato "running" -Percentuale 15 -FaseCorrente "Pulizia Bloatware & Ottimizzazione SSD" -Dettaglio "Rimozione bloatware e antivirus di prova..."
-
-Write-Host "Toglie antivirus di prova + bloatware OEM + OneDrive, alleggerisce l'avvio." -ForegroundColor White
-Write-Host ""
-
-    # ---------------------------------------------------------------------
-    # 1/3 - ANTIVIRUS DI PROVA
-    # ---------------------------------------------------------------------
-    Write-Info "1/3 - Rimozione antivirus di prova preinstallati..."
-    # Detection via REGISTRO (non 'winget list': becca anche i preinstallati).
-    $avInstallati  = @(Get-AntivirusInstallati)
-    if ($avInstallati.Count -eq 0) {
-        Write-Info "Nessun antivirus di prova trovato."
-        Add-Report "Antivirus di prova" "SALTATO"
-    } else {
-        foreach ($av in $avInstallati) {
-            Write-Info "Provo a rimuovere: $($av.Nome)..."
-            Start-BarraAnimata "Rimuovo $($av.Nome)"
+    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
+    Write-Host "  |  CREDENZIALI DA INCOLLARE NELLA PAGINA                  |" -ForegroundColor Yellow
+    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
+    if ($Utente)   { Write-Host "     Email / utente : $Utente" -ForegroundColor White }
+    if ($Password) { Write-Host "     Password      : $Password" -ForegroundColor White }
+    if (-not $RunReale) { return }
+    # Copio subito l'email (di solito e' il primo campo), poi lascio il menu.
+    if ($Utente) { try { Set-Clipboard -Value $Utente } catch {} }
+    Write-Host ""
+    $opz = @()
+    if ($Utente)   { $opz += "E = copia EMAIL" }
+    if ($Password) { $opz += "P = copia PASSWORD" }
+    $opz += "INVIO = ho finito"
+    Write-Host ("  Premi:  " + ($opz -join "    ")) -ForegroundColor Cyan
+    if ($Utente) { Write-OK "Email gia' copiata: incolla con CTRL+V." }
+    Start-BipRipetuto
+    try {
+        while ($true) {
+            $ch = ""; $isEnter = $false
             try {
-                # 1) Disinstallatore SILENZIOSO dal registro (ARP): e' il modo piu'
-                #    efficace, becca anche le versioni che winget non gestisce.
-                #    Preferisco QuietUninstallString; se manca, provo UninstallString
-                #    aggiungendo flag silenziosi tipici (McAfee usa /silent).
-                if ($av.QuietUninstall) {
-                    try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
-                } elseif ($av.Uninstall) {
-                    try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
+                $key = [Console]::ReadKey($true)
+                $ch = "$($key.KeyChar)".ToUpper()
+                if ($key.Key -eq [ConsoleKey]::Enter) { $isEnter = $true }
+            } catch {
+                # Fallback senza ReadKey: riga di testo, vuoto = ho finito.
+                $ch = (Read-Host "  E / P / INVIO").ToUpper()
+                if ($ch -eq "") { $isEnter = $true }
+            }
+            if ($isEnter) { break }
+            elseif ($ch -eq "E") {
+                if ($Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
+                else { Write-Info "Nessuna email da copiare." }
+            }
+            elseif ($ch -eq "P") {
+                if ($Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
+                else { Write-Info "Per questo servizio la password la crea il sito (arriva via email)." }
+            }
+            # ogni altro tasto: ignorato, il menu resta attivo
+        }
+    } finally {
+        Stop-BipRipetuto
+    }
+    Write-Host ""
+}
+
+function Installa-Antivirus {
+    param(
+        [string]$Nome,
+        [string]$UrlRiscatto,
+        [string]$Utente = "",
+        [string]$Password = ""
+    )
+
+    Write-Info "Apertura pagina registrazione/riscatto $Nome..."
+    Start-Process $UrlRiscatto
+    Write-OK "Browser aperto su: $UrlRiscatto"
+    Write-Host ""
+    Write-Host "Completa registrazione/download nel browser." -ForegroundColor White
+    Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
+    # Antivirus: l'attivazione si fa accedendo con l'account principale del
+    # cliente. Metto quelle credenziali pronte da incollare.
+    Mostra-CredenzialiPagina -Utente $Utente -Password $Password
+
+    # Sorveglio Download e Desktop: appena compare un .exe NUOVO (creato dopo
+    # ORA) e il download e' finito (dimensione stabile), lo avvio da solo.
+    $cartelle = @((Join-Path $env:USERPROFILE "Downloads"), (Get-DesktopDir)) | Select-Object -Unique
+    $inizio = Get-Date
+    $timeoutMin = if ($Global:ModoAutomatico) { 3 } elseif ($Global:ModoEspresso) { 5 } else { 8 }
+    Write-Info "In attesa dell'installer di $Nome (max $timeoutMin min). Premi 'S' per saltare."
+    $installer = $null
+    while (((Get-Date) - $inizio).TotalMinutes -lt $timeoutMin) {
+        try {
+            if ([Console]::KeyAvailable) {
+                $k = [Console]::ReadKey($true)
+                if ($k.Key -eq [ConsoleKey]::S -or $k.Key -eq [ConsoleKey]::Escape) {
+                    Write-Info "Attesa installer interrotta dall'operatore."
+                    break
                 }
-                # 2) winget come rinforzo (Avast/AVG e i McAfee che gestisce).
-                #    McAfee/Norton spesso resistono: sotto ci pensano i tool
-                #    ufficiali (MCPR / NRnR).
-                if (Confirm-Winget) {
-                    winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
-                }
+            }
+        } catch {}
+        $cand = Get-ChildItem -Path $cartelle -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -gt $inizio -and $_.Length -gt 100KB } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($cand) {
+            # Aspetto che il file smetta di crescere = download completo.
+            $dim1 = $cand.Length
+            Start-Sleep -Seconds 2
+            $cand.Refresh()
+            if ($cand.Length -eq $dim1) { $installer = $cand; break }
+        }
+        Start-Sleep -Seconds 2
+    }
+
+    if ($installer) {
+        Start-Process -FilePath $installer.FullName
+        Write-OK "Installer $Nome avviato AUTOMATICAMENTE: $($installer.Name)"
+        Add-Report "$Nome (antivirus)" "OK"
+    } else {
+        Write-Info "Nessun installer rilevato entro $timeoutMin min: avvialo a mano dalla cartella Download."
+        Add-Report "$Nome (antivirus)" "AVVISO"
+    }
+}
+
+# Servizio web-only (nessun installer PC): apre il sito, l'operatore inserisce
+# il codice e segna le credenziali per l'app mobile del cliente.
+function Attiva-ServizioWeb {
+    param(
+        [string]$Nome,
+        [string]$UrlAttivazione,
+        [string]$Utente = "",
+        [string]$Password = ""
+    )
+
+    Write-Info "Apertura pagina attivazione $Nome..."
+    Start-Process $UrlAttivazione
+    Write-OK "Browser aperto su: $UrlAttivazione"
+    Write-Host ""
+    Write-Host "Sul sito: inserisci il codice/PIN e completa i dati richiesti." -ForegroundColor White
+    Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
+    # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
+    # La password del portale spesso la crea il sito e la manda via email.
+    Mostra-CredenzialiPagina -Utente $Utente -Password $Password
+    $fatto = Attendi-Risposta "Attivazione completata e credenziali annotate? (S/N)"
+    if ($fatto -match "^[Ss]") {
+        Write-OK "$Nome attivato."
+        Add-Report "$Nome (protezione)" "OK"
+    } else {
+        Write-Info "$Nome non completato."
+        Add-Report "$Nome (protezione)" "SALTATO"
+    }
+}
+
+
+function Get-OsppPath {
+    $percorsi = @(
+        "$env:ProgramFiles\Microsoft Office\Office16\ospp.vbs",
+        "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
+    )
+    foreach ($p in $percorsi) { if (Test-Path $p) { return $p } }
+    return $null
+}
+
+# Collegamenti alle app Office sul Desktop: i clienti le cercano li'. Usa
+# WScript.Shell (COM standard, niente P/Invoke: l'antivirus non lo segnala).
+# Crea solo i collegamenti delle app davvero presenti e non gia' esistenti.
+function Add-CollegamentiOffice {
+    $officeDir = @(
+        "$env:ProgramFiles\Microsoft Office\root\Office16",
+        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office16",
+        "$env:ProgramFiles\Microsoft Office\Office16",
+        "${env:ProgramFiles(x86)}\Microsoft Office\Office16"
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $officeDir) { Write-Info "Cartella Office non trovata: nessun collegamento sul Desktop."; return }
+    $appOffice = @(
+        @{ Nome = "Word";       Exe = "WINWORD.EXE"  },
+        @{ Nome = "Excel";      Exe = "EXCEL.EXE"    },
+        @{ Nome = "PowerPoint"; Exe = "POWERPNT.EXE" },
+        @{ Nome = "Outlook";    Exe = "OUTLOOK.EXE"  },
+        @{ Nome = "OneNote";    Exe = "ONENOTE.EXE"  }
+    )
+    $desktop = Get-DesktopDir
+    $creati = 0
+    try {
+        $wsh = New-Object -ComObject WScript.Shell
+        foreach ($a in $appOffice) {
+            $exe = Join-Path $officeDir $a.Exe
+            if (-not (Test-Path $exe)) { continue }
+            $lnk = Join-Path $desktop "$($a.Nome).lnk"
+            if (Test-Path $lnk) { continue }
+            $sc = $wsh.CreateShortcut($lnk)
+            $sc.TargetPath = $exe
+            $sc.WorkingDirectory = $officeDir
+            $sc.Save()
+            $creati++
+        }
+    } catch { Write-Info "Collegamenti Office non creati: $_" }
+    if ($creati -gt 0) {
+        Write-OK "Collegamenti sul Desktop: $creati app Office (Word, Excel, ...)."
+        Add-Report "Collegamenti Office sul Desktop ($creati)" "OK"
+    } else {
+        Write-Info "Collegamenti Office: gia' presenti sul Desktop o nessuna app trovata."
+    }
+}
+
+# =============================================================================
+# CONTROLLI "GIA' FATTO" (ogni passo prima verifica se il lavoro c'e' gia')
+# =============================================================================
+
+# Antivirus della card acquistata dal cliente (scelta nel pannello): da TENERE,
+# non e' un antivirus di prova da rimuovere.
+function Test-AvDaTenere {
+    param([string]$Nome)
+    $sv = $Global:serviziSelezionati
+    if (-not $sv -or -not $Nome) { return $false }
+    if ($sv.McAfee -and $Nome -match 'McAfee') { return $true }
+    if ($sv.Norton -and $Nome -match 'Norton') { return $true }
+    return $false
+}
+
+# Antivirus NON Microsoft gia' presenti: Centro sicurezza di Windows
+# (root/SecurityCenter2, AntiVirusProduct) + chiavi di disinstallazione.
+function Get-AntivirusTerzi {
+    $nomi = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($p in @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop)) {
+            $n = [string]$p.displayName
+            if ($n -and $n -notmatch 'Defender|Microsoft') { $nomi.Add($n) }
+        }
+    } catch {}
+    foreach ($av in @(Get-AntivirusInstallati)) { if ($av.Nome) { $nomi.Add([string]$av.Nome) } }
+    return @($nomi | Sort-Object -Unique)
+}
+
+# Vero se Windows e' gia' tutto in italiano (display, formati, sistema, paese,
+# prima lingua e fuso orario): il passo Lingua non ha niente da fare.
+function Test-LinguaItaliana {
+    try {
+        if ((Get-UICulture).Name -notlike 'it*') { return $false }
+        if ((Get-Culture).Name -ne 'it-IT') { return $false }
+        foreach ($c in @('Get-WinSystemLocale', 'Get-WinHomeLocation', 'Get-WinUserLanguageList')) {
+            if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { return $false }
+        }
+        if ((Get-WinSystemLocale).Name -ne 'it-IT') { return $false }
+        if ((Get-WinHomeLocation).GeoId -ne 118) { return $false }
+        $lingue = @(Get-WinUserLanguageList)
+        if ($lingue.Count -eq 0 -or $lingue[0].LanguageTag -ne 'it-IT') { return $false }
+        if ((Get-TimeZone).Id -ne 'W. Europe Standard Time') { return $false }
+        return $true
+    } catch { return $false }
+}
+
+# Punto di ripristino "Prima di setup-pc" gia' creato oggi.
+function Test-PuntoRipristinoOggi {
+    try {
+        foreach ($rp in @(Get-ComputerRestorePoint -ErrorAction Stop)) {
+            if ($rp.Description -ne 'Prima di setup-pc') { continue }
+            $quando = [System.Management.ManagementDateTimeConverter]::ToDateTime($rp.CreationTime)
+            if ($quando.Date -eq (Get-Date).Date) { return $true }
+        }
+    } catch {}
+    return $false
+}
+
+# Office (Microsoft 365 / perpetuo) installato: ospp.vbs oppure Click-to-Run.
+function Test-OfficeInstallato {
+    if (Get-OsppPath) { return $true }
+    try {
+        $c2r = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration' -ErrorAction Stop
+        if ($c2r.ProductReleaseIds) { return $true }
+    } catch {}
+    return $false
+}
+
+# Office gia' attivato: licenza "LICENSED" (ospp /dstatus) oppure licenza
+# Microsoft 365 dell'utente (cartella Licenses non vuota).
+function Test-OfficeAttivato {
+    try {
+        $ospp = Get-OsppPath
+        if ($ospp) {
+            $out = (& cscript.exe //nologo $ospp /dstatus 2>$null) | Out-String
+            if ($out -match '---LICENSED---') { return $true }
+        }
+        if ($env:LOCALAPPDATA) {
+            $lic = Join-Path $env:LOCALAPPDATA 'Microsoft\Office\Licenses'
+            if ((Test-Path -LiteralPath $lic) -and @(Get-ChildItem -LiteralPath $lic -Recurse -File -ErrorAction SilentlyContinue).Count -gt 0) { return $true }
+        }
+    } catch {}
+    return $false
+}
+
+# Controllo "gia' fatto" di un passo: ritorna il motivo (testo breve per
+# console, pannello e riepilogo) oppure $null se il passo va eseguito.
+# In modalita' -Test ritorna sempre $null: si esercitano tutti i passi.
+function Test-PassoGiaFatto {
+    param([string]$Id)
+    if ($Test -or -not $RunReale) { return $null }
+    switch ($Id) {
+        'ripristino' {
+            if (Test-PuntoRipristinoOggi) { return "Punto di ripristino gia' creato oggi" }
+        }
+        'avprova' {
+            if (@(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) }).Count -eq 0) { return "Nessun antivirus di prova presente" }
+        }
+        'lingua' {
+            if (Test-LinguaItaliana) { return "Windows gia' tutto in italiano" }
+        }
+        'officeattiva' {
+            if ((Test-OfficeInstallato) -and (Test-OfficeAttivato)) { return "Office gia' attivato" }
+        }
+        'antivirus' {
+            $av = @(Get-AntivirusTerzi)
+            if ($av.Count -gt 0) { return "Gia' installato: $($av -join ', ')" }
+        }
+    }
+    return $null
+}
+
+# =============================================================================
+# LAVORI IN BACKGROUND durante i passi manuali (runspace nello stesso processo,
+# quindi con gli stessi privilegi da amministratore). Oggi: Invoke-PuliziaSistema
+# (bloatware, avvio automatico, comodita' Windows), che non fa domande e non
+# usa il browser. Gli aggiornamenti restano l'ULTIMO passo, mai in background.
+# Il runspace riceve le funzioni e le variabili dello script; pannello e barra
+# animata li gestisce solo lo script principale (qui sono funzioni vuote), e le
+# voci del riepilogo tornano allo script quando il lavoro finisce.
+# Se il runspace non parte, la pulizia si fa in primo piano al passo "pulizia".
+# =============================================================================
+function Start-LavoriInBackground {
+    if ($Global:LavoriBg) { return }
+    try {
+        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $silenziate = @('Update-PannelloStatus', 'Start-BarraAnimata', 'Stop-BarraAnimata', 'Pausa')
+        $esistenti = @{}
+        foreach ($c in $iss.Commands) { $esistenti[$c.Name] = $true }
+        foreach ($f in @(Get-ChildItem Function:)) {
+            if ($esistenti.ContainsKey($f.Name) -or $silenziate -contains $f.Name) { continue }
+            $iss.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($f.Name, $f.Definition)))
+        }
+        foreach ($n in $silenziate) {
+            $iss.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($n, 'param()')))
+        }
+        $rs = [runspacefactory]::CreateRunspace($iss)
+        $rs.Open()
+        # Variabili dello script (e globali) che il runspace non ha gia' di suo.
+        $viste = @{}
+        foreach ($scope in @('Script', 'Global')) {
+            foreach ($v in @(Get-Variable -Scope $scope -ErrorAction SilentlyContinue)) {
+                if ($viste.ContainsKey($v.Name)) { continue }
+                $viste[$v.Name] = $true
+                if ($v.Options -band ([System.Management.Automation.ScopedItemOptions]::ReadOnly -bor [System.Management.Automation.ScopedItemOptions]::Constant)) { continue }
+                if ($null -ne $rs.SessionStateProxy.PSVariable.Get($v.Name)) { continue }
+                try { $rs.SessionStateProxy.SetVariable($v.Name, $v.Value) } catch {}
+            }
+        }
+        # Riepilogo ed errori: liste proprie (niente accessi concorrenti), unite
+        # a quelle dello script quando il lavoro finisce.
+        $bgReport = [System.Collections.ArrayList]::new()
+        $bgErrori = [System.Collections.ArrayList]::new()
+        $rs.SessionStateProxy.SetVariable('Report', $bgReport)
+        $rs.SessionStateProxy.SetVariable('ErroriImprevisti', $bgErrori)
+        $ps = [PowerShell]::Create()
+        $ps.Runspace = $rs
+        [void]$ps.AddScript({
+            $ok = $true
+            try { Invoke-PuliziaSistema } catch { $ok = $false; Add-Report "Pulizia e ottimizzazione (background): $($_.Exception.Message)" "ERRORE" }
+            $ok
+        })
+        $Global:LavoriBg = @{ PS = $ps; RS = $rs; Handle = $ps.BeginInvoke(); Report = $bgReport; Errori = $bgErrori; Inizio = Get-Date }
+        Update-PannelloStatus -TaskId "pulizia" -Stato "running" -Dettaglio "In background mentre fai i passi manuali"
+        Write-Info "Pulizia e ottimizzazione avviate in background: intanto fai i passi manuali."
+    } catch {
+        $Global:LavoriBg = $null
+        Write-Info "Lavori in background non disponibili: la pulizia si fara' dopo i passi manuali."
+    }
+}
+
+# Attende la fine dei lavori in background (max $TimeoutMin minuti), riporta
+# le voci del riepilogo nello script principale e libera il runspace.
+# Ritorna $true se la pulizia e' terminata correttamente.
+function Complete-LavoriInBackground {
+    param([int]$TimeoutMin = 30)
+    $bg = $Global:LavoriBg
+    if (-not $bg) { return $false }
+    $ok = $false
+    try {
+        if (-not $bg.Handle.IsCompleted) {
+            Write-Info "Attendo la fine della pulizia in background..."
+            Start-BarraAnimata "Pulizia in background: quasi finito"
+            try {
+                $limite = (Get-Date).AddMinutes($TimeoutMin)
+                while (-not $bg.Handle.IsCompleted -and (Get-Date) -lt $limite) { Start-Sleep -Milliseconds 500 }
             } finally { Stop-BarraAnimata }
         }
-
-        # VERIFICO cosa e' rimasto: attendo che i processi di disinstallazione silenziosa
-        # abbiano completato la cancellazione delle chiavi di registro (fino a 16s).
-        $maxAttesaAV = 8
-        for ($w = 0; $w -lt $maxAttesaAV; $w++) {
-            Start-Sleep -Seconds 2
-            $rimasti = @(Get-AntivirusInstallati)
-            if ($rimasti.Count -eq 0) { break }
-        }
-
-        $rimasti      = @(Get-AntivirusInstallati)
-        $mcafeeResta  = @($rimasti | Where-Object { $_.Nome -match 'McAfee' }).Count -gt 0
-        $nortonResta  = @($rimasti | Where-Object { $_.Nome -match 'Norton' }).Count -gt 0
-
-        if ($rimasti.Count -eq 0) {
-            Write-OK "Antivirus di prova rimossi con successo (disinstallazione standard completata)."
-            Add-Report "Antivirus di prova rimossi" "OK"
+        if ($bg.Handle.IsCompleted) {
+            $esito = @($bg.PS.EndInvoke($bg.Handle))
+            $ok = ($esito.Count -gt 0 -and [bool]$esito[-1])
         } else {
-            Write-Info "Resistono ai metodi standard: $(($rimasti.Nome) -join ', '). Uso i tool dedicati."
-            Add-Report "Antivirus di prova (residui: tool ufficiale)" "AVVISO"
+            try { $bg.PS.Stop() } catch {}
+            Add-Report "Pulizia e ottimizzazione (background): tempo massimo superato" "AVVISO"
         }
-
-        # McAfee: se resiste alla disinstallazione standard, usiamo il tool dedicato MCPR
-        if ($mcafeeResta) {
-            $mcprOffline = Find-OfflineInstaller -Nome "MCPR"
-            if ($mcprOffline -and (Test-Path $mcprOffline)) {
-                Write-Info "McAfee resiste: avvio MCPR da archivio offline USB ($mcprOffline)..."
-                Start-Process -FilePath $mcprOffline
-                Write-Info "MCPR avviato: completalo a video, poi RIAVVIA il PC."
-                Add-Report "McAfee (avviato MCPR da USB)" "AVVISO"
-            } elseif ($nortonResta) {
-                # Se Norton e' presente, scaricare un exe farebbe scattare IDP.Generic: apro la pagina
-                Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
-                Write-Info "McAfee resiste: aperta la pagina di MCPR. Scaricalo ed eseguilo a mano, poi RIAVVIA."
-                Add-Report "McAfee (MCPR a mano)" "AVVISO"
-            } else {
-                try {
-                    Write-Info "McAfee resiste: scarico e avvio MCPR (tool ufficiale McAfee)..."
-                    $mcpr = "$env:TEMP\MCPR.exe"
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-                    irm "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" -OutFile $mcpr -ErrorAction Stop
-                    Start-Process -FilePath $mcpr
-                    Write-Info "MCPR avviato: completalo (Avanti), poi RIAVVIA. Toglie McAfee del tutto."
-                    Add-Report "McAfee (MCPR avviato: completare a mano)" "AVVISO"
-                } catch {
-                    Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
-                    Write-Info "Download MCPR fallito: aperta la pagina, scaricalo a mano."
-                    Add-Report "McAfee (MCPR a mano)" "AVVISO"
-                }
-            }
-        }
-
-        # Norton: se e SOLO se la disinstallazione standard fallisce e Norton e' ancora presente
-        if ($nortonResta) {
-            $nrnrOffline = Find-OfflineInstaller -Nome "NRnR"
-            if ($nrnrOffline -and (Test-Path $nrnrOffline)) {
-                Write-Info "Norton resiste ai metodi standard: avvio NRnR da archivio offline USB ($nrnrOffline)..."
-                Start-Process -FilePath $nrnrOffline
-                Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
-                Add-Report "Norton (avviato NRnR da USB)" "AVVISO"
-            } else {
-                try {
-                    Write-Info "Norton resiste ai metodi standard: scarico e avvio NRnR (tool ufficiale)..."
-                    $nrnrDest = "$env:TEMP\NRnR.exe"
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-                    irm "https://buy-download.norton.com/downloads/RnR/NLOK/NRnR.exe" -OutFile $nrnrDest -ErrorAction Stop
-                    Start-Process -FilePath $nrnrDest
-                    Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
-                    Add-Report "Norton (NRnR avviato: completare a mano)" "AVVISO"
-                } catch {
-                    Start-Process "https://norton.com/nrnr"
-                    Write-Info "Norton ancora presente: aperta pagina NRnR. Scaricalo, eseguilo e poi RIAVVIA."
-                    Add-Report "Norton (NRnR a mano)" "AVVISO"
-                }
-            }
-        }
+    } catch {
+        Add-Report "Pulizia e ottimizzazione (background): $($_.Exception.Message)" "ERRORE"
+    } finally {
+        foreach ($r in @($bg.Report)) { if ($null -ne $r) { [void]$Report.Add($r) } }
+        if ($null -ne $Global:ErroriImprevisti) { foreach ($e in @($bg.Errori)) { if ($null -ne $e) { [void]$Global:ErroriImprevisti.Add($e) } } }
+        try { $bg.PS.Dispose() } catch {}
+        try { $bg.RS.Close(); $bg.RS.Dispose() } catch {}
+        $Global:LavoriBg = $null
     }
+    return $ok
+}
 
+# =============================================================================
+# PULIZIA E OTTIMIZZAZIONE (bloatware, avvio automatico, comodita' Windows).
+# Nessuna domanda all'operatore: puo' girare in BACKGROUND (Start-LavoriInBackground)
+# mentre l'operatore fa i passi manuali, oppure in primo piano al passo "pulizia".
+# =============================================================================
+function Invoke-PuliziaSistema {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO la pulizia (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
     # ---------------------------------------------------------------------
-    # 2/3 - BLOATWARE + PULIZIA AVVIO AUTOMATICO & BARRA APPLICAZIONI
+    # 1/2 - BLOATWARE + PULIZIA AVVIO AUTOMATICO & BARRA APPLICAZIONI
     # ---------------------------------------------------------------------
-    Write-Info "2/3 - Rimozione bloatware OEM, app promozionali e pulizia avvio..."
+    Write-Info "1/2 - Rimozione bloatware OEM, app promozionali e pulizia avvio..."
 
     $rimosse = 0
 
@@ -6619,9 +6765,9 @@ Write-Host ""
     Add-Report "Pulizia avvio automatico ($avvioTolti)" "OK"
 
     # ---------------------------------------------------------------------
-    # 3/3 - CONFIGURAZIONE WINDOWS BASE (piccole comodita')
+    # 2/2 - CONFIGURAZIONE WINDOWS BASE (piccole comodita')
     # ---------------------------------------------------------------------
-    Write-Info "3/3 - Applico piccole comodita' di Windows..."
+    Write-Info "2/2 - Applico piccole comodita' di Windows..."
     try {
         $adv = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
         Set-ItemProperty -Path $adv -Name "HideFileExt" -Value 0 -Type DWord -ErrorAction SilentlyContinue   # mostra estensioni
@@ -6736,19 +6882,309 @@ Write-Host ""
     } catch {}
 
     Write-OK "Pulizia e ottimizzazione iniziale completata."
-    Update-PannelloStatus -TaskId "pulizia" -Stato "done" -Percentuale 20 -Dettaglio "Completato"
-
-Save-Fase 3 "Pulizia e ottimizzazione"
 }
 
+
+# =============================================================================
+# ORDINE DEI PASSI (unica fonte: console, checkpoint di ripresa e pannello)
+#   1) APP E LINGUA (automatici): ripristino, antivirus di prova, lingua,
+#      Office (installazione), applicazioni.
+#   2) PASSI MANUALI dell'operatore: nome, account, attivazione Office,
+#      antivirus, Cyber Protection. Intanto la pulizia gira in BACKGROUND.
+#   3) RESTO (automatici): pulizia (attesa/fine), driver e, per ULTIMI, gli
+#      aggiornamenti (app, Store, Windows).
+# Ogni passo prima controlla se il suo lavoro c'e' gia' (Test-PassoGiaFatto)
+# e in quel caso lo salta ("gia' fatto" in console, pannello e riepilogo).
+# Checkpoint: Fase = numero di passi completati (Schema 2 = quest'ordine).
+# =============================================================================
+$Global:Passi = @(
+    @{ Id = 'ripristino';   Nome = 'Punto di ripristino';           Gruppo = 1; Task = 'ripristino' }
+    @{ Id = 'avprova';      Nome = 'Rimozione antivirus di prova';  Gruppo = 1; Task = 'avprova' }
+    @{ Id = 'lingua';       Nome = 'Lingua e regione';              Gruppo = 1; Task = 'lingua' }
+    @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
+    @{ Id = 'app';          Nome = 'Applicazioni + browser';        Gruppo = 1; Task = 'app' }
+    @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 2; Task = 'account' }
+    @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 2; Task = 'account' }
+    @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 2; Task = 'office' }
+    @{ Id = 'antivirus';    Nome = 'Antivirus';                     Gruppo = 2; Task = 'antivirus' }
+    @{ Id = 'cyber';        Nome = 'Unieuro Cyber Protection';      Gruppo = 2; Task = 'cyber' }
+    @{ Id = 'pulizia';      Nome = 'Pulizia e ottimizzazione';      Gruppo = 3; Task = 'pulizia' }
+    @{ Id = 'driver';       Nome = 'Driver';                        Gruppo = 3; Task = 'driver' }
+    @{ Id = 'aggiorna';     Nome = 'Aggiornamenti (app + Windows)'; Gruppo = 3; Task = 'aggiorna' }
+)
+$gruppiNomi = @{ 1 = 'FASE 1 di 3 - Programmi e lingua (automatico)'; 2 = 'FASE 2 di 3 - Passi manuali (operatore)'; 3 = 'FASE 3 di 3 - Pulizia, driver e aggiornamenti (automatico)' }
+$totPassi = $Global:Passi.Count
+
+# Ripresa: si riparte dal primo passo non completato; nel pannello i passi gia'
+# fatti risultano completati.
+$passo = [Math]::Max(0, [Math]::Min([int]$Global:FaseRipresa, $totPassi))
+for ($i = 0; $i -lt $passo; $i++) {
+    Update-PannelloStatus -TaskId $Global:Passi[$i].Task -Stato "done" -Dettaglio "Gia' completato"
+}
+if ($passo -gt 0 -and $passo -lt $totPassi) { Write-Info "Riprendo dal passo $($passo + 1) di $($totPassi): $($Global:Passi[$passo].Nome)." }
+
+# La percentuale del pannello la guidano i passi (i singoli passi aggiornano
+# solo stato e dettaglio del proprio task).
+$Global:PercentualeDaPassi = $true
+$gruppoMostrato = 0
+
+:wizard while ($passo -lt $totPassi) {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+$voce = $Global:Passi[$passo]
+if ($voce.Gruppo -ne $gruppoMostrato) {
+    $gruppoMostrato = $voce.Gruppo
+    Write-Host ""
+    Write-Host ("$AON  " + $gruppiNomi[$voce.Gruppo] + "$AOFF") -ForegroundColor $THEME_COL
+}
+# Passi manuali: la pulizia (niente domande, niente browser) parte in background.
+if ($voce.Gruppo -eq 2 -and -not $Global:LavoriBg -and -not $Global:PuliziaFatta) { Start-LavoriInBackground }
+
+Write-Host ""
+$barLen = 20
+$passoMostrato = $passo + 1
+$pieni = [int]($barLen * $passoMostrato / $totPassi)
+if ($pieni -gt $barLen) { $pieni = $barLen }
+$bar = (([string]$BOX_FULL) * $pieni) + (([string]$BOX_EMPTY) * ($barLen - $pieni))
+Write-Host ("$AON  Passo $passoMostrato/$totPassi  [$bar]  $($voce.Nome)$AOFF") -ForegroundColor $THEME_COL
+Update-PannelloStatus -Percentuale (5 + [int](90 * $passo / $totPassi)) -PercentualeGuida -FaseCorrente $voce.Nome
+
+$giaFatto = Test-PassoGiaFatto -Id $voce.Id
+if ($giaFatto) {
+    Write-Titolo $voce.Nome
+    Write-OK "$giaFatto`: salto il passo."
+    Add-Report "$($voce.Nome) ($giaFatto)" "OK"
+    Update-PannelloStatus -TaskId $voce.Task -Stato "done" -Dettaglio $giaFatto
+    $passo++
+    Save-Fase $passo $voce.Nome
+    continue wizard
+}
+
+Update-PannelloStatus -TaskId $voce.Task -Stato "running"
+switch ($voce.Id) {
+'ripristino' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# PUNTO DI RIPRISTINO (rete di sicurezza prima delle modifiche)
+# =============================================================================
+
+if ($skipRestore -or -not $CreaRipristino) {
+    # Richiesta esplicita operatore: "questo puoi saltarlo, e' super opzionale".
+    # Su macchine nuove in negozio risparmia fino a 25 GB su SSD ed evita attese VSS inutili.
+    Write-Info "Punto di ripristino: saltato (super opzionale, ottimizzazione spazio SSD)."
+    Update-PannelloStatus -TaskId "ripristino" -Stato "skipped" -Percentuale 45 -FaseCorrente "Baseline" -Dettaglio "Ottimizzato per SSD"
+    Add-Report "Punto di ripristino" "SALTATO (ottimizzazione SSD)"
+} else {
+
+Write-Titolo "Punto di Ripristino"
+Update-PannelloStatus -TaskId "ripristino" -Stato "running" -Percentuale 40 -FaseCorrente "Punto di Ripristino" -Dettaglio "Creazione punto di ripristino di sicurezza..."
+
+Write-Host "Crea un punto di ripristino: se qualcosa va storto puoi tornare indietro." -ForegroundColor White
+Write-Host ""
+    try {
+        Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
+        # Limita lo spazio massimo del ripristino al 5% del disco per proteggere lo storage SSD
+        try { vssadmin resize shadowstorage /for=C: /on=C: /maxsize=5% 2>$null | Out-Null } catch {}
+        # Rimuove il limite di 1 punto ogni 24h, solo per crearne uno adesso
+        New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" `
+            -Name "SystemRestorePointCreationFrequency" -Value 0 -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null
+        Write-Info "Creazione punto di ripristino (puo' richiedere un minuto)..."
+        Start-BarraAnimata "Creo il punto di ripristino"
+        $job = $null
+        try {
+            $job = Start-Job -ScriptBlock {
+                param($d, $desc)
+                try { Checkpoint-Computer -Description $desc -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop; return 0 }
+                catch { return 1 }
+            } -ArgumentList "$env:SystemDrive\", "Prima di setup-pc"
+            if (-not (Wait-Job $job -Timeout 60)) {
+                Stop-Job $job
+                Write-Errore "Creazione del punto di ripristino in timeout dopo 60 secondi: salto."
+                Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Timeout (proseguo)"
+                Add-Report "Punto di ripristino" "ERRORE (timeout)"
+            } elseif ((Receive-Job $job) -eq 0) {
+                Write-OK "Punto di ripristino creato."
+                Update-PannelloStatus -TaskId "ripristino" -Stato "done" -Percentuale 45 -Dettaglio "Completato"
+                Add-Report "Punto di ripristino" "OK"
+            } else {
+                Write-Errore "NON e' stato possibile creare il punto di ripristino."
+                Write-Info "  Non e' un errore bloccante: la configurazione prosegue comunque."
+                Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Non riuscito (proseguo)"
+                Add-Report "Punto di ripristino" "ERRORE"
+            }
+        } catch {
+            Write-Errore "NON e' stato possibile creare il punto di ripristino."
+            Write-Info "  Causa: $_"
+            Write-Info "  Non e' un errore bloccante: la configurazione prosegue comunque."
+            Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Non riuscito (proseguo)"
+            Add-Report "Punto di ripristino" "ERRORE"
+        } finally {
+            if ($job) { Remove-Job $job -Force -ErrorAction SilentlyContinue }
+            Stop-BarraAnimata
+        }
+    } catch {
+        Write-Errore "NON e' stato possibile creare il punto di ripristino."
+        Write-Info "  Causa: $_"
+        Write-Info "  Non e' un errore bloccante: la configurazione prosegue comunque."
+        Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Non riuscito (proseguo)"
+        Add-Report "Punto di ripristino" "ERRORE"
+    }
+
+}
+}
+'avprova' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# RIMOZIONE ANTIVIRUS DI PROVA (prima delle installazioni: evita conflitti e
+# blocchi). Il resto della pulizia (bloatware, avvio, comodita') e' in
+# Invoke-PuliziaSistema e gira in background durante i passi manuali.
+# Gli antivirus della card acquistata dal cliente NON vengono toccati.
+# =============================================================================
+
+
+Write-Titolo "Rimozione antivirus di prova"
+Update-PannelloStatus -TaskId "avprova" -Stato "running" -FaseCorrente "Rimozione antivirus di prova" -Dettaglio "Ricerca antivirus di prova preinstallati..."
+
+    # ---------------------------------------------------------------------
+    # 1/3 - ANTIVIRUS DI PROVA
+    # ---------------------------------------------------------------------
+    Write-Info "Rimozione antivirus di prova preinstallati..."
+    # Detection via REGISTRO (non 'winget list': becca anche i preinstallati).
+    # Esclusi quelli da TENERE (card acquistata dal cliente o installati dall'operatore).
+    $avInstallati  = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+    if ($avInstallati.Count -eq 0) {
+        Write-Info "Nessun antivirus di prova trovato."
+        Add-Report "Antivirus di prova" "SALTATO"
+    } else {
+        foreach ($av in $avInstallati) {
+            Write-Info "Provo a rimuovere: $($av.Nome)..."
+            Start-BarraAnimata "Rimuovo $($av.Nome)"
+            try {
+                # 1) Disinstallatore SILENZIOSO dal registro (ARP): e' il modo piu'
+                #    efficace, becca anche le versioni che winget non gestisce.
+                #    Preferisco QuietUninstallString; se manca, provo UninstallString
+                #    aggiungendo flag silenziosi tipici (McAfee usa /silent).
+                if ($av.QuietUninstall) {
+                    try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
+                } elseif ($av.Uninstall) {
+                    try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
+                }
+                # 2) winget come rinforzo (Avast/AVG e i McAfee che gestisce).
+                #    McAfee/Norton spesso resistono: sotto ci pensano i tool
+                #    ufficiali (MCPR / NRnR).
+                if (Confirm-Winget) {
+                    winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+                }
+            } finally { Stop-BarraAnimata }
+        }
+
+        # VERIFICO cosa e' rimasto: attendo che i processi di disinstallazione silenziosa
+        # abbiano completato la cancellazione delle chiavi di registro (fino a 16s).
+        $maxAttesaAV = 8
+        for ($w = 0; $w -lt $maxAttesaAV; $w++) {
+            Start-Sleep -Seconds 2
+            $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+            if ($rimasti.Count -eq 0) { break }
+        }
+
+        $rimasti      = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+        $mcafeeResta  = @($rimasti | Where-Object { $_.Nome -match 'McAfee' }).Count -gt 0
+        $nortonResta  = @($rimasti | Where-Object { $_.Nome -match 'Norton' }).Count -gt 0
+
+        if ($rimasti.Count -eq 0) {
+            Write-OK "Antivirus di prova rimossi con successo (disinstallazione standard completata)."
+            Add-Report "Antivirus di prova rimossi" "OK"
+        } else {
+            Write-Info "Resistono ai metodi standard: $(($rimasti.Nome) -join ', '). Uso i tool dedicati."
+            Add-Report "Antivirus di prova (residui: tool ufficiale)" "AVVISO"
+        }
+
+        # McAfee: se resiste alla disinstallazione standard, usiamo il tool dedicato MCPR
+        if ($mcafeeResta) {
+            $mcprOffline = Find-OfflineInstaller -Nome "MCPR"
+            if ($mcprOffline -and (Test-Path $mcprOffline)) {
+                Write-Info "McAfee resiste: avvio MCPR da archivio offline USB ($mcprOffline)..."
+                Start-Process -FilePath $mcprOffline
+                Write-Info "MCPR avviato: completalo a video, poi RIAVVIA il PC."
+                Add-Report "McAfee (avviato MCPR da USB)" "AVVISO"
+            } elseif ($nortonResta) {
+                # Se Norton e' presente, scaricare un exe farebbe scattare IDP.Generic: apro la pagina
+                Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
+                Write-Info "McAfee resiste: aperta la pagina di MCPR. Scaricalo ed eseguilo a mano, poi RIAVVIA."
+                Add-Report "McAfee (MCPR a mano)" "AVVISO"
+            } else {
+                try {
+                    Write-Info "McAfee resiste: scarico e avvio MCPR (tool ufficiale McAfee)..."
+                    $mcpr = "$env:TEMP\MCPR.exe"
+                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                    irm "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" -OutFile $mcpr -ErrorAction Stop
+                    Start-Process -FilePath $mcpr
+                    Write-Info "MCPR avviato: completalo (Avanti), poi RIAVVIA. Toglie McAfee del tutto."
+                    Add-Report "McAfee (MCPR avviato: completare a mano)" "AVVISO"
+                } catch {
+                    Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
+                    Write-Info "Download MCPR fallito: aperta la pagina, scaricalo a mano."
+                    Add-Report "McAfee (MCPR a mano)" "AVVISO"
+                }
+            }
+        }
+
+        # Norton: se e SOLO se la disinstallazione standard fallisce e Norton e' ancora presente
+        if ($nortonResta) {
+            $nrnrOffline = Find-OfflineInstaller -Nome "NRnR"
+            if ($nrnrOffline -and (Test-Path $nrnrOffline)) {
+                Write-Info "Norton resiste ai metodi standard: avvio NRnR da archivio offline USB ($nrnrOffline)..."
+                Start-Process -FilePath $nrnrOffline
+                Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
+                Add-Report "Norton (avviato NRnR da USB)" "AVVISO"
+            } else {
+                try {
+                    Write-Info "Norton resiste ai metodi standard: scarico e avvio NRnR (tool ufficiale)..."
+                    $nrnrDest = "$env:TEMP\NRnR.exe"
+                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                    irm "https://buy-download.norton.com/downloads/RnR/NLOK/NRnR.exe" -OutFile $nrnrDest -ErrorAction Stop
+                    Start-Process -FilePath $nrnrDest
+                    Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
+                    Add-Report "Norton (NRnR avviato: completare a mano)" "AVVISO"
+                } catch {
+                    Start-Process "https://norton.com/nrnr"
+                    Write-Info "Norton ancora presente: aperta pagina NRnR. Scaricalo, eseguilo e poi RIAVVIA."
+                    Add-Report "Norton (NRnR a mano)" "AVVISO"
+                }
+            }
+        }
+    }
+    Update-PannelloStatus -TaskId "avprova" -Stato "done" -Dettaglio "Completato"
+}
+'lingua' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
 # =============================================================================
 # LINGUA E REGIONE (ITALIANO)
 # =============================================================================
 
-if (Test-FaseFatta 4) {
-    Write-Info "Lingua e regione: gia' fatto nella sessione precedente, salto."
-    Update-PannelloStatus -TaskId "lingua" -Stato "done" -Percentuale 35 -Dettaglio "Gia' completato"
-} else {
 
 Write-Titolo "Lingua e Regione (Italiano)"
 Update-PannelloStatus -TaskId "lingua" -Stato "running" -Percentuale 30 -FaseCorrente "Forzatura Lingua & Regione (it-IT)" -Dettaglio "Configurazione lingua italiana..."
@@ -6895,159 +7331,31 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
     }
     Write-OK "Lingua e regione impostate su Italiano (it-IT)."
     Update-PannelloStatus -TaskId "lingua" -Stato "done" -Percentuale 35 -Dettaglio "Completato"
-
-Save-Fase 4 "Lingua e regione"
 }
-
-# (nessuna pausa: si avanza da solo, come nel wizard)
-
-# =============================================================================
-# PUNTO DI RIPRISTINO (rete di sicurezza prima delle modifiche)
-# =============================================================================
-
-if (Test-FaseFatta 5) {
-    Write-Info "Punto di ripristino: gia' fatto nella sessione precedente, salto."
-    Update-PannelloStatus -TaskId "ripristino" -Stato "skipped" -Percentuale 45 -FaseCorrente "Baseline" -Dettaglio "Ottimizzato per SSD"
-} elseif ($skipRestore -or -not $CreaRipristino) {
-    # Richiesta esplicita operatore: "questo puoi saltarlo, e' super opzionale".
-    # Su macchine nuove in negozio risparmia fino a 25 GB su SSD ed evita attese VSS inutili.
-    Write-Info "Punto di ripristino: saltato (super opzionale, ottimizzazione spazio SSD)."
-    Update-PannelloStatus -TaskId "ripristino" -Stato "skipped" -Percentuale 45 -FaseCorrente "Baseline" -Dettaglio "Ottimizzato per SSD"
-    Add-Report "Punto di ripristino" "SALTATO (ottimizzazione SSD)"
-    Save-Fase 5 "Punto di ripristino"
-} else {
-
-Write-Titolo "Punto di Ripristino"
-Update-PannelloStatus -TaskId "ripristino" -Stato "running" -Percentuale 40 -FaseCorrente "Punto di Ripristino" -Dettaglio "Creazione punto di ripristino di sicurezza..."
-
-Write-Host "Crea un punto di ripristino: se qualcosa va storto puoi tornare indietro." -ForegroundColor White
-Write-Host ""
-    try {
-        Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
-        # Limita lo spazio massimo del ripristino al 5% del disco per proteggere lo storage SSD
-        try { vssadmin resize shadowstorage /for=C: /on=C: /maxsize=5% 2>$null | Out-Null } catch {}
-        # Rimuove il limite di 1 punto ogni 24h, solo per crearne uno adesso
-        New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" `
-            -Name "SystemRestorePointCreationFrequency" -Value 0 -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null
-        Write-Info "Creazione punto di ripristino (puo' richiedere un minuto)..."
-        Start-BarraAnimata "Creo il punto di ripristino"
-        $job = $null
-        try {
-            $job = Start-Job -ScriptBlock {
-                param($d, $desc)
-                try { Checkpoint-Computer -Description $desc -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop; return 0 }
-                catch { return 1 }
-            } -ArgumentList "$env:SystemDrive\", "Prima di setup-pc"
-            if (-not (Wait-Job $job -Timeout 60)) {
-                Stop-Job $job
-                Write-Errore "Creazione del punto di ripristino in timeout dopo 60 secondi: salto."
-                Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Timeout (proseguo)"
-                Add-Report "Punto di ripristino" "ERRORE (timeout)"
-            } elseif ((Receive-Job $job) -eq 0) {
-                Write-OK "Punto di ripristino creato."
-                Update-PannelloStatus -TaskId "ripristino" -Stato "done" -Percentuale 45 -Dettaglio "Completato"
-                Add-Report "Punto di ripristino" "OK"
-            } else {
-                Write-Errore "NON e' stato possibile creare il punto di ripristino."
-                Write-Info "  Non e' un errore bloccante: la configurazione prosegue comunque."
-                Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Non riuscito (proseguo)"
-                Add-Report "Punto di ripristino" "ERRORE"
-            }
-        } catch {
-            Write-Errore "NON e' stato possibile creare il punto di ripristino."
-            Write-Info "  Causa: $_"
-            Write-Info "  Non e' un errore bloccante: la configurazione prosegue comunque."
-            Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Non riuscito (proseguo)"
-            Add-Report "Punto di ripristino" "ERRORE"
-        } finally {
-            if ($job) { Remove-Job $job -Force -ErrorAction SilentlyContinue }
-            Stop-BarraAnimata
-        }
-    } catch {
-        Write-Errore "NON e' stato possibile creare il punto di ripristino."
-        Write-Info "  Causa: $_"
-        Write-Info "  Non e' un errore bloccante: la configurazione prosegue comunque."
-        Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Percentuale 45 -Dettaglio "Non riuscito (proseguo)"
-        Add-Report "Punto di ripristino" "ERRORE"
-    }
-
-Save-Fase 5 "Punto di ripristino"
+'office' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
 }
-
-# (nessuna pausa: si avanza da solo)
-
 # =============================================================================
-# INSTALLAZIONE APP OFFICE: prima si INSTALLA la suite scelta (se manca), poi
-# la schermata dopo la attiva (codice/key). L'account Microsoft, gia' fatto come
-# secondo passo, resta attivo nel browser per il riscatto.
+# INSTALLAZIONE APP OFFICE: qui si sceglie e si INSTALLA la suite (se manca).
+# L'ATTIVAZIONE (card PIN) e' un passo manuale separato ("officeattiva"), dopo
+# l'account del cliente.
 # =============================================================================
 
-if (Test-FaseFatta 6) {
-    Write-Info "App Office: gia' fatto nella sessione precedente, salto."
-    Update-PannelloStatus -TaskId "office" -Stato "done" -Percentuale 62 -Dettaglio "Gia' completato"
-    Update-PannelloStatus -TaskId "runtime" -Stato "done" -Percentuale 56 -Dettaglio "Gia' completato"
-} else {
 Write-Titolo "Installazione App Office"
-Update-PannelloStatus -TaskId "office" -Stato "running" -Percentuale 50 -FaseCorrente "Configurazione Office & Runtime" -Dettaglio "Configurazione icone Office e runtime..."
+Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Configurazione Office & Runtime" -Dettaglio "Configurazione icone Office e runtime..."
 
 # 0) Installazione Runtime Essenziali (Microsoft Visual C++ 2015-2022 x86 & x64)
-Update-PannelloStatus -TaskId "runtime" -Stato "running" -Percentuale 53 -FaseCorrente "Runtime Essenziali" -Dettaglio "Installazione Microsoft Visual C++ (x86 & x64)..."
+Update-PannelloStatus -TaskId "runtime" -Stato "running" -FaseCorrente "Runtime Essenziali" -Dettaglio "Installazione Microsoft Visual C++ (x86 & x64)..."
 [void](Install-VisualCRuntime)
-Update-PannelloStatus -TaskId "runtime" -Stato "done" -Percentuale 56 -Dettaglio "Completato"
-
-function Get-OsppPath {
-    $percorsi = @(
-        "$env:ProgramFiles\Microsoft Office\Office16\ospp.vbs",
-        "${env:ProgramFiles(x86)}\Microsoft Office\Office16\ospp.vbs"
-    )
-    foreach ($p in $percorsi) { if (Test-Path $p) { return $p } }
-    return $null
-}
-
-# Collegamenti alle app Office sul Desktop: i clienti le cercano li'. Usa
-# WScript.Shell (COM standard, niente P/Invoke: l'antivirus non lo segnala).
-# Crea solo i collegamenti delle app davvero presenti e non gia' esistenti.
-function Add-CollegamentiOffice {
-    $officeDir = @(
-        "$env:ProgramFiles\Microsoft Office\root\Office16",
-        "${env:ProgramFiles(x86)}\Microsoft Office\root\Office16",
-        "$env:ProgramFiles\Microsoft Office\Office16",
-        "${env:ProgramFiles(x86)}\Microsoft Office\Office16"
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $officeDir) { Write-Info "Cartella Office non trovata: nessun collegamento sul Desktop."; return }
-    $appOffice = @(
-        @{ Nome = "Word";       Exe = "WINWORD.EXE"  },
-        @{ Nome = "Excel";      Exe = "EXCEL.EXE"    },
-        @{ Nome = "PowerPoint"; Exe = "POWERPNT.EXE" },
-        @{ Nome = "Outlook";    Exe = "OUTLOOK.EXE"  },
-        @{ Nome = "OneNote";    Exe = "ONENOTE.EXE"  }
-    )
-    $desktop = Get-DesktopDir
-    $creati = 0
-    try {
-        $wsh = New-Object -ComObject WScript.Shell
-        foreach ($a in $appOffice) {
-            $exe = Join-Path $officeDir $a.Exe
-            if (-not (Test-Path $exe)) { continue }
-            $lnk = Join-Path $desktop "$($a.Nome).lnk"
-            if (Test-Path $lnk) { continue }
-            $sc = $wsh.CreateShortcut($lnk)
-            $sc.TargetPath = $exe
-            $sc.WorkingDirectory = $officeDir
-            $sc.Save()
-            $creati++
-        }
-    } catch { Write-Info "Collegamenti Office non creati: $_" }
-    if ($creati -gt 0) {
-        Write-OK "Collegamenti sul Desktop: $creati app Office (Word, Excel, ...)."
-        Add-Report "Collegamenti Office sul Desktop ($creati)" "OK"
-    } else {
-        Write-Info "Collegamenti Office: gia' presenti sul Desktop o nessuna app trovata."
-    }
-}
+Update-PannelloStatus -TaskId "runtime" -Stato "done" -Dettaglio "Completato"
 
 if ($Global:ModoEspresso) {
-    if (Get-OsppPath) {
+    if (Test-OfficeInstallato) {
         Write-OK "Office gia' installato su questo PC. Creo i collegamenti sul Desktop."
         Add-CollegamentiOffice
         Add-Report "Microsoft Office (collegamenti)" "OK (gia' presente)"
@@ -7056,7 +7364,7 @@ if ($Global:ModoEspresso) {
         Add-Report "Installazione app Office" "SALTATO (Espresso)"
     }
 } else {
-    Write-Host "Scegli la suite Office da installare (se manca) e attivare:" -ForegroundColor White
+    Write-Host "Scegli la suite Office da installare (se manca). L'attivazione si fa dopo, nei passi manuali:" -ForegroundColor White
     Write-Host "  1) Microsoft 365 (abbonamento, card PIN) - installa, poi riscatto su microsoft365.com/setup" -ForegroundColor White
     Write-Host "  2) Office perpetuo (Home 2024/2021, card PIN) - installa, poi riscatto su office.com/setup" -ForegroundColor White
     Write-Host "  3) OpenOffice (suite gratuita)" -ForegroundColor White
@@ -7068,21 +7376,18 @@ if ($Global:ModoEspresso) {
     # SEMPRE. INVIO = Microsoft 365. Metti 5 se il cliente non ha Office da attivare.
     $sceltaAtt = Attendi-Risposta "Scelta (1-5, INVIO = Microsoft 365, 5 = salta)"
     if ($RunReale -and [string]::IsNullOrWhiteSpace($sceltaAtt)) { $sceltaAtt = "1" }
+    # Ricordata (anche nel checkpoint) per il passo manuale di attivazione.
+    $Global:SceltaOffice = [string]$sceltaAtt
     switch ($sceltaAtt) {
         "1" {
             # 1/2: INSTALLAZIONE (se manca).
-            if (Get-OsppPath) {
+            if (Test-OfficeInstallato) {
                 Write-OK "Office gia' installato su questo PC."
                 Add-Report "Microsoft Office (installazione)" "OK"
             } else {
                 Installa-Pacchetto -Nome "Microsoft 365" -WingetId "Microsoft.Office"
             }
             Add-CollegamentiOffice
-            # 2/2: ATTIVAZIONE
-            Start-Process "https://microsoft365.com/setup"
-            Write-OK "Browser aperto su microsoft365.com/setup"
-            Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
-            Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
         }
         "3" {
             Installa-Pacchetto -Nome "OpenOffice" -WingetId "Apache.OpenOffice"
@@ -7091,359 +7396,38 @@ if ($Global:ModoEspresso) {
             Installa-Pacchetto -Nome "LibreOffice" -WingetId "TheDocumentFoundation.LibreOffice"
         }
         "2" {
-            if (Get-OsppPath) {
+            if (Test-OfficeInstallato) {
                 Write-OK "Office gia' installato su questo PC."
                 Add-Report "Microsoft Office (installazione)" "OK"
             } else {
                 Installa-Pacchetto -Nome "Microsoft 365" -WingetId "Microsoft.Office"
             }
             Add-CollegamentiOffice
-            Start-Process "https://office.com/setup"
-            Write-OK "Browser aperto su office.com/setup (l'indirizzo stampato sulla card)."
-            Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
-            Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
-            Add-Report "Office perpetuo (riscatto card PIN)" "OK"
         }
         default {
             Write-Info "Installazione app Office saltata."
             Add-Report "Installazione app Office" "SALTATO"
         }
     }
-
-    if ($sceltaAtt -match "^[12]$") { Pausa }
 }
 
-Save-Fase 6 "App Office"
-Update-PannelloStatus -TaskId "office" -Stato "done" -Percentuale 62 -Dettaglio "Icone Office pronte"
+$dettOffice = if ($Global:SceltaOffice -match '^[12]$') { "Installato (attivazione nei passi manuali)" } else { "Completato" }
+Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio $dettOffice
 }
-
+'app' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
 # =============================================================================
-# PASSI DI CONFIGURAZIONE (dopo ogni scelta si avanza; B al prompt = indietro)
-# =============================================================================
-
-# Torna al passo precedente quando l'utente digita B al prompt principale di un
-# passo. Uso 'continue wizard' (loop etichettato) per rifare il giro del while
-# anche da dentro lo switch, saltando il $passo++ di fine passo.
-function Test-Indietro { param([string]$v) return ($v -match '^\s*[Bb]\s*$') }
-
-# Funzioni dei passi Antivirus/Unieuro: definite QUI (prima del wizard) perche'
-# ora l'Antivirus e' l'ultimo passo mentre Unieuro gira prima e usa
-# Attiva-ServizioWeb: cosi' entrambe sono gia' disponibili quando servono.
-# Mostra le credenziali da usare in una pagina web e le mette PRONTE negli
-# appunti, cosi' l'operatore incolla con CTRL+V invece di digitarle (non e'
-# possibile compilare da soli i campi di siti terzi in modo affidabile: questo
-# e' l'aiuto concreto e sicuro).
-#
-# MENU APPUNTI che RESTA attivo: premi E o P per (ri)copiare Email o Password
-# quante volte vuoi e in QUALSIASI ordine (comodo per il campo "conferma
-# password" o se sbagli campo), INVIO quando hai finito. Le credenziali restano
-# scritte a schermo per averle sott'occhio.
-function Mostra-CredenzialiPagina {
-    param([string]$Utente, [string]$Password)
-    if (-not ($Utente -or $Password)) { return }
-    Write-Host ""
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    Write-Host "  |  CREDENZIALI DA INCOLLARE NELLA PAGINA                  |" -ForegroundColor Yellow
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    if ($Utente)   { Write-Host "     Email / utente : $Utente" -ForegroundColor White }
-    if ($Password) { Write-Host "     Password      : $Password" -ForegroundColor White }
-    if (-not $RunReale) { return }
-    # Copio subito l'email (di solito e' il primo campo), poi lascio il menu.
-    if ($Utente) { try { Set-Clipboard -Value $Utente } catch {} }
-    Write-Host ""
-    $opz = @()
-    if ($Utente)   { $opz += "E = copia EMAIL" }
-    if ($Password) { $opz += "P = copia PASSWORD" }
-    $opz += "INVIO = ho finito"
-    Write-Host ("  Premi:  " + ($opz -join "    ")) -ForegroundColor Cyan
-    if ($Utente) { Write-OK "Email gia' copiata: incolla con CTRL+V." }
-    Start-BipRipetuto
-    try {
-        while ($true) {
-            $ch = ""; $isEnter = $false
-            try {
-                $key = [Console]::ReadKey($true)
-                $ch = "$($key.KeyChar)".ToUpper()
-                if ($key.Key -eq [ConsoleKey]::Enter) { $isEnter = $true }
-            } catch {
-                # Fallback senza ReadKey: riga di testo, vuoto = ho finito.
-                $ch = (Read-Host "  E / P / INVIO").ToUpper()
-                if ($ch -eq "") { $isEnter = $true }
-            }
-            if ($isEnter) { break }
-            elseif ($ch -eq "E") {
-                if ($Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
-                else { Write-Info "Nessuna email da copiare." }
-            }
-            elseif ($ch -eq "P") {
-                if ($Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
-                else { Write-Info "Per questo servizio la password la crea il sito (arriva via email)." }
-            }
-            # ogni altro tasto: ignorato, il menu resta attivo
-        }
-    } finally {
-        Stop-BipRipetuto
-    }
-    Write-Host ""
-}
-
-function Installa-Antivirus {
-    param(
-        [string]$Nome,
-        [string]$UrlRiscatto,
-        [string]$Utente = "",
-        [string]$Password = ""
-    )
-
-    Write-Info "Apertura pagina registrazione/riscatto $Nome..."
-    Start-Process $UrlRiscatto
-    Write-OK "Browser aperto su: $UrlRiscatto"
-    Write-Host ""
-    Write-Host "Completa registrazione/download nel browser." -ForegroundColor White
-    Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
-    # Antivirus: l'attivazione si fa accedendo con l'account principale del
-    # cliente. Metto quelle credenziali pronte da incollare.
-    Mostra-CredenzialiPagina -Utente $Utente -Password $Password
-
-    # Sorveglio Download e Desktop: appena compare un .exe NUOVO (creato dopo
-    # ORA) e il download e' finito (dimensione stabile), lo avvio da solo.
-    $cartelle = @((Join-Path $env:USERPROFILE "Downloads"), (Get-DesktopDir)) | Select-Object -Unique
-    $inizio = Get-Date
-    $timeoutMin = if ($Global:ModoAutomatico) { 3 } elseif ($Global:ModoEspresso) { 5 } else { 8 }
-    Write-Info "In attesa dell'installer di $Nome (max $timeoutMin min). Premi 'S' per saltare."
-    $installer = $null
-    while (((Get-Date) - $inizio).TotalMinutes -lt $timeoutMin) {
-        try {
-            if ([Console]::KeyAvailable) {
-                $k = [Console]::ReadKey($true)
-                if ($k.Key -eq [ConsoleKey]::S -or $k.Key -eq [ConsoleKey]::Escape) {
-                    Write-Info "Attesa installer interrotta dall'operatore."
-                    break
-                }
-            }
-        } catch {}
-        $cand = Get-ChildItem -Path $cartelle -Filter "*.exe" -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -gt $inizio -and $_.Length -gt 100KB } |
-            Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($cand) {
-            # Aspetto che il file smetta di crescere = download completo.
-            $dim1 = $cand.Length
-            Start-Sleep -Seconds 2
-            $cand.Refresh()
-            if ($cand.Length -eq $dim1) { $installer = $cand; break }
-        }
-        Start-Sleep -Seconds 2
-    }
-
-    if ($installer) {
-        Start-Process -FilePath $installer.FullName
-        Write-OK "Installer $Nome avviato AUTOMATICAMENTE: $($installer.Name)"
-        Add-Report "$Nome (antivirus)" "OK"
-    } else {
-        Write-Info "Nessun installer rilevato entro $timeoutMin min: avvialo a mano dalla cartella Download."
-        Add-Report "$Nome (antivirus)" "AVVISO"
-    }
-}
-
-# Servizio web-only (nessun installer PC): apre il sito, l'operatore inserisce
-# il codice e segna le credenziali per l'app mobile del cliente.
-function Attiva-ServizioWeb {
-    param(
-        [string]$Nome,
-        [string]$UrlAttivazione,
-        [string]$Utente = "",
-        [string]$Password = ""
-    )
-
-    Write-Info "Apertura pagina attivazione $Nome..."
-    Start-Process $UrlAttivazione
-    Write-OK "Browser aperto su: $UrlAttivazione"
-    Write-Host ""
-    Write-Host "Sul sito: inserisci il codice/PIN e completa i dati richiesti." -ForegroundColor White
-    Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
-    # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
-    # La password del portale spesso la crea il sito e la manda via email.
-    Mostra-CredenzialiPagina -Utente $Utente -Password $Password
-    $fatto = Attendi-Risposta "Attivazione completata e credenziali annotate? (S/N)"
-    if ($fatto -match "^[Ss]") {
-        Write-OK "$Nome attivato."
-        Add-Report "$Nome (protezione)" "OK"
-    } else {
-        Write-Info "$Nome non completato."
-        Add-Report "$Nome (protezione)" "SALTATO"
-    }
-}
-
-# Il wizard: passo 3=Aggiornamenti, 4=Driver, 5=Applicazioni + browser,
-# 6=Antivirus, 7=Unieuro Cyber Protection (ULTIMO SERVIZIO). La barra mostra (passo-2) su 5.
-$passo = 3
-# Nomi leggibili dei passi wizard per il checkpoint di ripresa sessione.
-$wizNomi = @{ 3 = "Aggiornamenti (app + Windows)"; 4 = "Driver"; 5 = "Applicazioni + browser"; 6 = "Antivirus"; 7 = "Unieuro Cyber Protection" }
-# Ripresa sessione: fase 7..11 = passo wizard 3..7 completato -> si riparte
-# dal successivo (fase 11 = tutto il wizard fatto, si salta al report).
-if ($Global:FaseRipresa -ge 7) {
-    $passo = $Global:FaseRipresa - 3
-    if ($passo -le 7) { Write-Info "Riprendo il wizard dal passo $($passo - 2) di 5." }
-}
-:wizard while ($passo -ge 3 -and $passo -le 7) {
-Write-Host ""
-$barLen = 20
-$totPassi = 5
-$passoMostrato = $passo - 2
-$pieni = [int]($barLen * $passoMostrato / $totPassi)
-if ($pieni -gt $barLen) { $pieni = $barLen }
-$bar = (([string]$BOX_FULL) * $pieni) + (([string]$BOX_EMPTY) * ($barLen - $pieni))
-Write-Host ("$AON  Passo $passoMostrato/$totPassi  [$bar]$AOFF") -ForegroundColor $THEME_COL
-switch ($passo) {
-3 {
-# =============================================================================
-# PASSO 3 - AGGIORNAMENTI - app installate (winget) + sicurezza di Windows
-# =============================================================================
-
-Write-Titolo "Aggiornamenti (app + Windows)"
-Update-PannelloStatus -TaskId "aggiorna" -Stato "running" -Percentuale 55 -FaseCorrente "Aggiornamenti di Sicurezza" -Dettaglio "Verifica aggiornamenti app e Windows..."
-
-Write-Host "Con un solo SI aggiorno, una dopo l'altra:" -ForegroundColor White
-Write-Host "  - App: all'ultima versione le app gestite da winget (anche OEM)." -ForegroundColor White
-Write-Host "  - Windows: gli aggiornamenti di SICUREZZA di Windows." -ForegroundColor White
-Write-Host "Puo' richiedere diversi minuti. (I driver hanno il loro passo dedicato dopo.)" -ForegroundColor White
-Write-Host ""
-
-    $vuoiUpgrade = "S"
-if ($vuoiUpgrade -match "^[Ss]") {
-    # 1) APP INSTALLATE (winget)
-    if (Confirm-Winget) {
-        $null = Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600
-        Write-OK "Aggiornamento app completato."
-        Add-Report "Aggiornamento app installate" "OK"
-    } else {
-        Write-Errore "Winget non disponibile."
-        Add-Report "Aggiornamento app installate" "ERRORE"
-    }
-
-    # 2) AGGIORNAMENTI DI SICUREZZA DI WINDOWS: programmati in background per il Passo 5 (dopo i driver).
-    # In questo modo si evita qualsiasi contesa di lock/sessione sul servizio Windows Update (wuauserv)
-    # durante il passo driver!
-    Write-Host ""
-    Write-Info "Aggiornamenti Windows: programmati in background (partiranno durante le app, dopo i driver)."
-    $Global:AvviaWinUpdateDopoDriver = $true
-    if ($Test) {
-        Write-OK "TEST: simulazione download aggiornamenti Windows programmato in background."
-        Add-Report "Aggiornamenti Windows (scaricati in background)" "OK"
-    }
-    Update-PannelloStatus -TaskId "aggiorna" -Stato "running" -Percentuale 62 -Dettaglio "Aggiornamenti app completati"
-} else {
-    $Global:AvviaWinUpdateDopoDriver = $false
-    Write-Info "Aggiornamenti saltati (app e Windows)."
-    Add-Report "Aggiornamento app installate" "SALTATO"
-    Add-Report "Aggiornamenti di sicurezza Windows" "SALTATO"
-    Update-PannelloStatus -TaskId "aggiorna" -Stato "skipped" -Percentuale 62 -Dettaglio "Saltato"
-}
-
-$passo++   # dopo la scelta si va dritti al passo successivo (niente attesa INVIO)
-}
-4 {
-# =============================================================================
-# PASSO 4 - DRIVER (Windows Update, opzionale)
-# =============================================================================
-
-Write-Titolo "Driver (Windows Update)"
-Update-PannelloStatus -TaskId "aggiorna" -Stato "running" -Percentuale 65 -FaseCorrente "Driver Hardware & GPU" -Dettaglio "Verifica driver grafici e periferiche..."
-
-Write-Host "Cerca e installa i driver mancanti/aggiornati dal catalogo Windows Update." -ForegroundColor White
-Write-Host "Se c'e' una scheda video DEDICATA, uso anche il tool del produttore (Windows" -ForegroundColor White
-Write-Host "Update spesso non ne prende il driver giusto). Puo' richiedere qualche minuto" -ForegroundColor White
-Write-Host "e talvolta un riavvio. Opzionale." -ForegroundColor White
-Write-Host ""
-
-$gpuDed = Get-GpuDedicata
-switch ($gpuDed) {
-    'NVIDIA' {
-        if (Confirm-Winget) {
-            Write-Info "Scheda video NVIDIA (dedicata): installo l'app NVIDIA per i driver..."
-            winget install --exact --id Nvidia.NvidiaApp --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                winget install --exact --id Nvidia.GeForceExperience --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
-            }
-            if ($LASTEXITCODE -eq 0) {
-                Write-OK "App NVIDIA installata: APRILA per scaricare i driver piu' recenti."
-                Add-Report "App NVIDIA (driver GeForce): aprire per completare" "OK"
-            } else {
-                Write-Info "App NVIDIA non installata (id/rete): scaricala da nvidia.com/it-it/software/nvidia-app/"
-                Add-Report "App NVIDIA (driver GeForce)" "AVVISO"
-            }
-        }
-        Write-Host ""
-    }
-    'INTEL' {
-        if (Confirm-Winget) {
-            Write-Info "Scheda video Intel Arc (dedicata): installo Intel Driver & Support Assistant..."
-            Installa-Pacchetto -Nome "Intel Driver e Support Assistant" -WingetId "Intel.IntelDriverAndSupportAssistant"
-            Write-Info "APRI 'Intel Driver & Support Assistant' per scaricare il driver video."
-            Add-Report "Intel DSA (driver video): aprire per completare" "OK"
-        }
-        Write-Host ""
-    }
-    'AMD' {
-        Write-Info "Scheda video AMD (dedicata): apro la pagina AMD per il driver video."
-        Start-Process "https://www.amd.com/it/support"
-        Write-OK "Browser aperto su amd.com/it/support (auto-rilevamento driver)."
-        Write-Info "Scarica ed esegui 'AMD Software: Adrenalin Edition', poi riavvia se richiesto."
-        Add-Report "AMD (driver video): scaricare da amd.com" "AVVISO"
-        Write-Host ""
-    }
-    default {
-        Write-Info "Nessuna scheda video dedicata rilevata: i driver video li gestisce Windows Update."
-    }
-}
-
-    $vuoiDriver = "S"
-if ($vuoiDriver -match "^[Ss]") {
-    $resDrv = Install-WindowsUpdateDrivers -TimeoutSec 360 -Test:$Test
-} else {
-    Write-Info "Installazione driver saltata."
-    Add-Report "Driver (Windows Update)" "SALTATO"
-    Update-PannelloStatus -TaskId "aggiorna" -Stato "skipped" -Percentuale 72 -Dettaglio "Saltato"
-}
-
-$passo++   # dopo la scelta si va dritti al passo successivo (niente attesa INVIO)
-}
-5 {
-# =============================================================================
-# PASSO 5 - APPLICAZIONI + BROWSER
+# APPLICAZIONI + BROWSER
 # =============================================================================
 
 Write-Titolo "Applicazioni"
-Update-PannelloStatus -TaskId "app" -Stato "running" -Percentuale 74 -FaseCorrente "Installazione Applicazioni" -Dettaglio "Avvio installazione app..."
-
-# Avvio del download di Windows Update in background (se programmato al Passo 3).
-# Ora che i driver sono terminati e le risorse COM sono libere, puo' girare
-# in background in parallelo a Winget e alle ottimizzazioni senza alcun conflitto.
-if ($Global:AvviaWinUpdateDopoDriver -and -not $Global:JobWinUpdate -and -not $Test) {
-    try {
-        $Global:JobWinUpdate = Start-Job -ScriptBlock {
-            try {
-                $s    = New-Object -ComObject Microsoft.Update.Session
-                $res  = $s.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0")
-                $coll = New-Object -ComObject Microsoft.Update.UpdateColl
-                foreach ($u in $res.Updates) {
-                    if ($u.InstallationBehavior -and $u.InstallationBehavior.CanRequestUserInput) { continue }
-                    if (-not $u.EulaAccepted) { try { $u.AcceptEula() } catch {} }
-                    $coll.Add($u) | Out-Null
-                }
-                if ($coll.Count -gt 0) {
-                    $dl = $s.CreateUpdateDownloader(); $dl.Updates = $coll; $dl.Download() | Out-Null
-                }
-                return $coll.Count
-            } catch { return -1 }
-        }
-        Write-OK "Download aggiornamenti Windows avviato in background (in parallelo alle app)."
-        Add-Report "Aggiornamenti Windows (scaricati in background)" "OK"
-    } catch {
-        Write-Errore "Impossibile avviare gli aggiornamenti di Windows: $_"
-        Add-Report "Aggiornamenti di sicurezza Windows" "ERRORE"
-    }
-}
+Update-PannelloStatus -TaskId "app" -Stato "running" -FaseCorrente "Installazione Applicazioni" -Dettaglio "Avvio installazione app..."
 
 $appsDisponibili = $CatalogoApp
 $profili = [ordered]@{
@@ -7500,7 +7484,7 @@ if ($Global:AppProfiloRipresa) {
     Write-Host ""
 
     $sceltaApps = Attendi-Risposta "Scelta (1-5 - S salta - B indietro)"
-    if (Test-Indietro $sceltaApps) { $passo = [Math]::Max(3, $passo - 1); continue wizard }
+    if (Test-Indietro $sceltaApps) { $passo = [Math]::Max(0, $passo - 1); continue wizard }
 
     switch -Regex ($sceltaApps) {
         "^[1-4]$" {
@@ -7552,8 +7536,7 @@ if ($pianoApp.Count -gt 0) {
             Write-Info "$($app.Nome): gia' installato in questa sessione, salto."
             continue
         }
-        $currPct = 74 + [int](14 * $appIndex / $pianoApp.Count)
-        Update-PannelloStatus -TaskId "app" -Stato "running" -Percentuale $currPct -FaseCorrente "Installazione Applicazioni" -Dettaglio "Installazione $($app.Nome) in corso..."
+        Update-PannelloStatus -TaskId "app" -Stato "running" -FaseCorrente "Installazione Applicazioni" -Dettaglio "Installazione $($app.Nome) in corso..."
         Installa-Pacchetto -Nome $app.Nome -WingetId $app.Id
         if ($Global:UltimaInstallOk) {
             $appFatte += $app.Id
@@ -7576,12 +7559,257 @@ if ($Global:AppFallite -ge 2) {
     Write-Info "le app gia' installate si saltano da sole, riscarica solo le mancanti."
     Add-Report "App non installate ($($Global:AppFallite)): probabile rete" "AVVISO"
 }
-
-$passo++   # dopo la scelta si va dritti al passo successivo (niente attesa INVIO)
 }
-6 {
+'nome' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
 # =============================================================================
-# PASSO 6 - ANTIVIRUS
+# NOME CLIENTE E PC (primo passo manuale: il nome genera le credenziali
+# suggerite per l'account del passo successivo).
+# =============================================================================
+
+
+Write-Titolo "Nome Cliente e PC"
+
+# Legge il nome visualizzato attuale: prima LocalAccounts, poi ADSI (che
+# funziona anche in PowerShell x86, dove il modulo LocalAccounts non c'e').
+$adsiUser = 'WinNT://./' + $env:USERNAME + ',user'
+$nomeAttuale = $null
+try {
+    $nomeAttuale = (Get-LocalUser -Name $env:USERNAME -ErrorAction Stop).FullName
+} catch {
+    try { $nomeAttuale = ([ADSI]$adsiUser).FullName } catch {}
+}
+
+# Riconoscimento nomi e hostname generici di fabbrica / OEM (da non lasciare sul PC del cliente)
+$oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
+$isOemUser = ($oemNames -contains $env:USERNAME.ToUpper()) -or [string]::IsNullOrWhiteSpace($nomeAttuale) -or ($oemNames -contains $nomeAttuale.ToUpper())
+$isOemComputer = ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$') -or ($oemNames -contains $env:COMPUTERNAME.ToUpper())
+
+# Se siamo in modalita' Espresso o Automatica, controlla se il pannello operatore ha gia' salvato credenziali
+if (-not $nomeCliente -or $nomeCliente -match '^(Cliente|OEM|Utente)$') {
+    Get-CredenzialiSalvatePannello | Out-Null
+    if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(Cliente|OEM|Utente)$') {
+        $nomeCliente = $Global:nomeCliente
+    }
+}
+
+if (-not $nomeCliente -and -not $Global:ModoEspresso -and -not $Global:ModoAutomatico) {
+    $defaultSuggerito = if ($isOemUser) { "Utente" } else { $env:USERNAME }
+    $nomeCliente = (Attendi-Risposta "Nome del cliente (account E nome PC) [default: $defaultSuggerito]").Trim()
+    if (-not $nomeCliente) { $nomeCliente = $defaultSuggerito }
+}
+
+if (-not $nomeCliente) {
+    if ($isOemUser -or $env:USERNAME -match '^(telef|oem|admin|user|utente)$') {
+        $nomeCliente = "Utente"
+    } else {
+        $nomeCliente = $env:USERNAME
+    }
+}
+
+Write-Info "Utente di sistema: $env:USERNAME"
+Write-Info "Nome cliente / account: $(if ($nomeCliente) { $nomeCliente } elseif ($nomeAttuale) { $nomeAttuale } else { 'Utente' })"
+Write-Info "Nome PC attuale: $env:COMPUTERNAME"
+Write-Host ""
+
+if ($nomeCliente -and $nomeCliente -ne "") {
+    $nomeOk = $false
+    # 1) Metodo moderno (modulo LocalAccounts)
+    if ($nomeAttuale -and $nomeAttuale -eq $nomeCliente) {
+        # Gia' impostato (es. dall'operatore o da un giro precedente): non tocco nulla.
+        $nomeOk = $true
+    } else { try {
+        Set-LocalUser -Name $env:USERNAME -FullName $nomeCliente -ErrorAction Stop
+        $nomeOk = $true
+    } catch {
+        # 2) Fallback ADSI/WinNT
+        try {
+            $u = [ADSI]$adsiUser
+            $u.FullName = $nomeCliente
+            $u.SetInfo()
+            $nomeOk = $true
+        } catch {}
+    } }
+    if ($nomeOk) {
+        Write-OK "Nome account utente impostato su: $nomeCliente"
+        Add-Report "Nome cliente ($nomeCliente)" "OK"
+    } else {
+        Write-Info "Nome visualizzato account: $env:USERNAME"
+        Add-Report "Nome cliente" "OK"
+    }
+
+    # Rinomina il PC in 'PC-Cognome' o 'PC-Nome' o 'PC-Utente' (max 15 char)
+    $cleanPc = ($nomeCliente -replace '[^A-Za-z0-9]', '')
+    if (-not $cleanPc -or $cleanPc.ToUpper() -eq "OEM") { $cleanPc = "Utente" }
+    $pcNuovo = "PC-$cleanPc"
+    if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
+
+    if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
+        try {
+            Rename-Computer -NewName $pcNuovo -Force -ErrorAction Stop
+            Write-OK "Nome PC aggiornato in '$pcNuovo' (attivo dopo il riavvio)."
+            Add-Report "Nome PC ($pcNuovo)" "OK"
+        } catch {
+            Write-Info "Rinomina PC in '$pcNuovo' completata per la configurazione."
+            Add-Report "Nome PC ($pcNuovo)" "OK"
+        }
+    }
+} else {
+    Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
+    Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
+}
+
+
+# (nessuna pausa: si avanza da solo)
+}
+'account' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# ACCOUNT CLIENTE (passo manuale: crealo/accedi col cliente davanti, cosi'
+# poi attivazione Office e antivirus fanno 'Accedi con Microsoft' senza altri OTP).
+# =============================================================================
+
+
+Write-Titolo "Account / Email cliente"
+
+if ($Global:ModoEspresso -or $Global:ModoAutomatico) {
+    if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
+    if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
+    if ($Global:credProvider) { $provNome = $Global:credProvider }
+
+    $basePerNome = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser) { "utente" } else { $env:USERNAME }
+    if (-not $credMsAccount) {
+        $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
+        $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
+    }
+    if (-not $credMsPassword) { $credMsPassword = New-PasswordCliente -Base $basePerNome }
+    Write-Host "  Account cliente gestito in parallelo dal Pannello Operatore aperto nel browser." -ForegroundColor DarkCyan
+    Write-Host "  Credenziali suggerite per il riepilogo: $credMsAccount / $credMsPassword" -ForegroundColor Gray
+    Write-OK "Account cliente gestito in parallelo dal Pannello Operatore aperto nel browser."
+    Write-Info "Credenziali suggerite per il riepilogo: $credMsAccount / $credMsPassword"
+    Add-Report "Account cliente" "Pannello Operatore (browser)"
+} else {
+    Write-Host "Crea/accedi ORA all'account del cliente. Scegli quale aprire:" -ForegroundColor White
+    Write-Host "  1) Microsoft   (consigliato: serve per Office e antivirus)" -ForegroundColor White
+    Write-Host "  2) Google / Gmail" -ForegroundColor White
+    Write-Host "  3) Proton Mail" -ForegroundColor White
+    Write-Host "  4) Outlook.com (nuova email Microsoft)" -ForegroundColor White
+    Write-Host "  S) Salta" -ForegroundColor White
+    Write-Host ""
+
+    # Domanda ESSENZIALE: cambia da cliente a cliente, quindi la chiedo SEMPRE.
+    # INVIO = Microsoft (il caso piu' comune).
+    $sceltaAcc = Attendi-Risposta "Scelta (1-4, INVIO = Microsoft, S = salta)"
+    if ($RunReale -and [string]::IsNullOrWhiteSpace($sceltaAcc)) { $sceltaAcc = "1" }
+
+    # Mappa scelta -> nome provider, pagina da aprire e dominio email suggerito.
+    $prov = switch -Regex ($sceltaAcc) {
+        '^1' { @{ Nome = "Microsoft"; Url = "https://account.microsoft.com";                 Dominio = "outlook.it" } }
+        '^2' { @{ Nome = "Google";    Url = "https://accounts.google.com/signup";             Dominio = "gmail.com" } }
+        '^3' { @{ Nome = "Proton";    Url = "https://account.proton.me/signup";               Dominio = "proton.me" } }
+        '^4' { @{ Nome = "Outlook";   Url = "https://signup.live.com";                        Dominio = "outlook.it" } }
+        default { $null }
+    }
+
+    if ($prov) {
+        # Ricordo il provider scelto (nome + dominio) per il riepilogo e la ripresa.
+        $Global:credProvider = $prov.Nome
+        $Global:credDominio  = $prov.Dominio
+        Start-Process $prov.Url
+        Write-OK "Aperto $($prov.Url) nel browser ($($prov.Nome))."
+        if ($prov.Nome -ne "Microsoft") {
+            Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
+            Write-Info "    con $($prov.Nome) crei solo l'email del cliente."
+        }
+
+        # Credenziali per il riepilogo.
+        if ($RunReale) {
+            $haAccount = Attendi-Risposta "Il cliente ha GIA' una sua email/password che usa? (S = le inserisco io / N = ne genero una nuova)"
+            if ($haAccount -match "^[Ss]") {
+                $credMsAccount  = (Attendi-Risposta "  Email del cliente").Trim()
+                $credMsPassword = (Attendi-Risposta "  Password del cliente").Trim()
+                Write-OK "Uso le credenziali del cliente (finiscono nel riepilogo)."
+            } else {
+                $credMsAccount  = New-EmailCliente -Base $nomeCliente -Dominio $prov.Dominio
+                $credMsPassword = New-PasswordCliente -Base $nomeCliente
+                Write-Host ""
+                Write-Host "  Credenziali SUGGERITE per il nuovo account (gia' nel riepilogo):" -ForegroundColor White
+                Write-Info  "Email suggerita : $credMsAccount"
+                Write-Info  "Password        : $credMsPassword"
+                Write-Host "  Se in registrazione ne usi altre, correggi il file." -ForegroundColor Gray
+            }
+            if ($credMsPassword) { try { Set-Clipboard -Value $credMsPassword; Write-Info "Password copiata negli appunti." } catch {} }
+            Write-Host ""
+        }
+
+        Write-Info "Accedi o crea l'account, poi torna qui. Usa lo stesso browser per i login dopo."
+        Add-Report "Account $($prov.Nome)" "OK"
+        Pausa
+    } else {
+        Write-Info "Account/email saltato."
+        Add-Report "Account cliente" "SALTATO"
+    }
+}
+}
+'officeattiva' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# ATTIVAZIONE OFFICE (passo manuale): riscatto della card PIN con l'account del
+# cliente appena creato/aperto. La suite e' stata scelta e installata nella fase 1.
+# =============================================================================
+Write-Titolo "Attivazione Office"
+Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Attivazione Office" -Dettaglio "Riscatto card PIN..."
+switch ([string]$Global:SceltaOffice) {
+    "1" {
+        Start-Process "https://microsoft365.com/setup"
+        Write-OK "Browser aperto su microsoft365.com/setup"
+        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
+        Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
+        Pausa
+        Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
+    }
+    "2" {
+        Start-Process "https://office.com/setup"
+        Write-OK "Browser aperto su office.com/setup (l'indirizzo stampato sulla card)."
+        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
+        Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
+        Add-Report "Office perpetuo (riscatto card PIN)" "OK"
+        Pausa
+        Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
+    }
+    default {
+        Write-Info "Nessuna card Office da attivare: passo saltato."
+    }
+}
+}
+'antivirus' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# ANTIVIRUS (passo manuale)
 # =============================================================================
 
 Write-Titolo "Antivirus"
@@ -7611,7 +7839,7 @@ if ($Global:ModoEspresso) {
     Write-Host ""
 
     $sceltaAV = Attendi-Risposta "Scelta (1-3, B=indietro)"
-    if (Test-Indietro $sceltaAV) { $passo = [Math]::Max(3, $passo - 1); continue wizard }
+    if (Test-Indietro $sceltaAV) { $passo = [Math]::Max(0, $passo - 1); continue wizard }
 
     switch ($sceltaAV) {
         "1" {
@@ -7629,12 +7857,17 @@ if ($Global:ModoEspresso) {
         }
     }
 }
-
-$passo++   # dopo la scelta si va dritti al passo successivo (niente attesa INVIO)
 }
-7 {
+'cyber' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
 # =============================================================================
-# PASSO 7 - UNIEURO CYBER PROTECTION (opzionale, ultimo passo prima della consegna)
+# UNIEURO CYBER PROTECTION (passo manuale, opzionale)
 # =============================================================================
 
 Write-Titolo "Unieuro Cyber Protection"
@@ -7655,7 +7888,7 @@ if ($Global:ModoEspresso) {
     Write-Host ""
 
     $vuoiUnieuro = Attendi-Risposta "Attivare Unieuro Cyber Protection? (S = si / INVIO = no, B=indietro)"
-    if (Test-Indietro $vuoiUnieuro) { $passo = [Math]::Max(3, $passo - 1); continue wizard }
+    if (Test-Indietro $vuoiUnieuro) { $passo = [Math]::Max(0, $passo - 1); continue wizard }
     if ($vuoiUnieuro -match "^[Ss]") {
         Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $credMsAccount
         Update-PannelloStatus -TaskId "cyber" -Stato "done" -Percentuale 96 -Dettaglio "Configurato"
@@ -7665,15 +7898,216 @@ if ($Global:ModoEspresso) {
         Update-PannelloStatus -TaskId "cyber" -Stato "skipped" -Percentuale 96 -Dettaglio "Non acquistato (saltato)"
     }
 }
+}
+'pulizia' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# PULIZIA E OTTIMIZZAZIONE: normalmente e' gia' partita in background durante i
+# passi manuali; qui si aspetta che finisca. Se non era partita (es. ripresa
+# dopo un riavvio o runspace non disponibile) si fa adesso in primo piano.
+# =============================================================================
+Write-Titolo "Pulizia e ottimizzazione"
+if ($Global:LavoriBg) {
+    $okBg = Complete-LavoriInBackground
+    if ($okBg) { Write-OK "Pulizia e ottimizzazione completate (in background)." }
+    else { Write-Info "Pulizia in background non completata del tutto: vedi il riepilogo." }
+} else {
+    Update-PannelloStatus -TaskId "pulizia" -Stato "running" -FaseCorrente "Pulizia e ottimizzazione" -Dettaglio "Rimozione bloatware e ottimizzazione..."
+    Invoke-PuliziaSistema
+}
+$Global:PuliziaFatta = $true
+Update-PannelloStatus -TaskId "pulizia" -Stato "done" -Dettaglio "Completato"
+}
+'driver' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# DRIVER (Windows Update, opzionale) - prima degli aggiornamenti finali
+# =============================================================================
 
-$passo++   # dopo la scelta si va dritti al passo successivo (niente attesa INVIO)
+Write-Titolo "Driver (Windows Update)"
+Update-PannelloStatus -TaskId "driver" -Stato "running" -FaseCorrente "Driver Hardware & GPU" -Dettaglio "Verifica driver grafici e periferiche..."
+
+Write-Host "Cerca e installa i driver mancanti/aggiornati dal catalogo Windows Update." -ForegroundColor White
+Write-Host "Se c'e' una scheda video DEDICATA, uso anche il tool del produttore (Windows" -ForegroundColor White
+Write-Host "Update spesso non ne prende il driver giusto). Puo' richiedere qualche minuto" -ForegroundColor White
+Write-Host "e talvolta un riavvio. Opzionale." -ForegroundColor White
+Write-Host ""
+
+$gpuDed = Get-GpuDedicata
+switch ($gpuDed) {
+    'NVIDIA' {
+        if (Confirm-Winget) {
+            Write-Info "Scheda video NVIDIA (dedicata): installo l'app NVIDIA per i driver..."
+            winget install --exact --id Nvidia.NvidiaApp --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                winget install --exact --id Nvidia.GeForceExperience --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
+            }
+            if ($LASTEXITCODE -eq 0) {
+                Write-OK "App NVIDIA installata: APRILA per scaricare i driver piu' recenti."
+                Add-Report "App NVIDIA (driver GeForce): aprire per completare" "OK"
+            } else {
+                Write-Info "App NVIDIA non installata (id/rete): scaricala da nvidia.com/it-it/software/nvidia-app/"
+                Add-Report "App NVIDIA (driver GeForce)" "AVVISO"
+            }
+        }
+        Write-Host ""
+    }
+    'INTEL' {
+        if (Confirm-Winget) {
+            Write-Info "Scheda video Intel Arc (dedicata): installo Intel Driver & Support Assistant..."
+            Installa-Pacchetto -Nome "Intel Driver e Support Assistant" -WingetId "Intel.IntelDriverAndSupportAssistant"
+            Write-Info "APRI 'Intel Driver & Support Assistant' per scaricare il driver video."
+            Add-Report "Intel DSA (driver video): aprire per completare" "OK"
+        }
+        Write-Host ""
+    }
+    'AMD' {
+        Write-Info "Scheda video AMD (dedicata): apro la pagina AMD per il driver video."
+        Start-Process "https://www.amd.com/it/support"
+        Write-OK "Browser aperto su amd.com/it/support (auto-rilevamento driver)."
+        Write-Info "Scarica ed esegui 'AMD Software: Adrenalin Edition', poi riavvia se richiesto."
+        Add-Report "AMD (driver video): scaricare da amd.com" "AVVISO"
+        Write-Host ""
+    }
+    default {
+        Write-Info "Nessuna scheda video dedicata rilevata: i driver video li gestisce Windows Update."
+    }
+}
+
+    $vuoiDriver = "S"
+if ($vuoiDriver -match "^[Ss]") {
+    $resDrv = Install-WindowsUpdateDrivers -TimeoutSec 360 -Test:$Test
+} else {
+    Write-Info "Installazione driver saltata."
+    Add-Report "Driver (Windows Update)" "SALTATO"
+    Update-PannelloStatus -TaskId "driver" -Stato "skipped" -Percentuale 72 -Dettaglio "Saltato"
 }
 }
-# Checkpoint di ripresa: $passo e' gia' stato incrementato, il passo appena
-# completato e' ($passo - 1); la sua fase e' ($passo - 1) + 4.
-Save-Fase ($passo + 3) $wizNomi[($passo - 1)]
-if ($passo -lt 3) { $passo = 3 }
+'aggiorna' {
+trap {
+    # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
+    # successiva DENTRO questo passo (senza, un errore chiuderebbe tutto il ciclo).
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
 }
+# =============================================================================
+# AGGIORNAMENTI - ULTIMO PASSO: app (winget + Microsoft Store) e Windows Update
+# =============================================================================
+
+Write-Titolo "Aggiornamenti (app + Windows)"
+Update-PannelloStatus -TaskId "aggiorna" -Stato "running" -FaseCorrente "Aggiornamenti di Sicurezza" -Dettaglio "Verifica aggiornamenti app e Windows..."
+
+Write-Host "Con un solo SI aggiorno, una dopo l'altra:" -ForegroundColor White
+Write-Host "  - App: all'ultima versione le app gestite da winget (anche OEM)." -ForegroundColor White
+Write-Host "  - App del Microsoft Store: richiesta di aggiornamento allo Store." -ForegroundColor White
+Write-Host "  - Windows: gli aggiornamenti di SICUREZZA di Windows (installati a fine lavoro)." -ForegroundColor White
+Write-Host "Puo' richiedere diversi minuti." -ForegroundColor White
+Write-Host ""
+
+    $vuoiUpgrade = "S"
+if ($vuoiUpgrade -match "^[Ss]") {
+    # 1) APP INSTALLATE (winget)
+    if (Confirm-Winget) {
+        $null = Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600
+        Write-OK "Aggiornamento app completato."
+        Add-Report "Aggiornamento app installate" "OK"
+    } else {
+        Write-Errore "Winget non disponibile."
+        Add-Report "Aggiornamento app installate" "ERRORE"
+    }
+
+    # 2) APP DEL MICROSOFT STORE: chiedo allo Store di cercare e installare gli
+    #    aggiornamenti (metodo standard MDM/CIM; se non disponibile, si salta).
+    if ($RunReale) {
+        try {
+            Get-CimInstance -Namespace 'root\cimv2\mdm\dmmap' -ClassName 'MDM_EnterpriseModernAppManagement_AppManagement01' -ErrorAction Stop |
+                Invoke-CimMethod -MethodName UpdateScanMethod -ErrorAction Stop | Out-Null
+            Write-OK "Microsoft Store: aggiornamento delle app avviato (prosegue da solo)."
+            Add-Report "Aggiornamento app Microsoft Store" "OK"
+        } catch {
+            Write-Info "Microsoft Store: aggiornamento automatico non disponibile su questo PC."
+            Add-Report "Aggiornamento app Microsoft Store" "SALTATO"
+        }
+    }
+
+    # 3) AGGIORNAMENTI DI SICUREZZA DI WINDOWS: download in background (qui sotto),
+    #    installazione alla fine, subito prima del riavvio. I driver sono gia'
+    #    stati fatti al passo precedente: nessuna contesa su Windows Update.
+    Write-Host ""
+    Write-Info "Aggiornamenti Windows: download in background, installazione a fine lavoro."
+    $Global:AvviaWinUpdateDopoDriver = $true
+    if ($Test) {
+        Write-OK "TEST: simulazione download aggiornamenti Windows programmato in background."
+        Add-Report "Aggiornamenti Windows (scaricati in background)" "OK"
+    }
+    Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Dettaglio "App aggiornate, Windows Update a fine lavoro"
+} else {
+    $Global:AvviaWinUpdateDopoDriver = $false
+    Write-Info "Aggiornamenti saltati (app e Windows)."
+    Add-Report "Aggiornamento app installate" "SALTATO"
+    Add-Report "Aggiornamenti di sicurezza Windows" "SALTATO"
+    Update-PannelloStatus -TaskId "aggiorna" -Stato "skipped" -Dettaglio "Saltato"
+}
+
+# Download degli aggiornamenti di Windows in background: gli aggiornamenti sono
+# l'ULTIMO passo (i driver sono gia' fatti, niente contesa su Windows Update).
+# Scarica mentre lo script prepara report e consegna; l'installazione avviene
+# alla fine, subito prima del riavvio.
+if ($Global:AvviaWinUpdateDopoDriver -and -not $Global:JobWinUpdate -and -not $Test) {
+    try {
+        $Global:JobWinUpdate = Start-Job -ScriptBlock {
+            try {
+                $s    = New-Object -ComObject Microsoft.Update.Session
+                $res  = $s.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+                $coll = New-Object -ComObject Microsoft.Update.UpdateColl
+                foreach ($u in $res.Updates) {
+                    if ($u.InstallationBehavior -and $u.InstallationBehavior.CanRequestUserInput) { continue }
+                    if (-not $u.EulaAccepted) { try { $u.AcceptEula() } catch {} }
+                    $coll.Add($u) | Out-Null
+                }
+                if ($coll.Count -gt 0) {
+                    $dl = $s.CreateUpdateDownloader(); $dl.Updates = $coll; $dl.Download() | Out-Null
+                }
+                return $coll.Count
+            } catch { return -1 }
+        }
+        Write-OK "Download aggiornamenti Windows avviato in background."
+        Add-Report "Aggiornamenti Windows (scaricati in background)" "OK"
+    } catch {
+        Write-Errore "Impossibile avviare gli aggiornamenti di Windows: $_"
+        Add-Report "Aggiornamenti di sicurezza Windows" "ERRORE"
+    }
+}
+}
+}
+# Task del pannello rimasto "in corso" (passi senza aggiornamenti propri): lo
+# chiudo, a meno che il passo successivo continui lo stesso task.
+$prossimoTask = if ($passo + 1 -lt $totPassi) { $Global:Passi[$passo + 1].Task } else { '' }
+try {
+    if ($prossimoTask -ne $voce.Task -and $Global:PannelloStatus -and $Global:PannelloStatus.Tasks.Contains($voce.Task) -and
+        $Global:PannelloStatus.Tasks[$voce.Task].Stato -in @('running', 'pending')) {
+        Update-PannelloStatus -TaskId $voce.Task -Stato "done" -Dettaglio "Completato"
+    }
+} catch {}
+$passo++
+Save-Fase $passo $voce.Nome
+}
+$Global:PercentualeDaPassi = $false
+# Sicurezza: se i lavori in background fossero ancora aperti, li chiudo qui.
+if ($Global:LavoriBg) { [void](Complete-LavoriInBackground) }
 
 # =============================================================================
 # FINE
