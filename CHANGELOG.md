@@ -14,6 +14,11 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
   `C:\ProgramData\PCFacile\log\riepilogo-tecnico.txt`, ora senza password né
   recovery key BitLocker. Antivirus / Cyber Protection attivati compaiono
   nella scheda.
+- Niente più `NON CANCELLARE - Chiave di Ripristino BitLocker.txt` sul Desktop:
+  la chiave è solo nella scheda PDF, in un riquadro rosso "Conserva questa
+  chiave" subito sotto le credenziali. La copia lasciata da versioni precedenti
+  viene tolta (tranne se la chiave non è stata letta in questa sessione). La
+  chiave non va mai nei log.
 
 ### Modificato — avvio unico
 - **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →

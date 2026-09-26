@@ -633,11 +633,25 @@ Describe 'Save-SchedaConsegna' {
         Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.html') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.pdf') | Should -BeFalse
     }
-    It 'PDF riuscito: toglie dal Desktop TXT e HTML lasciati da versioni precedenti (altri file intatti)' {
+    It 'PDF riuscito: toglie dal Desktop TXT, HTML e file chiave BitLocker delle versioni precedenti (altri file intatti)' {
         Set-Content -LiteralPath (Join-Path $script:Desk 'Riepilogo-Configurazione-PC.txt') -Value 'vecchio'
         Set-Content -LiteralPath (Join-Path $script:Desk 'Scheda-Consegna-Cliente.html') -Value 'vecchio'
         Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Foto cliente.txt') -Value 'mio'
         $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force | Sort-Object Name).Name |
+            Should -Be @('Foto cliente.txt', 'Scheda-Consegna-Cliente.pdf')
+    }
+    It 'ripiego HTML: toglie comunque il vecchio file chiave BitLocker (la chiave e'' nella scheda HTML)' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore { param($h, $p) }
+        $r.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+    }
+    It '-ConservaVecchiaChiaveBitLocker: chiave non letta in questa sessione -> il vecchio file resta' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono -ConservaVecchiaChiaveBitLocker
         $r.Esito | Should -Be 'PDF'
         @(Get-ChildItem -LiteralPath $script:Desk -Force | Sort-Object Name).Name |
             Should -Be @('NON CANCELLARE - Chiave di Ripristino BitLocker.txt', 'Scheda-Consegna-Cliente.pdf')
@@ -677,6 +691,15 @@ Describe 'Riepilogo tecnico nel log senza credenziali' {
         $content = Get-Content $script:SetupPath -Raw
         $content | Should -Not -Match '\$f \+= \$credBlocco'
         $content | Should -Not -Match '\$f \+= "  Recovery key  : \$\(\$bitlocker\.RecoveryKey\)"'
+    }
+    It 'nessun file "NON CANCELLARE" scritto sul Desktop; la chiave e'' nel riquadro "Conserva questa chiave" della scheda' {
+        $content = Get-Content $script:SetupPath -Raw
+        $content | Should -Not -Match '\$nonCancFile'
+        $content | Should -Not -Match 'Set-Content[^\r\n]*NON CANCELLARE'
+        $content | Should -Match 'CONSERVA QUESTA CHIAVE'
+        $content | Should -Match 'class=''bl-chiave''>\$blKey<'
+        # La chiave non finisce nel log JSON/CSV (solo esito della voce)
+        $content | Should -Not -MatchExactly 'recoveryKey\s*='
     }
 }
 

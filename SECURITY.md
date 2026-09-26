@@ -19,8 +19,7 @@ senza un archivio segreti dedicato.
 ## Dati sensibili
 
 La scheda di consegna sul Desktop (`Scheda-Consegna-Cliente.pdf`, o `.html` di
-ripiego) e il file `NON CANCELLARE - Chiave di Ripristino BitLocker.txt`
-contengono **intenzionalmente** credenziali in chiaro e la chiave di ripristino
+ripiego) contiene **intenzionalmente** credenziali in chiaro e la chiave di ripristino
 BitLocker: servono al flusso interno del negozio e restano con il PC del
 cliente. Il riepilogo tecnico e i log in `C:\ProgramData\PCFacile\log` non
 contengono password né recovery key. Vanno consegnati e conservati secondo le procedure aziendali, mai

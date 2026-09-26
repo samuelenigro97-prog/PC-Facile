@@ -176,7 +176,7 @@ console, nel pannello e nel riepilogo.
 | 11 | **Pulizia e ottimizzazione** (partita in background nella fase 2, qui si attende la fine): bloatware OEM, promo dal menu Start, avvio automatico, OneDrive, **privacy**, piccole comodità Windows |
 | 12 | **Driver**: scheda video dedicata (tool del produttore) + driver generici da Windows Update |
 | 13 | **Aggiornamenti — sempre per ultimi**: app (`winget upgrade --all`), app del **Microsoft Store**, e **Windows Update** (scaricati in background, installati a fine lavoro prima del riavvio) |
-| —  | **Report finale & Consegna**: verifica finale + diagnostica **Salute SSD (SMART)**, **Salute Batteria** (notebook) e **Licenza Windows** + generazione file **`NON CANCELLARE - Chiave di Ripristino BitLocker.txt`** (se crittografato) + **Scheda Consegna Cliente PDF** sul Desktop (unico file per il cliente) + riavvio |
+| —  | **Report finale & Consegna**: verifica finale + diagnostica **Salute SSD (SMART)**, **Salute Batteria** (notebook) e **Licenza Windows** + **Scheda Consegna Cliente PDF** sul Desktop (unico file per il cliente; se il disco è cifrato contiene la **chiave di ripristino BitLocker** in un riquadro "Conserva questa chiave") + riavvio |
 
 **Profili app** (browser incluso: Chrome, o Opera GX per GAMING):
 - **BASE** — VLC, Adobe Reader, 7-Zip, WhatsApp, Spotify, Zoom, AnyDesk
@@ -256,12 +256,16 @@ blocco a metà lavoro.
 Al termine, sul **Desktop** del cliente resta **un solo file**:
 
 - `Scheda-Consegna-Cliente.pdf` — scheda di consegna (credenziali, hardware,
-  garanzia, programmi installati, eventuale chiave BitLocker). L'HTML da cui
+  garanzia, programmi installati e, se il disco è cifrato, la chiave di
+  ripristino BitLocker in evidenza nel riquadro "Conserva questa chiave"). L'HTML da cui
   nasce viene generato in `C:\ProgramData\PCFacile\consegna` e cancellato dopo
   la conversione. Se il PDF non si riesce a creare (Edge assente o errore), sul
   Desktop resta `Scheda-Consegna-Cliente.html` da stampare o salvare in PDF dal
   browser.
-- Solo se il disco è cifrato: `NON CANCELLARE - Chiave di Ripristino BitLocker.txt`.
+
+Non viene più creato il file `NON CANCELLARE - Chiave di Ripristino BitLocker.txt`
+(quello lasciato da versioni precedenti viene tolto quando la scheda è sul
+Desktop; resta solo se in questa sessione la chiave non si è potuta leggere).
 
 Il materiale tecnico resta in `C:\ProgramData\PCFacile\log` (non sul Desktop):
 `riepilogo-tecnico.txt` (senza password né recovery key) e

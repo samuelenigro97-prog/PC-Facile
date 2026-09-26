@@ -739,8 +739,8 @@ function Get-AntivirusInstallati {
 
 # Recupera la chiave di ripristino BitLocker del volume di sistema.
 # ATTENZIONE - DATO SENSIBILE: la recovery key da' accesso COMPLETO al disco
-# cifrato. Finisce nel file riepilogo che RESTA con la macchina/cliente: e'
-# voluto e necessario (Windows 11 attiva da solo la crittografia del dispositivo;
+# cifrato. Finisce SOLO nella scheda di consegna (PDF sul Desktop) che RESTA
+# con la macchina/cliente, mai nei log: e' voluto e necessario (Windows 11 attiva da solo la crittografia del dispositivo;
 # senza questa chiave, dopo un reset o un cambio hardware il cliente resta
 # chiuso fuori dai suoi dati). Non va mai pubblicata/condivisa altrove.
 # Ritorna un oggetto: Volume, Cifrato, Stato, KeyId, RecoveryKey, Esito, Messaggio.
@@ -790,7 +790,7 @@ function Get-BitLockerRecovery {
 
     # Esito coerente con Add-Report (OK / AVVISO / SALTATO):
     if ($r.RecoveryKey) {
-        $r.Esito = "OK"; $r.Messaggio = "chiave trovata e salvata nel riepilogo"
+        $r.Esito = "OK"; $r.Messaggio = "chiave trovata: riportata nella scheda di consegna"
     } elseif (-not $r.Cifrato) {
         $r.Esito = "SALTATO"; $r.Messaggio = "volume non cifrato: nessuna chiave da salvare"
     } else {
@@ -4009,13 +4009,16 @@ function Get-DesktopDir {
     return $env:TEMP
 }
 
-# SCHEDA DI CONSEGNA: sul Desktop del cliente deve restare UN solo file, il PDF.
+# SCHEDA DI CONSEGNA: sul Desktop del cliente deve restare UN solo file, il PDF
+# (contiene anche la chiave BitLocker: niente piu' file "NON CANCELLARE").
 # L'HTML si scrive in una cartella di lavoro (ProgramData\PCFacile\consegna) e
 # Edge headless lo converte in PDF. Solo se il PDF esiste ed e' > 0 byte lo
 # sposto sul Desktop e cancello l'HTML. Se la conversione fallisce l'HTML va
 # sul Desktop come ripiego (si stampa / salva in PDF dal browser). In ogni caso
 # tolgo dal Desktop il vecchio riepilogo TXT e, se c'e' il PDF, il vecchio HTML
-# (lasciati da versioni precedenti o da una sessione ripresa).
+# (lasciati da versioni precedenti o da una sessione ripresa); con la scheda
+# sul Desktop tolgo anche il vecchio "NON CANCELLARE - Chiave ... .txt", salvo
+# -ConservaVecchiaChiaveBitLocker (chiave non letta in questa sessione).
 # -Convertitore: scriptblock (percorsoHtml, percorsoPdf) usato dai test; di
 # default Edge headless con un profilo temporaneo (non disturba il pannello
 # gia' aperto in Edge). Restituisce Esito PDF / HTML / ERRORE e il percorso.
@@ -4024,7 +4027,8 @@ function Save-SchedaConsegna {
         [Parameter(Mandatory = $true)][string]$HtmlDoc,
         [Parameter(Mandatory = $true)][string]$DesktopDir,
         [Parameter(Mandatory = $true)][string]$CartellaLavoro,
-        [scriptblock]$Convertitore
+        [scriptblock]$Convertitore,
+        [switch]$ConservaVecchiaChiaveBitLocker
     )
     $nomeBase    = 'Scheda-Consegna-Cliente'
     $htmlLavoro  = Join-Path $CartellaLavoro "$nomeBase.html"
@@ -4032,6 +4036,10 @@ function Save-SchedaConsegna {
     $pdfDesktop  = Join-Path $DesktopDir "$nomeBase.pdf"
     $htmlDesktop = Join-Path $DesktopDir "$nomeBase.html"
     $txtDesktop  = Join-Path $DesktopDir 'Riepilogo-Configurazione-PC.txt'
+    $chiaveVecchia = Join-Path $DesktopDir 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt'
+    # Il vecchio file della chiave BitLocker (versioni precedenti) si toglie solo
+    # quando la scheda (che contiene la chiave) e' davvero sul Desktop.
+    $togliChiaveVecchia = { if (-not $ConservaVecchiaChiaveBitLocker) { Remove-Item -LiteralPath $chiaveVecchia -Force -ErrorAction SilentlyContinue } }
     $fileOk = { param($p) (Test-Path -LiteralPath $p -PathType Leaf) -and ((Get-Item -LiteralPath $p -ErrorAction SilentlyContinue).Length -gt 0) }
 
     # Il riepilogo TXT non va mai sul Desktop (sta nel log tecnico).
@@ -4076,6 +4084,7 @@ function Save-SchedaConsegna {
         Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $htmlDesktop -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        & $togliChiaveVecchia
         return [pscustomobject]@{ Esito = 'PDF'; Percorso = $pdfDesktop; Messaggio = 'PDF creato sul Desktop' }
     }
 
@@ -4084,6 +4093,7 @@ function Save-SchedaConsegna {
     try {
         Copy-Item -LiteralPath $htmlLavoro -Destination $htmlDesktop -Force -ErrorAction Stop
         Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        & $togliChiaveVecchia
         return [pscustomobject]@{ Esito = 'HTML'; Percorso = $htmlDesktop; Messaggio = 'PDF non creato: sul Desktop resta la scheda HTML' }
     } catch {
         return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $htmlLavoro; Messaggio = "PDF non creato e HTML non copiato sul Desktop: $($_.Exception.Message)" }
@@ -7597,49 +7607,18 @@ if ($RunReale) {
     # CHIAVE DI RIPRISTINO BITLOCKER (il piu' TARDI possibile: se la device
     # encryption di Windows 11 si e' attivata durante il setup, ora la chiave
     # esiste). Usa la funzione di log Add-Report come gli altri passi.
-    # DATO SENSIBILE: la chiave finisce nel riepilogo che resta col PC (voluto).
+    # DATO SENSIBILE: la chiave va SOLO nella scheda di consegna PDF (riquadro
+    # "Conserva questa chiave"), che resta col PC. Niente file separato sul
+    # Desktop e niente chiave nei log.
     # -------------------------------------------------------------------------
-    Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Salvataggio BitLocker e scheda cliente..."
+    Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Lettura chiave BitLocker e scheda cliente..."
     Write-Titolo "Chiave di Ripristino BitLocker"
-    Write-Host "Salvo la chiave di ripristino nel riepilogo: senza, se Windows attiva la" -ForegroundColor White
-    Write-Host "crittografia da solo, dopo un reset o un cambio hardware si perde l'accesso." -ForegroundColor White
+    Write-Host "Riporto la chiave di ripristino nella scheda di consegna: senza, se Windows" -ForegroundColor White
+    Write-Host "attiva la crittografia da solo, dopo un reset o un cambio hardware si perde l'accesso." -ForegroundColor White
     Write-Host ""
     $bitlocker = Get-BitLockerRecovery -Volume $env:SystemDrive
     switch ($bitlocker.Esito) {
-        "OK"      {
-            Write-OK "Chiave di ripristino BitLocker salvata (volume $($bitlocker.Volume))."
-            try {
-                $nonCancFile = Join-Path (Get-DesktopDir) "NON CANCELLARE - Chiave di Ripristino BitLocker.txt"
-                $nonCancText = @"
-================================================================================
-   CHIAVE DI RIPRISTINO BITLOCKER - NON CANCELLARE QUESTO FILE
-================================================================================
-
-Questo computer ha la crittografia di sicurezza BitLocker attiva.
-Se dopo un aggiornamento di Windows, un cambio di password o un intervento tecnico
-il sistema dovesse richiedere la 'Chiave di ripristino di BitLocker', inserisci
-il codice numerico di 48 cifre riportato qui sotto:
-
-ID CHIAVE (Identificatore):
-$($bitlocker.KeyId)
-
-CHIAVE DI RIPRISTINO (48 cifre):
-$($bitlocker.RecoveryKey)
-
-Volume protetto : $($bitlocker.Volume)
-Data salvataggio: $(Get-Date -Format 'dd/MM/yyyy HH:mm')
-
-================================================================================
-IMPORTANTE:
-Non eliminare questo file. Ti consigliamo di scattare una foto con lo smartphone
-a questo promemoria o di salvarne una copia su una chiavetta USB personale
-per averlo sempre a disposizione in caso di necessita'.
-================================================================================
-"@
-                $nonCancText | Set-Content -Path $nonCancFile -Encoding UTF8
-                Write-OK "Creato file di sicurezza sul Desktop: $nonCancFile"
-            } catch {}
-        }
+        "OK"      { Write-OK "Chiave di ripristino BitLocker trovata (volume $($bitlocker.Volume)): va nella scheda di consegna PDF." }
         "SALTATO" { Write-Info $bitlocker.Messaggio }
         default   { Write-Info $bitlocker.Messaggio }   # AVVISO
     }
@@ -7811,7 +7790,7 @@ per averlo sempre a disposizione in caso di necessita'.
         $f += ""
         $f += $sep
         # La recovery key da' accesso completo al disco: NON va nel log (resta
-        # nella scheda di consegna e nel file "NON CANCELLARE" sul Desktop).
+        # solo nella scheda di consegna PDF sul Desktop).
         $f += "CHIAVE DI RIPRISTINO BITLOCKER"
         $f += $sep
         if ($bitlocker) {
@@ -7819,8 +7798,7 @@ per averlo sempre a disposizione in caso di necessita'.
             $f += "  Cifratura     : $($bitlocker.Stato)"
             if ($bitlocker.RecoveryKey) {
                 $f += "  ID chiave     : $($bitlocker.KeyId)"
-                $f += "  Recovery key  : (non riportata nel log: e' nella scheda di consegna e nel file"
-                $f += "                  'NON CANCELLARE - Chiave di Ripristino BitLocker.txt' sul Desktop)"
+                $f += "  Recovery key  : (non riportata nel log: e' solo nella scheda di consegna PDF sul Desktop)"
             } else {
                 $f += "  $($bitlocker.Messaggio)"
             }
@@ -7899,16 +7877,23 @@ per averlo sempre a disposizione in caso di necessita'.
 "@
             }
 
+            # Chiave BitLocker: unica copia per il cliente (niente file separato sul
+            # Desktop), quindi riquadro ben visibile subito sotto le credenziali.
             $bitlockerBox = ""
             if ($bitlocker -and $bitlocker.RecoveryKey) {
+                $blKeyId = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.KeyId)")
+                $blKey   = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.RecoveryKey)")
+                $blVol   = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.Volume)")
                 $bitlockerBox = @"
             <div class='card card-bitlocker'>
-                <h3>&#128274; Chiave di Ripristino BitLocker (Protezione Disco)</h3>
+                <div class='bl-titolo'>&#9888; CONSERVA QUESTA CHIAVE &bull; Chiave di ripristino BitLocker</div>
+                <p class='bl-testo'>Il disco di questo PC &egrave; protetto con BitLocker. Se Windows chiede la <strong>chiave di ripristino</strong> (dopo un aggiornamento, un reset o una riparazione), inserisci il codice qui sotto. <strong>Senza questa chiave i dati del PC non sono pi&ugrave; accessibili.</strong></p>
+                <div class='bl-chiave'>$blKey</div>
                 <table class='info-table'>
-                    <tr><td style='width: 32%; font-weight: 600;'>Identificatore (ID):</td><td><code>$($bitlocker.KeyId)</code></td></tr>
-                    <tr><td style='font-weight: 600;'>Chiave di Ripristino:</td><td><code style='font-size: 13px; font-weight: bold; background: #dcfce7; color: #14532d; padding: 4px 8px; border-radius: 4px; letter-spacing: 1px;'>$($bitlocker.RecoveryKey)</code></td></tr>
-                    <tr><td colspan='2' style='font-size: 11px; color: #475569; padding-top: 4px;'><em>Conservare questo codice o scattare una foto con lo smartphone. Serve per sbloccare l'accesso al disco in caso di reset o manutenzione straordinaria.</em></td></tr>
+                    <tr><td>ID chiave:</td><td><code>$blKeyId</code></td></tr>
+                    <tr><td>Volume protetto:</td><td>$blVol</td></tr>
                 </table>
+                <p class='bl-testo' style='margin-top: 8px;'><strong>Stampa questa scheda o fotografala con lo smartphone</strong> e conservala in un posto sicuro, lontano dal PC. Non condividere la chiave con nessuno.</p>
             </div>
 "@
             }
@@ -7934,8 +7919,10 @@ per averlo sempre a disposizione in caso di necessita'.
         .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
         .card-cred { background: #fffaf5; border: 1.5px solid #EE7203; }
         .card-cred h3 { color: #EE7203; border-bottom: 1px solid #fed7aa; }
-        .card-bitlocker { background: #f0fdf4; border: 1.5px solid #22c55e; }
-        .card-bitlocker h3 { color: #166534; border-bottom: 1px solid #bbf7d0; }
+        .card-bitlocker { background: #fff7ed; border: 3px solid #dc2626; page-break-inside: avoid; break-inside: avoid; }
+        .bl-titolo { font-size: 16px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .bl-testo { font-size: 12px; color: #1e293b; }
+        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 10px 12px; margin: 10px 0; text-align: center; word-break: break-all; }
         .card h3 { font-size: 14px; color: #00122B; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
         .info-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         .info-table td { padding: 3px 0; }
@@ -7972,6 +7959,7 @@ per averlo sempre a disposizione in caso di necessita'.
         </div>
         <div class="body">
             $credBox
+            $bitlockerBox
             <div class="grid">
                 <div class="card">
                     <h3>&#128100; Dati Cliente &amp; Garanzia</h3>
@@ -7999,7 +7987,6 @@ per averlo sempre a disposizione in caso di necessita'.
                     </table>
                 </div>
             </div>
-            $bitlockerBox
             <div class="card">
                 <h3>&#128230; Programmi e Utility Installate</h3>
                 <div class="app-grid">$appItems</div>
@@ -8009,7 +7996,7 @@ per averlo sempre a disposizione in caso di necessita'.
                 <ul class="tips-list">
                     <li><strong>Connessione Wi-Fi:</strong> All'accensione a casa, seleziona la tua rete Wi-Fi in basso a destra ed inserisci la password di casa.</li>
                     <li><strong>Sicurezza Credenziali:</strong> Se &egrave; stata creata una password provvisoria, modificala al primo accesso in <em>Impostazioni &gt; Account</em>.</li>
-                    $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di sicurezza del disco &egrave; stata registrata in questa scheda e sul Desktop.</li>" })
+                    $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di ripristino del disco &egrave; <strong>solo in questa scheda</strong> (riquadro rosso in alto): conservala.</li>" })
                     <li><strong>Teleassistenza:</strong> AnyDesk e TeamViewer sono configurati e pronti sul desktop in caso di necessit&agrave; di supporto da remoto.</li>
                 </ul>
             </div>
@@ -8022,7 +8009,13 @@ per averlo sempre a disposizione in caso di necessita'.
 </body>
 </html>
 "@
-            $scheda = Save-SchedaConsegna -HtmlDoc $htmlDoc -DesktopDir (Get-DesktopDir) -CartellaLavoro (Join-Path $baseDati "PCFacile\consegna")
+            # Volume cifrato ma chiave NON letta in questa sessione: il vecchio file
+            # "NON CANCELLARE" sul Desktop (se c'e') potrebbe essere l'unica copia -> lo tengo.
+            $tieniChiaveVecchia = ($bitlocker -and $bitlocker.Esito -eq 'AVVISO')
+            $scheda = Save-SchedaConsegna -HtmlDoc $htmlDoc -DesktopDir (Get-DesktopDir) -CartellaLavoro (Join-Path $baseDati "PCFacile\consegna") -ConservaVecchiaChiaveBitLocker:$tieniChiaveVecchia
+            if ($tieniChiaveVecchia -and (Test-Path -LiteralPath (Join-Path (Get-DesktopDir) "NON CANCELLARE - Chiave di Ripristino BitLocker.txt"))) {
+                Write-Errore "Chiave BitLocker non letta: lascio sul Desktop il vecchio file 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt'. Verifica a mano."
+            }
             switch ($scheda.Esito) {
                 'PDF'  {
                     Write-OK "Scheda di consegna PDF salvata sul Desktop (unico file per il cliente): $($scheda.Percorso)"
