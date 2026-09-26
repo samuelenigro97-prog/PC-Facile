@@ -6,7 +6,9 @@ allineati come flusso e funzioni.
 
 | Passo / funzione            | Windows (`setup-pc.ps1`)                  | Mac (`setup-mac.sh`)                          | Note |
 |-----------------------------|-------------------------------------------|-----------------------------------------------|------|
-| Avvio diretto (no menu)     | doppio click = configura; `-Diagnostica`/`-Test` solo da CLI | menu + `--veloce`                  | Win: flusso unico essenziale |
+| Avvio unico (no menu)       | doppio click `PC Facile.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
+| Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (unico canale); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (zsh non ha un server HTTP) ; INVIO = nome in console | canale diverso per limite tecnico |
+| Ordine                      | fase 1 app+lingua (+Office) · fase 2 manuali · fase 3 pulizia/driver/aggiornamenti per ultimi | fase 1 lingua/app · fase 2 nome+account/servizi · fase 3 aggiornamenti per ultimi | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
 | Sincronizzazione orario     | `w32tm` + W32Time auto + tzautoupdate     | `systemsetup -setusingnetworktime on` + sntp  | pari |
 | Nome cliente + host         | `Set-LocalUser` + `Rename-Computer`       | `scutil --set ComputerName/HostName`          | pari |

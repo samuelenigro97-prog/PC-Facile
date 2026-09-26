@@ -9,7 +9,7 @@ con **report finale** degli esiti.
 ## 0. Prima di iniziare — Lingua in Italiano
 
 I PC installati da chiavetta USB spesso saltano la scelta lingua e partono in
-**inglese**. Lo **STEP 0** dello script imposta tutto in `it-IT` (display, formati,
+**inglese**. La **fase 1** dello script imposta tutto in `it-IT` (display, formati,
 tastiera, language pack). La lingua di **sistema** si applica del tutto **dopo il
 riavvio**.
 
@@ -18,20 +18,52 @@ riavvio**.
 
 ---
 
-## 1. Web App Online & Download Launcher
+## 1. Un solo modo di avvio: doppio click su `PC Facile.bat`
 
-Puoi accedere alla **Web App Unificata** da qualsiasi computer o browser di negozio:
-👉 **[https://samuelenigro97-prog.github.io/pc-facile/](https://samuelenigro97-prog.github.io/pc-facile/)**
+C'è **un solo flusso**, sempre uguale, il più automatico possibile:
 
-Dalla Web App puoi:
-- Inserire i dati del cliente (cognome, nome, cellulare, servizi sullo scontrino): email e password si propongono da sole.
-- Premere **AVVIA CONFIGURAZIONE**: è l'unico pulsante che manda i dati al PC. Lo script parte (o aggiorna i dati) solo dopo questo clic, e il pannello dice se il PC li ha davvero ricevuti.
-- Seguire l'avanzamento reale (fasi, percentuale, tempo dall'avvio, hardware e seriale del PC) anche dalla pagina su GitHub, aperta **sul PC da configurare**.
-- Vedere a fine lavoro se ci sono avvisi da controllare prima della consegna.
-- Accedere ai portali di attivazione (Microsoft, Office 365, McAfee, Norton, Covercare).
-- Scaricare al volo **`PC Facile.bat`** se lo script non è ancora avviato.
+1. **Doppio click su `PC Facile.bat`** dalla chiavetta (UAC → *Sì*).
+2. Se c'è **McAfee** il launcher lo fa rimuovere con i suoi strumenti ufficiali
+   (altrimenti blocca lo script) e propone il riavvio.
+3. **Auto-aggiornamento**: scarica l'ultima versione da GitHub (verificata SHA256)
+   e aggiorna la chiavetta; senza Internet usa la copia sulla chiavetta.
+4. Lo script **parte subito con la fase 1** (programmi e lingua), senza menu né domande.
+5. Nello stesso momento **apre da solo il pannello operatore** (una pagina locale
+   nel browser, a sinistra; la console resta a destra). Lì inserisci **una volta
+   sola** i dati del cliente e i servizi sullo scontrino mentre la fase 1 lavora.
+6. Poi la **fase 2** (passi manuali col cliente) e la **fase 3** (pulizia, driver,
+   aggiornamenti per ultimi) proseguono con quei dati.
 
-> Il pannello parla con lo script tramite un piccolo server locale (`127.0.0.1:8899`, raggiungibile solo dal PC stesso) che accetta dati solo dal pannello ufficiale su GitHub Pages o dalla pagina aperta dallo script. Se il browser chiede il permesso di accedere ai dispositivi della rete locale, rispondi **Consenti**.
+Niente altro da scegliere: non ci sono più menu, modalità alternative, pagine web
+da aprire a mano o comandi da incollare.
+
+### Il pannello operatore
+
+- **Scheda Cliente**: cognome, nome, cellulare, tipo di email (email e password
+  si propongono da sole, puoi modificarle), **Office** (nessuna card, card
+  Microsoft 365, card Office 2024/2021, LibreOffice), **programmi** (Base, Ufficio,
+  Gaming, Completo) e servizi (email Proton, card McAfee/Norton, Unieuro Cyber
+  Protection). Premi **CONFERMA DATI CLIENTE**: il pannello dice se il PC li ha
+  davvero ricevuti. Puoi correggerli e confermare di nuovo: valgono dal passo
+  successivo.
+- **Scheda Avanzamento**: fasi e passi in tempo reale, tempo dall'avvio,
+  hardware e seriale, avvisi da controllare prima della consegna.
+- **Scheda Portali**: link diretti a Microsoft, Office, McAfee, Norton, Covercare.
+
+Se i dati non sono ancora arrivati quando servono (Office, ultimo passo della
+fase 1, e poi i passi manuali), lo script si ferma, lo segnala nel pannello
+("il PC aspetta i dati del cliente") e fa un bip di richiamo dopo 2 minuti.
+Se hai chiuso il pannello, premi **P** nella console per riaprirlo.
+
+> Il pannello parla con lo script **solo** tramite un piccolo server locale
+> (`127.0.0.1:8899`, raggiungibile solo dal PC stesso), che accetta dati **solo**
+> dalla pagina aperta dallo script: nessun sito web può inviarli. Se il browser
+> chiede il permesso di accedere ai dispositivi della rete locale, rispondi
+> **Consenti**. Solo se il pannello non si può aprire (porta occupata, browser
+> assente) lo script chiede in console i dati essenziali (cognome, nome, Office,
+> antivirus, Cyber Protection).
+
+### La chiavetta
 
 Ti basta **UN file**: `PC Facile.bat`.
 
@@ -39,14 +71,8 @@ Ti basta **UN file**: `PC Facile.bat`.
 https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC%20Facile.bat
 ```
 
-Tasto destro → **Salva con nome** → `PC Facile.bat`.
+Tasto destro → **Salva con nome** → `PC Facile.bat` sulla chiavetta.
 ⚠️ Verifica che finisca in `.bat` e **non** `.bat.txt`.
-
-`PC Facile.bat` da solo scarica ed esegue l'ultima versione dello script da GitHub
-(serve Internet — sui PC da configurare c'è, serve anche per winget).
-
-Il launcher scarica **sempre l'ultima versione** da GitHub, così è aggiornato da
-solo (niente copie vecchie sulla chiavetta).
 
 **Chiavetta sempre aggiornata (automatico):** a ogni avvio con Internet,
 `PC Facile.bat` (e su Mac `PC Facile.command`) scarica `manifest.txt` da GitHub
@@ -67,74 +93,38 @@ diverso) restano i file già presenti e il lavoro prosegue normalmente.
   primo avvio lo script aggiorna comunque i file e sostituisce il launcher
   appena si chiude la sua finestra; dal giro successivo parte quello nuovo.
 - L'aggiornamento avviene solo su una chiavetta (disco rimovibile) o in una
-  cartella che contiene già `setup-pc.ps1`; non quando il .bat è lanciato da
-  `%TEMP%` (comando Win+R).
+  cartella che contiene già `setup-pc.ps1`.
 - Il manifest arriva dallo stesso repository dei file: protegge da download
   corrotti o troncati, **non** da una manomissione del repository.
 
-**Uso OFFLINE (fallback):** per preparare una chiavetta nuova basta copiarci
-`PC Facile.bat` e avviarlo una volta con Internet (oppure usare l'opzione
-*Prepara USB*): da lì in poi i file restano aggiornati da soli. Senza Internet il
-launcher usa la copia di `setup-pc.ps1` già presente sulla chiavetta.
-```
-https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1
-```
+**Uso OFFLINE:** per preparare una chiavetta nuova basta copiarci
+`PC Facile.bat` e avviarlo una volta con Internet: da lì in poi i file restano
+aggiornati da soli. Senza Internet il launcher usa la copia di `setup-pc.ps1`
+già presente sulla chiavetta.
 
 ---
 
-## 2. Avvio FACILE (consigliato) — doppio click
+## 2. Manutenzione (non per il flusso cliente)
 
-**Doppio click su `PC Facile.bat`.** Fa tutto da solo:
-- chiede i privilegi di amministratore (UAC → *Sì*)
-- scarica ed esegue l'ultima versione da GitHub (con fallback offline su chiavetta)
-- avvia con ExecutionPolicy Bypass ed esegue la **Configurazione Automatica Parallela**:
-  1. **PARTE SUBITO**: senza pause o questionari, la console inizia con antivirus di prova, lingua italiana, Office e app; poi i passi manuali (con la pulizia in background) e per ultimi driver e aggiornamenti.
-  2. **NEL FRATTEMPO LAVORI TU**: apre in parallelo nel browser il **Pannello Operatore Tecnico** con:
-      - 🔑 Credenziali cliente generate con pulsanti **Copia Email** e **Copia Password** a 1 click.
-      - 🌐 Accesso rapido ai portali: Account Microsoft, Riscatto Office 365 (`microsoft365.com/setup`), Attivazione McAfee/Norton e Unieuro Cyber Protection.
-      - ⚡ Monitoraggio live delle fasi e un suono a lavoro finito.
-  3. **CONSEGNA PRONTA**: genera sul Desktop la **Scheda Consegna Cliente HTML**, il promemoria **`NON CANCELLARE - Chiave di Ripristino BitLocker.txt`** e suona a lavoro ultimato.
+Da usare solo per preparare/controllare la chiavetta, **non** sul PC del cliente.
+Da un Prompt dei comandi aperto nella cartella della chiavetta:
 
-> **Consiglio per il banco:** La prima volta che crei la chiavetta USB, avvia con il parametro `-PreparaUSB` (o da menu con `-Menu`): scaricherà tutti i programmi (Chrome, VLC, Adobe Reader, 7-Zip, AnyDesk, Zoom, LibreOffice, tool rimozione AV) direttamente nella cartella `installers` della USB. Così i successivi PC dei clienti si installeranno al **100% OFFLINE** e in pochissimi minuti!
+```bat
+REM Scarica gli installer offline nella cartella "installers" della chiavetta
+"PC Facile.bat" -PreparaUSB
 
----
-
-## 2-bis. Avvio manuale da PowerShell o con parametri
-
-Apri **Windows PowerShell** come Amministratore e usa questi comandi:
-
-```powershell
-# CONFIGURAZIONE AUTOMATICA PARALLELA (Standard / Default)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1)))
-
-# MENU AVANZATO UTILITY (scelta manuale tra opzioni)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1))) -Menu
-
-# TRASFERIMENTO DATI DA VECCHIO PC / DISCO USB
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1))) -Migrazione
-
-# PREPARA USB OFFLINE (scarica i pacchetti sulla chiavetta)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1))) -PreparaUSB
-
-# DIAGNOSTICA (controlla ID pacchetti e ambiente, NON installa)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1))) -Diagnostica
-
-# TEST a vuoto (simulazione completa senza modifiche)
-& ([scriptblock]::Create((irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1))) -Test
+REM Controlla ambiente e ID dei pacchetti (NON installa nulla)
+"PC Facile.bat" -Diagnostica
 ```
 
-Se invece hai il file salvato e vuoi lanciarlo da file:
-```powershell
-powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Desktop\setup-pc.ps1"
-```
+`-Test` (simulazione non interattiva e non distruttiva) esiste solo per la CI.
+I parametri delle vecchie modalità (`-Menu`, `-Espresso`, `-Manuale`,
+`-AgenteIA`, `-Migrazione`, `-Veloce`) vengono ignorati: il flusso è uno solo.
 
 > ⚠️ **Perché l'errore "esecuzione disabilitata"?** Windows blocca i file `.ps1`
-> di default. Eseguire come scriptblock in memoria (comandi sopra) o con
-> `-ExecutionPolicy Bypass` lo evita. Lo script non puo' risolverlo da dentro:
-> il blocco avviene PRIMA che parta.
->
-> **Nota percorso:** usa `$env:USERPROFILE` (es. `C:\Users\telef`) — NON un nome
-> utente fisso come `oem`. Ogni PC ha un profilo diverso.
+> di default: per questo si parte sempre da `PC Facile.bat`, che avvia lo script
+> con `-ExecutionPolicy Bypass`. Lo script non può risolverlo da dentro: il
+> blocco avviene PRIMA che parta.
 
 ---
 
@@ -170,18 +160,18 @@ console, nel pannello e nel riepilogo.
 
 | Step | Azione |
 |------|--------|
-| **Fase 1** | **Programmi e lingua (automatico)** |
-| 1  | **Punto di ripristino** (opzionale): rete di sicurezza prima delle modifiche. *Salta se già creato oggi* |
-| 2  | **Rimozione antivirus di prova** (prima delle installazioni, così non le bloccano). Non tocca l'antivirus della card scelta nel pannello. *Salta se non ce ne sono* |
+| **Fase 1** | **Programmi e lingua (automatico)** — intanto inserisci i dati del cliente nel pannello |
+| 1  | **Punto di ripristino** (opzionale, di default saltato per risparmiare SSD). *Salta se già creato oggi* |
+| 2  | **Rimozione antivirus di prova** (prima delle installazioni, così non le bloccano). Non tocca l'antivirus della card indicata nel pannello. *Salta se non ce ne sono* |
 | 3  | Lingua/regione **Italiano (it-IT)** + tastiera + language pack + propagazione a login/nuovi utenti. *Salta se Windows è già tutto in italiano* |
-| 4  | **Office: installazione** della suite scelta se manca (Office 365, perpetuo, OpenOffice, LibreOffice) + Visual C++ (*saltato se già presente*) + collegamenti Office sul Desktop |
-| 5  | **App + browser**: scegli il profilo e il **browser si installa da solo** — **Chrome** per tutti, **Opera GX** se scegli GAMING. *Le app già installate si saltano* |
-| **Fase 2** | **Passi manuali dell'operatore** — intanto la **pulizia gira in background** |
-| 6  | **Nome cliente** (nome visualizzato dell'account **e** nome del PC): genera anche le credenziali suggerite |
-| 7  | **Account cliente** (col cliente davanti): login/registrazione; genera o annota email + password `Nome123!` nel riepilogo |
-| 8  | **Office: attivazione** con la card PIN (`microsoft365.com/setup` o `office.com/setup`) + accesso in Word. *Salta se Office è già attivato* |
-| 9  | **Antivirus**: McAfee, Norton o Salta. *Se un antivirus è già installato (Centro sicurezza di Windows o programmi installati) il passo si salta: "già installato"* |
-| 10 | **Unieuro Cyber Protection** (opzionale) — solo sito + credenziali app |
+| 4  | Visual C++ (*saltato se già presente*) + **App + browser** del profilo scelto nel pannello (**Base** se i dati non sono ancora arrivati; se poi arriva un profilo più ampio si aggiungono le app mancanti). **Chrome** per tutti, **Opera GX** con GAMING. *Le app già installate si saltano* |
+| 5  | **Office: installazione** della suite indicata nel pannello (Microsoft 365 / perpetuo → app Microsoft 365; LibreOffice; nessuna) + collegamenti sul Desktop. È il primo passo che usa i dati del cliente: se non sono ancora arrivati, qui li aspetta |
+| **Fase 2** | **Passi manuali dell'operatore** (con i dati del pannello) — intanto la **pulizia gira in background** |
+| 6  | **Nome cliente** (nome visualizzato dell'account **e** nome del PC) |
+| 7  | **Account cliente** (col cliente davanti): si apre la registrazione del tipo di email scelto, con email e password pronte da incollare (E/P, INVIO a fine) |
+| 8  | **Office: attivazione** con la card PIN (`microsoft365.com/setup` o `office.com/setup`). *Salta se Office è già attivato o se non c'è una card* |
+| 9  | **Antivirus** della card indicata (McAfee/Norton), altrimenti Windows Defender. *Se un antivirus è già installato (Centro sicurezza di Windows o programmi installati) il passo si salta: "già installato"* |
+| 10 | **Unieuro Cyber Protection** (opzionale, solo se indicato nel pannello) — sito + credenziali app |
 | **Fase 3** | **Pulizia, driver e aggiornamenti (automatico)** |
 | 11 | **Pulizia e ottimizzazione** (partita in background nella fase 2, qui si attende la fine): bloatware OEM, promo dal menu Start, avvio automatico, OneDrive, **privacy**, piccole comodità Windows |
 | 12 | **Driver**: scheda video dedicata (tool del produttore) + driver generici da Windows Update |
@@ -192,7 +182,7 @@ console, nel pannello e nel riepilogo.
 - **BASE** — VLC, Adobe Reader, 7-Zip, WhatsApp, Spotify, Zoom, AnyDesk
 - **UFFICIO** — BASE + GIMP, Sumatra PDF
 - **GAMING** — BASE + Steam, Epic, Discord
-- **COMPLETO** — tutte · **MANUALE** — scegli i singoli numeri
+- **COMPLETO** — tutte
 
 **Driver scheda video**: la ricerca di Windows Update spesso non prende il driver
 video giusto. Perciò, se lo script rileva una GPU **dedicata**, usa il tool del
@@ -208,8 +198,9 @@ Desktop** e lo avvia.
 credenziali per l'app mobile del cliente (nessun installer PC).
 
 **Ripresa sessione**: se lo script si chiude a metà (crash, riavvio, blocco
-antivirus), al lancio successivo propone di **riprendere da dove eri arrivato**:
-i passi già completati vengono saltati. Il checkpoint si cancella da solo a
+antivirus), al lancio successivo **riprende da solo** da dove era arrivato (entro
+15 secondi puoi premere N per ricominciare da capo), con i dati del cliente già
+confermati: i passi già completati vengono saltati. Il checkpoint si cancella da solo a
 lavoro finito. Un checkpoint salvato da una versione precedente (con un altro
 ordine dei passi) riparte dal primo passo: i lavori già fatti si saltano da soli.
 
@@ -287,9 +278,7 @@ errori**, il resto funziona.
 
 ---
 
-## 7. Prima prova sicura (dry-run)
+## 7. Prova a vuoto
 
-Per vedere il flusso senza installare nulla, rispondi:
-Punto di ripristino `N` · STEP 0 `N` · STEP 2 `N` · STEP 3 `4` poi attivazione
-perpetuo `N` · STEP 4 `3` · STEP 4c `N` · Browser `N`/`N` · STEP 6 `S`.
-Arrivi al report finale senza toccare il PC.
+La simulazione completa senza modifiche (`-Test`) gira in automatico nella CI a
+ogni modifica: per l'operatore non serve.

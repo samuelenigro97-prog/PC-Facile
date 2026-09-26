@@ -1,22 +1,24 @@
 # =============================================================================
-# tools/sincronizza-pannello.ps1 - copia docs/index.html dentro setup-pc.ps1
+# tools/sincronizza-pannello.ps1 - copia pannello/pannello-operatore.html
+# dentro setup-pc.ps1
 # -----------------------------------------------------------------------------
-# Il pannello operatore esiste in due copie:
-#   - docs/index.html  : pubblicato su GitHub Pages (la sorgente da modificare)
-#   - setup-pc.ps1     : here-string $html = @"..."@ in Open-PannelloOperatore,
-#                        scritto in TEMP e aperto dallo script (file locale)
-# Dopo ogni modifica a docs/index.html eseguire:
+# Esiste UN SOLO pannello operatore: quello che setup-pc.ps1 scrive in TEMP e
+# apre da solo (file locale) mentre lavora. Qui c'e' la sua sorgente leggibile:
+#   - pannello/pannello-operatore.html : la sorgente da modificare
+#   - setup-pc.ps1 : here-string $html = @"..."@ in Open-PannelloOperatore
+# (Non e' piu' pubblicato su GitHub Pages: parla solo con lo script locale.)
+# Dopo ogni modifica a pannello/pannello-operatore.html eseguire:
 #     pwsh ./tools/sincronizza-pannello.ps1
 #     pwsh ./tools/aggiorna-manifest.ps1      (setup-pc.ps1 cambia hash)
 # Con -SoloVerifica non scrive nulla e restituisce $true se le due copie sono
 # allineate (lo usa il test Pester, cosi' non possono divergere).
 # Differenze ammesse: solo i 3 valori precompilati dallo script (nome, email,
-# password del cliente), che in docs/index.html sono vuoti.
+# password del cliente), che nella sorgente sono vuoti.
 # =============================================================================
 param([switch]$SoloVerifica)
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path $PSScriptRoot -Parent
-$percorsoDocs = Join-Path $radice 'docs/index.html'
+$percorsoDocs = Join-Path $radice 'pannello/pannello-operatore.html'
 $percorsoScript = Join-Path $radice 'setup-pc.ps1'
 
 $sostituzioni = [ordered]@{
@@ -29,10 +31,10 @@ $docs = [System.IO.File]::ReadAllText($percorsoDocs).Replace("`r`n", "`n").TrimE
 # Here-string espandibile: backtick e $ vanno protetti con un backtick.
 $incorporato = $docs.Replace('`', '``').Replace('$', '`$')
 foreach ($k in $sostituzioni.Keys) {
-    if (-not $incorporato.Contains($k)) { throw "Segnaposto non trovato in docs/index.html: $k" }
+    if (-not $incorporato.Contains($k)) { throw "Segnaposto non trovato in pannello/pannello-operatore.html: $k" }
     $incorporato = $incorporato.Replace($k, $sostituzioni[$k])
 }
-if ($incorporato -match '(?m)^"@') { throw 'docs/index.html contiene una riga che inizia con "@ (chiuderebbe la here-string)' }
+if ($incorporato -match '(?m)^"@') { throw 'pannello/pannello-operatore.html contiene una riga che inizia con "@ (chiuderebbe la here-string)' }
 
 $script = [System.IO.File]::ReadAllText($percorsoScript)
 $apertura = "        `$html = @`"`n"
@@ -47,4 +49,4 @@ if ($SoloVerifica) { return ($attuale -ceq $incorporato) }
 if ($attuale -ceq $incorporato) { Write-Host 'Pannello incorporato gia'' allineato.'; return }
 $nuovo = $script.Substring(0, $inizio) + $incorporato + $script.Substring($fine)
 [System.IO.File]::WriteAllText($percorsoScript, $nuovo, (New-Object System.Text.UTF8Encoding($false)))
-Write-Host 'Pannello incorporato in setup-pc.ps1 aggiornato da docs/index.html.'
+Write-Host 'Pannello incorporato in setup-pc.ps1 aggiornato da pannello/pannello-operatore.html.'

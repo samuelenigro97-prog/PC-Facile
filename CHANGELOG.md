@@ -4,6 +4,30 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Modificato — avvio unico
+- **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →
+  auto-aggiornamento → fase 1 subito → pannello locale aperto dallo script dove
+  si inseriscono una volta i dati del cliente → fase 2 e 3. Office è l'ultimo
+  passo della fase 1 (il primo che usa i dati); i passi manuali leggono tutto
+  dal pannello (nessuna domanda in console). Ripresa automatica con i dati del
+  cliente nel checkpoint (Schema 3).
+- Pannello: scelta Office (nessuna / Microsoft 365 / perpetuo / LibreOffice) e
+  profilo programmi; pulsante **CONFERMA DATI CLIENTE**.
+- Mac: niente menu, stesso ordine (aggiornamenti per ultimi), dati dal pannello.
+
+### Rimosso
+- Menu iniziale (1 Zero-Touch, 2 Registrazione guidata/Agente IA, 3 Prepara USB,
+  4 Check salute) e i parametri `-Espresso`/`-ZeroTouch`, `-Manuale`, `-Menu`,
+  `-AgenteIA`, `-Migrazione`, `-Veloce`, `-skipRestore` (ora ignorati).
+- Modulo `Invoke-BrowserAutoSignup` (Agente IA) e `Invoke-MigrazioneDati`.
+- Pannello su GitHub Pages (`docs/index.html`, mai pubblicato): la sorgente è
+  ora `pannello/pannello-operatore.html`; il server locale non accetta più
+  l'origine GitHub Pages. Via anche "Scarica PC Facile.bat" e il comando Win+R.
+- Canali dati alternativi: appunti `PCFACILE_CRED:`, file
+  `pcfacile-cred*.json` in Download/Desktop/TEMP, file di stato
+  `pcfacile-status.js`, prompt console a timeout. Resta solo HTTP locale (più un
+  ripiego minimo in console se il pannello non si apre).
+
 ### Aggiunto
 - Aggiornamento automatico della chiavetta: `manifest.txt` (file + SHA256) e
   modalità `setup-pc.ps1 -AggiornaUSB`, usata da `PC Facile.bat` a ogni avvio;
