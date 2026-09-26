@@ -16,3 +16,4 @@
 # repository, GitHub raw e checkout Windows (gli hash del manifest devono tornare).
 manifest.txt text eol=lf
 LEGGIMI.md   text eol=lf
+wifi/*       -text
