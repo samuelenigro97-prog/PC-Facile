@@ -4,6 +4,21 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Corretto — password/email invertivano nome e cognome
+- Nello step "Account cliente" e nella rete di sicurezza finale, la password
+  suggerita usava `$nomeCliente` ("Cognome Nome", costruito dal pannello) invece
+  del solo nome: `New-PasswordCliente` prende sempre la prima parola, quindi
+  generava la password dal **cognome**. Ora usa i campi separati Nome/Cognome
+  del pannello (niente ambiguità di ordine), con lo stesso fallback di prima
+  se non disponibili. Corretta anche l'email (nel pannello e nel ripiego
+  console): veniva passata a `New-EmailCliente` nell'ordine "Cognome Nome",
+  che la funzione interpreta al contrario (si aspetta "Nome Cognome"),
+  invertendo cognome e nome nell'indirizzo generato.
+- Tolto `Google Play Games` (bloatware Acer): l'EULA interattiva lo fa fallire
+  sempre in `winget upgrade --all --silent` (exit code 74103). Ora viene
+  rimosso nello step di pulizia iniziale (via winget e via registro), invece
+  di restare installato e fallire ad ogni aggiornamento.
+
 ### Modificato — solo PDF sul Desktop
 - A fine lavoro sul Desktop del cliente resta **solo** `Scheda-Consegna-Cliente.pdf`.
   L'HTML si genera in `C:\ProgramData\PCFacile\consegna`, Edge headless (profilo

@@ -2659,7 +2659,9 @@ function Read-DatiClienteConsole {
     $cliente = "$cognome $nome"
     $dati = [pscustomobject]@{
         Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
-        Email = (New-EmailCliente -Base $cliente -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base $nome); Provider = 'Microsoft'
+        # New-EmailCliente si aspetta "Nome Cognome" (prende l'ultima parola come
+        # cognome): passare $cliente ("Cognome Nome") invertirebbe l'email.
+        Email = (New-EmailCliente -Base "$nome $cognome" -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base $nome); Provider = 'Microsoft'
         Telefono = $tel; ProfiloApp = 'BASE'
         Servizi = [pscustomobject]@{
             Proton = $false
@@ -6106,7 +6108,7 @@ trap {
     # non dipende da winget: intercetta Dropbox, Booking, Acer Care Center, trial, ecc.)
     $bloatwareWin32Patterns = @(
         '*Dropbox*', '*Booking*', '*Evernote*', '*WildTangent*',
-        '*ExpressVPN*', '*CyberLink*',
+        '*ExpressVPN*', '*CyberLink*', '*Google Play Games*',
         '*Acer Care Center*', '*Acer Collection*', '*Acer Registration*', '*Acer Jumpstart*',
         '*Planet9*', '*Acer User Experience*', '*Care Center Service*',
         '*HP Support Assistant*', '*HP Documentation*', '*HP Sure Recover*', '*HP JumpStart*',
@@ -6183,6 +6185,11 @@ trap {
             winget uninstall --name $nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): $nome"; $rimosse++ }
         }
+        # Google Play Games (bloatware Acer): l'EULA interattiva fa fallire
+        # sempre "winget upgrade --all" in silenzioso, quindi lo tolgo qui
+        # per ID esatto invece di lasciarlo installato e provare ad aggiornarlo.
+        winget uninstall --id Google.PlayGames --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): Google Play Games"; $rimosse++ }
     }
 
     # 4) Pulizia COLLEGAMENTI (.lnk e .url) dal Menu Start, Desktop (Utente, Pubblico e OneDrive)
@@ -6193,7 +6200,7 @@ trap {
         '*Acer Collection*', '*Acer Care Center*', '*Acer Jumpstart*', '*Acer Registration*',
         '*Planet9*', '*HP Support Assistant*', '*HP Documentation*', '*Lenovo Welcome*',
         '*Lenovo Vantage*', '*Dell SupportAssist*', '*Dell Digital Delivery*',
-        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*'
+        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*', '*Google Play Games*'
     )
 
     $shortcutDirs = @(
@@ -6275,7 +6282,7 @@ trap {
         'HP*', '*Lenovo*', 'Dell*', '*ASUS*', 'Acer*', '*SupportAssist*', '*Vantage*',
         'Adobe*', 'SunJavaUpdate*', 'iTunesHelper', 'QuickTime*', 'CCleaner*',
         'WildTangent*', 'ExpressVPN*', '*Booking*', '*Dropbox*', '*Evernote*',
-        '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*'
+        '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*', '*Google Play Games*'
     )
     $avvioTolti = 0
     # a) Voci di registro "Run" (utente + macchina + 32-bit): tolgo per nome-voce
@@ -7216,12 +7223,24 @@ Write-Titolo "Account / Email cliente"
 
 if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
 if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
-$basePerNome = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "utente" }
+# $nomeCliente e' "Cognome Nome" (da $Dati.Cliente, costruito dal pannello come
+# "cognome + nome"): NON va usato per la password, altrimenti prende il cognome
+# come base (New-PasswordCliente usa sempre la PRIMA parola). Uso i campi
+# separati Nome/Cognome quando disponibili (niente ambiguita' di ordine);
+# New-EmailCliente si aspetta "Nome Cognome", quindi li ricompongo in quell'ordine.
+$nomeProprio = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+$cognomeCli  = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+$basePerNome = if ($nomeProprio -and $cognomeCli) { "$nomeProprio $cognomeCli" }
+               elseif ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente }
+               else { "utente" }
 if (-not $credMsAccount) {
     $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
     $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
 }
-if (-not $credMsPassword) { $credMsPassword = New-PasswordCliente -Base $basePerNome }
+if (-not $credMsPassword) {
+    $basePerPassword = if ($nomeProprio -and $nomeProprio.ToUpper() -ne "OEM") { $nomeProprio } else { $basePerNome }
+    $credMsPassword = New-PasswordCliente -Base $basePerPassword
+}
 $provNome = if ($Global:credProvider) { [string]$Global:credProvider } else { "Microsoft" }
 $Global:credProvider = $provNome
 # Pagina di registrazione del provider scelto nel pannello (tipo di email).
@@ -7656,18 +7675,28 @@ if ($RunReale) {
         }
     }
 
+    # $nomeCliente e' "Cognome Nome" (da $Dati.Cliente): per email/password uso
+    # i campi separati Nome/Cognome quando disponibili, altrimenti $nomeCliente
+    # resta l'unico dato che ho (sessioni riprese da un vecchio checkpoint).
+    # New-PasswordCliente prende sempre la PRIMA parola: con "Cognome Nome"
+    # genererebbe la password dal cognome, non dal nome.
+    $nomeProprioRete = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+    $cognomeRete     = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+    $baseEmailRete = if ($nomeProprioRete -and $cognomeRete) { "$nomeProprioRete $cognomeRete" } else { $nomeCliente }
+    $basePassRete  = if ($nomeProprioRete) { $nomeProprioRete } else { $nomeCliente }
+
     # Se dal pannello sono arrivate credenziali, hanno la precedenza assoluta
     if ($Global:credMsAccount) {
         $credMsAccount = $Global:credMsAccount
     } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsAccount -match 'telef|oem|admin|user|utente' -or -not $credMsAccount)) {
         $domRete = if ($Global:credDominio) { $Global:credDominio } else { "proton.me" }
-        $credMsAccount = New-EmailCliente -Base $nomeCliente -Dominio $domRete
+        $credMsAccount = New-EmailCliente -Base $baseEmailRete -Dominio $domRete
     }
 
     if ($Global:credMsPassword) {
         $credMsPassword = $Global:credMsPassword
     } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsPassword -match 'Telef|OEM|Admin|Utente' -or -not $credMsPassword)) {
-        $credMsPassword = New-PasswordCliente -Base $nomeCliente
+        $credMsPassword = New-PasswordCliente -Base $basePassRete
     }
 
     if ($Global:credProvider) {
@@ -7676,11 +7705,11 @@ if ($RunReale) {
 
     # RETE DI SICUREZZA sulla PASSWORD: nel file non deve MAI mancare.
     if (-not $credMsPassword) {
-        $basePass = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "Utente" }
+        $basePass = if ($basePassRete -and $basePassRete.ToUpper() -ne "OEM") { $basePassRete } else { "Utente" }
         $credMsPassword = New-PasswordCliente -Base $basePass
     }
     if (-not $credMsAccount) {
-        $baseAcc = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "utente" }
+        $baseAcc = if ($baseEmailRete -and $baseEmailRete.ToUpper() -ne "OEM") { $baseEmailRete } else { "utente" }
         $domRete = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
         $credMsAccount = New-EmailCliente -Base $baseAcc -Dominio $domRete
     }
