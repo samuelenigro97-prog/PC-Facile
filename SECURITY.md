@@ -18,10 +18,11 @@ senza un archivio segreti dedicato.
 
 ## Dati sensibili
 
-Il riepilogo finale e il file `Credenziali - <cliente>.txt` sul Desktop
-contengono **intenzionalmente** credenziali in chiaro e la chiave di ripristino
+La scheda di consegna sul Desktop (`Scheda-Consegna-Cliente.pdf`, o `.html` di
+ripiego) contiene **intenzionalmente** credenziali in chiaro e la chiave di ripristino
 BitLocker: servono al flusso interno del negozio e restano con il PC del
-cliente. Vanno consegnati e conservati secondo le procedure aziendali, mai
+cliente. Il riepilogo tecnico e i log in `C:\ProgramData\PCFacile\log` non
+contengono password né recovery key. Vanno consegnati e conservati secondo le procedure aziendali, mai
 allegati a issue, commit o log pubblici.
 
 ## Segnalazioni

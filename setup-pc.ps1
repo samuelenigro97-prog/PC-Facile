@@ -739,8 +739,8 @@ function Get-AntivirusInstallati {
 
 # Recupera la chiave di ripristino BitLocker del volume di sistema.
 # ATTENZIONE - DATO SENSIBILE: la recovery key da' accesso COMPLETO al disco
-# cifrato. Finisce nel file riepilogo che RESTA con la macchina/cliente: e'
-# voluto e necessario (Windows 11 attiva da solo la crittografia del dispositivo;
+# cifrato. Finisce SOLO nella scheda di consegna (PDF sul Desktop) che RESTA
+# con la macchina/cliente, mai nei log: e' voluto e necessario (Windows 11 attiva da solo la crittografia del dispositivo;
 # senza questa chiave, dopo un reset o un cambio hardware il cliente resta
 # chiuso fuori dai suoi dati). Non va mai pubblicata/condivisa altrove.
 # Ritorna un oggetto: Volume, Cifrato, Stato, KeyId, RecoveryKey, Esito, Messaggio.
@@ -790,7 +790,7 @@ function Get-BitLockerRecovery {
 
     # Esito coerente con Add-Report (OK / AVVISO / SALTATO):
     if ($r.RecoveryKey) {
-        $r.Esito = "OK"; $r.Messaggio = "chiave trovata e salvata nel riepilogo"
+        $r.Esito = "OK"; $r.Messaggio = "chiave trovata: riportata nella scheda di consegna"
     } elseif (-not $r.Cifrato) {
         $r.Esito = "SALTATO"; $r.Messaggio = "volume non cifrato: nessuna chiave da salvare"
     } else {
@@ -1964,7 +1964,7 @@ function Open-PannelloOperatore {
         <div id="completionBanner" class="banner-complete" role="status">
             <h2 id="completionTitle">&#10003; Configurazione completata</h2>
             <ul id="completionAvvisi"></ul>
-            <p>La scheda di consegna (HTML e PDF) &egrave; sul Desktop di questo PC: <strong>Scheda-Consegna-Cliente</strong>.</p>
+            <p>Sul Desktop di questo PC c'&egrave; solo la scheda di consegna: <strong>Scheda-Consegna-Cliente.pdf</strong> (se il PDF non si crea, resta la versione <strong>.html</strong> da stampare). Il riepilogo tecnico &egrave; in <code>C:\ProgramData\PCFacile\log</code>.</p>
         </div>
 
         <!-- SCHEDE -->
@@ -2659,7 +2659,9 @@ function Read-DatiClienteConsole {
     $cliente = "$cognome $nome"
     $dati = [pscustomobject]@{
         Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
-        Email = (New-EmailCliente -Base $cliente -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base $nome); Provider = 'Microsoft'
+        # New-EmailCliente si aspetta "Nome Cognome" (prende l'ultima parola come
+        # cognome): passare $cliente ("Cognome Nome") invertirebbe l'email.
+        Email = (New-EmailCliente -Base "$nome $cognome" -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base $nome); Provider = 'Microsoft'
         Telefono = $tel; ProfiloApp = 'BASE'
         Servizi = [pscustomobject]@{
             Proton = $false
@@ -4009,6 +4011,97 @@ function Get-DesktopDir {
     return $env:TEMP
 }
 
+# SCHEDA DI CONSEGNA: sul Desktop del cliente deve restare UN solo file, il PDF
+# (contiene anche la chiave BitLocker: niente piu' file "NON CANCELLARE").
+# L'HTML si scrive in una cartella di lavoro (ProgramData\PCFacile\consegna) e
+# Edge headless lo converte in PDF. Solo se il PDF esiste ed e' > 0 byte lo
+# sposto sul Desktop e cancello l'HTML. Se la conversione fallisce l'HTML va
+# sul Desktop come ripiego (si stampa / salva in PDF dal browser). In ogni caso
+# tolgo dal Desktop il vecchio riepilogo TXT e, se c'e' il PDF, il vecchio HTML
+# (lasciati da versioni precedenti o da una sessione ripresa); con la scheda
+# sul Desktop tolgo anche il vecchio "NON CANCELLARE - Chiave ... .txt", salvo
+# -ConservaVecchiaChiaveBitLocker (chiave non letta in questa sessione).
+# -Convertitore: scriptblock (percorsoHtml, percorsoPdf) usato dai test; di
+# default Edge headless con un profilo temporaneo (non disturba il pannello
+# gia' aperto in Edge). Restituisce Esito PDF / HTML / ERRORE e il percorso.
+function Save-SchedaConsegna {
+    param(
+        [Parameter(Mandatory = $true)][string]$HtmlDoc,
+        [Parameter(Mandatory = $true)][string]$DesktopDir,
+        [Parameter(Mandatory = $true)][string]$CartellaLavoro,
+        [scriptblock]$Convertitore,
+        [switch]$ConservaVecchiaChiaveBitLocker
+    )
+    $nomeBase    = 'Scheda-Consegna-Cliente'
+    $htmlLavoro  = Join-Path $CartellaLavoro "$nomeBase.html"
+    $pdfLavoro   = Join-Path $CartellaLavoro "$nomeBase.pdf"
+    $pdfDesktop  = Join-Path $DesktopDir "$nomeBase.pdf"
+    $htmlDesktop = Join-Path $DesktopDir "$nomeBase.html"
+    $txtDesktop  = Join-Path $DesktopDir 'Riepilogo-Configurazione-PC.txt'
+    $chiaveVecchia = Join-Path $DesktopDir 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt'
+    # Il vecchio file della chiave BitLocker (versioni precedenti) si toglie solo
+    # quando la scheda (che contiene la chiave) e' davvero sul Desktop.
+    $togliChiaveVecchia = { if (-not $ConservaVecchiaChiaveBitLocker) { Remove-Item -LiteralPath $chiaveVecchia -Force -ErrorAction SilentlyContinue } }
+    $fileOk = { param($p) (Test-Path -LiteralPath $p -PathType Leaf) -and ((Get-Item -LiteralPath $p -ErrorAction SilentlyContinue).Length -gt 0) }
+
+    # Il riepilogo TXT non va mai sul Desktop (sta nel log tecnico).
+    Remove-Item -LiteralPath $txtDesktop -Force -ErrorAction SilentlyContinue
+
+    try {
+        if (-not (Test-Path -LiteralPath $CartellaLavoro)) { New-Item -Path $CartellaLavoro -ItemType Directory -Force -ErrorAction Stop | Out-Null }
+        Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        Set-Content -LiteralPath $htmlLavoro -Value $HtmlDoc -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $null; Messaggio = "scheda HTML non scritta: $($_.Exception.Message)" }
+    }
+
+    if (-not $Convertitore) {
+        $Convertitore = {
+            param($PercorsoHtml, $PercorsoPdf)
+            $edge = Get-EdgePath
+            if (-not $edge) { return }
+            $profilo = Join-Path (Split-Path -Parent $PercorsoPdf) 'edge-profilo'
+            $uri = ([System.Uri]$PercorsoHtml).AbsoluteUri
+            $argEdge = @('--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+                         '--run-all-compositor-stages-before-draw', '--no-pdf-header-footer', '--print-to-pdf-no-header',
+                         "--user-data-dir=`"$profilo`"", "--print-to-pdf=`"$PercorsoPdf`"", "`"$uri`"") -join ' '
+            $proc = Start-Process -FilePath $edge -ArgumentList $argEdge -WindowStyle Hidden -PassThru -ErrorAction Stop
+            if ($proc -and -not $proc.WaitForExit(90000)) { try { $proc.Kill() } catch {} }
+            # Edge puo' finire di scrivere il file un attimo dopo l'uscita: attendo max 10 s.
+            for ($i = 0; $i -lt 20 -and -not (Test-Path -LiteralPath $PercorsoPdf); $i++) { Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Milliseconds 500
+            Remove-Item -LiteralPath $profilo -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    try { & $Convertitore $htmlLavoro $pdfLavoro } catch {}
+
+    $pdfOk = [bool](& $fileOk $pdfLavoro)
+    if ($pdfOk) {
+        # Copia (non Move): il file prende i permessi del Desktop, non quelli di
+        # ProgramData, cosi' il cliente puo' gestirlo senza richieste UAC.
+        try { Copy-Item -LiteralPath $pdfLavoro -Destination $pdfDesktop -Force -ErrorAction Stop } catch { $pdfOk = $false }
+        $pdfOk = $pdfOk -and [bool](& $fileOk $pdfDesktop)
+    }
+    if ($pdfOk) {
+        Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $htmlDesktop -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        & $togliChiaveVecchia
+        return [pscustomobject]@{ Esito = 'PDF'; Percorso = $pdfDesktop; Messaggio = 'PDF creato sul Desktop' }
+    }
+
+    # Ripiego: PDF non creato (o vuoto) -> l'HTML stampabile va sul Desktop.
+    Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+    try {
+        Copy-Item -LiteralPath $htmlLavoro -Destination $htmlDesktop -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        & $togliChiaveVecchia
+        return [pscustomobject]@{ Esito = 'HTML'; Percorso = $htmlDesktop; Messaggio = 'PDF non creato: sul Desktop resta la scheda HTML' }
+    } catch {
+        return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $htmlLavoro; Messaggio = "PDF non creato e HTML non copiato sul Desktop: $($_.Exception.Message)" }
+    }
+}
+
 # Disattiva schermate iniziali di benvenuto e tour di Edge per un avvio immediato
 function Set-EdgeFirstRunPolicies {
     if (-not $RunReale) { return }
@@ -5352,15 +5445,15 @@ if ($Diagnostica) {
         Write-Errore "winget NON disponibile: impossibile validare i pacchetti."
     }
 
-    # Test scrittura sul Desktop (il report/riepilogo finale si salva qui)
+    # Test scrittura sul Desktop (la scheda di consegna PDF si salva qui)
     Write-Host ""
     try {
         $tf = Join-Path (Get-DesktopDir) "pcfacile_test.tmp"
         "test" | Set-Content -Path $tf -ErrorAction Stop
         Remove-Item $tf -Force -ErrorAction SilentlyContinue
-        Write-OK "Desktop scrivibile (report/riepilogo OK): $(Get-DesktopDir)"
+        Write-OK "Desktop scrivibile (scheda di consegna PDF OK): $(Get-DesktopDir)"
     } catch {
-        Write-Errore "Desktop NON scrivibile: il file riepilogo potrebbe non salvarsi."
+        Write-Errore "Desktop NON scrivibile: la scheda di consegna potrebbe non salvarsi."
     }
 
     # Office installato? (per attivazione perpetuo serve ospp.vbs)
@@ -6015,7 +6108,7 @@ trap {
     # non dipende da winget: intercetta Dropbox, Booking, Acer Care Center, trial, ecc.)
     $bloatwareWin32Patterns = @(
         '*Dropbox*', '*Booking*', '*Evernote*', '*WildTangent*',
-        '*ExpressVPN*', '*CyberLink*',
+        '*ExpressVPN*', '*CyberLink*', '*Google Play Games*',
         '*Acer Care Center*', '*Acer Collection*', '*Acer Registration*', '*Acer Jumpstart*',
         '*Planet9*', '*Acer User Experience*', '*Care Center Service*',
         '*HP Support Assistant*', '*HP Documentation*', '*HP Sure Recover*', '*HP JumpStart*',
@@ -6092,6 +6185,11 @@ trap {
             winget uninstall --name $nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): $nome"; $rimosse++ }
         }
+        # Google Play Games (bloatware Acer): l'EULA interattiva fa fallire
+        # sempre "winget upgrade --all" in silenzioso, quindi lo tolgo qui
+        # per ID esatto invece di lasciarlo installato e provare ad aggiornarlo.
+        winget uninstall --id Google.PlayGames --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): Google Play Games"; $rimosse++ }
     }
 
     # 4) Pulizia COLLEGAMENTI (.lnk e .url) dal Menu Start, Desktop (Utente, Pubblico e OneDrive)
@@ -6102,7 +6200,7 @@ trap {
         '*Acer Collection*', '*Acer Care Center*', '*Acer Jumpstart*', '*Acer Registration*',
         '*Planet9*', '*HP Support Assistant*', '*HP Documentation*', '*Lenovo Welcome*',
         '*Lenovo Vantage*', '*Dell SupportAssist*', '*Dell Digital Delivery*',
-        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*'
+        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*', '*Google Play Games*'
     )
 
     $shortcutDirs = @(
@@ -6184,7 +6282,7 @@ trap {
         'HP*', '*Lenovo*', 'Dell*', '*ASUS*', 'Acer*', '*SupportAssist*', '*Vantage*',
         'Adobe*', 'SunJavaUpdate*', 'iTunesHelper', 'QuickTime*', 'CCleaner*',
         'WildTangent*', 'ExpressVPN*', '*Booking*', '*Dropbox*', '*Evernote*',
-        '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*'
+        '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*', '*Google Play Games*'
     )
     $avvioTolti = 0
     # a) Voci di registro "Run" (utente + macchina + 32-bit): tolgo per nome-voce
@@ -7125,12 +7223,24 @@ Write-Titolo "Account / Email cliente"
 
 if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
 if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
-$basePerNome = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "utente" }
+# $nomeCliente e' "Cognome Nome" (da $Dati.Cliente, costruito dal pannello come
+# "cognome + nome"): NON va usato per la password, altrimenti prende il cognome
+# come base (New-PasswordCliente usa sempre la PRIMA parola). Uso i campi
+# separati Nome/Cognome quando disponibili (niente ambiguita' di ordine);
+# New-EmailCliente si aspetta "Nome Cognome", quindi li ricompongo in quell'ordine.
+$nomeProprio = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+$cognomeCli  = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+$basePerNome = if ($nomeProprio -and $cognomeCli) { "$nomeProprio $cognomeCli" }
+               elseif ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente }
+               else { "utente" }
 if (-not $credMsAccount) {
     $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
     $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
 }
-if (-not $credMsPassword) { $credMsPassword = New-PasswordCliente -Base $basePerNome }
+if (-not $credMsPassword) {
+    $basePerPassword = if ($nomeProprio -and $nomeProprio.ToUpper() -ne "OEM") { $nomeProprio } else { $basePerNome }
+    $credMsPassword = New-PasswordCliente -Base $basePerPassword
+}
 $provNome = if ($Global:credProvider) { [string]$Global:credProvider } else { "Microsoft" }
 $Global:credProvider = $provNome
 # Pagina di registrazione del provider scelto nel pannello (tipo di email).
@@ -7516,49 +7626,18 @@ if ($RunReale) {
     # CHIAVE DI RIPRISTINO BITLOCKER (il piu' TARDI possibile: se la device
     # encryption di Windows 11 si e' attivata durante il setup, ora la chiave
     # esiste). Usa la funzione di log Add-Report come gli altri passi.
-    # DATO SENSIBILE: la chiave finisce nel riepilogo che resta col PC (voluto).
+    # DATO SENSIBILE: la chiave va SOLO nella scheda di consegna PDF (riquadro
+    # "Conserva questa chiave"), che resta col PC. Niente file separato sul
+    # Desktop e niente chiave nei log.
     # -------------------------------------------------------------------------
-    Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Salvataggio BitLocker e scheda cliente..."
+    Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Lettura chiave BitLocker e scheda cliente..."
     Write-Titolo "Chiave di Ripristino BitLocker"
-    Write-Host "Salvo la chiave di ripristino nel riepilogo: senza, se Windows attiva la" -ForegroundColor White
-    Write-Host "crittografia da solo, dopo un reset o un cambio hardware si perde l'accesso." -ForegroundColor White
+    Write-Host "Riporto la chiave di ripristino nella scheda di consegna: senza, se Windows" -ForegroundColor White
+    Write-Host "attiva la crittografia da solo, dopo un reset o un cambio hardware si perde l'accesso." -ForegroundColor White
     Write-Host ""
     $bitlocker = Get-BitLockerRecovery -Volume $env:SystemDrive
     switch ($bitlocker.Esito) {
-        "OK"      {
-            Write-OK "Chiave di ripristino BitLocker salvata (volume $($bitlocker.Volume))."
-            try {
-                $nonCancFile = Join-Path (Get-DesktopDir) "NON CANCELLARE - Chiave di Ripristino BitLocker.txt"
-                $nonCancText = @"
-================================================================================
-   CHIAVE DI RIPRISTINO BITLOCKER - NON CANCELLARE QUESTO FILE
-================================================================================
-
-Questo computer ha la crittografia di sicurezza BitLocker attiva.
-Se dopo un aggiornamento di Windows, un cambio di password o un intervento tecnico
-il sistema dovesse richiedere la 'Chiave di ripristino di BitLocker', inserisci
-il codice numerico di 48 cifre riportato qui sotto:
-
-ID CHIAVE (Identificatore):
-$($bitlocker.KeyId)
-
-CHIAVE DI RIPRISTINO (48 cifre):
-$($bitlocker.RecoveryKey)
-
-Volume protetto : $($bitlocker.Volume)
-Data salvataggio: $(Get-Date -Format 'dd/MM/yyyy HH:mm')
-
-================================================================================
-IMPORTANTE:
-Non eliminare questo file. Ti consigliamo di scattare una foto con lo smartphone
-a questo promemoria o di salvarne una copia su una chiavetta USB personale
-per averlo sempre a disposizione in caso di necessita'.
-================================================================================
-"@
-                $nonCancText | Set-Content -Path $nonCancFile -Encoding UTF8
-                Write-OK "Creato file di sicurezza sul Desktop: $nonCancFile"
-            } catch {}
-        }
+        "OK"      { Write-OK "Chiave di ripristino BitLocker trovata (volume $($bitlocker.Volume)): va nella scheda di consegna PDF." }
         "SALTATO" { Write-Info $bitlocker.Messaggio }
         default   { Write-Info $bitlocker.Messaggio }   # AVVISO
     }
@@ -7596,18 +7675,28 @@ per averlo sempre a disposizione in caso di necessita'.
         }
     }
 
+    # $nomeCliente e' "Cognome Nome" (da $Dati.Cliente): per email/password uso
+    # i campi separati Nome/Cognome quando disponibili, altrimenti $nomeCliente
+    # resta l'unico dato che ho (sessioni riprese da un vecchio checkpoint).
+    # New-PasswordCliente prende sempre la PRIMA parola: con "Cognome Nome"
+    # genererebbe la password dal cognome, non dal nome.
+    $nomeProprioRete = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+    $cognomeRete     = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+    $baseEmailRete = if ($nomeProprioRete -and $cognomeRete) { "$nomeProprioRete $cognomeRete" } else { $nomeCliente }
+    $basePassRete  = if ($nomeProprioRete) { $nomeProprioRete } else { $nomeCliente }
+
     # Se dal pannello sono arrivate credenziali, hanno la precedenza assoluta
     if ($Global:credMsAccount) {
         $credMsAccount = $Global:credMsAccount
     } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsAccount -match 'telef|oem|admin|user|utente' -or -not $credMsAccount)) {
         $domRete = if ($Global:credDominio) { $Global:credDominio } else { "proton.me" }
-        $credMsAccount = New-EmailCliente -Base $nomeCliente -Dominio $domRete
+        $credMsAccount = New-EmailCliente -Base $baseEmailRete -Dominio $domRete
     }
 
     if ($Global:credMsPassword) {
         $credMsPassword = $Global:credMsPassword
     } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsPassword -match 'Telef|OEM|Admin|Utente' -or -not $credMsPassword)) {
-        $credMsPassword = New-PasswordCliente -Base $nomeCliente
+        $credMsPassword = New-PasswordCliente -Base $basePassRete
     }
 
     if ($Global:credProvider) {
@@ -7616,11 +7705,11 @@ per averlo sempre a disposizione in caso di necessita'.
 
     # RETE DI SICUREZZA sulla PASSWORD: nel file non deve MAI mancare.
     if (-not $credMsPassword) {
-        $basePass = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "Utente" }
+        $basePass = if ($basePassRete -and $basePassRete.ToUpper() -ne "OEM") { $basePassRete } else { "Utente" }
         $credMsPassword = New-PasswordCliente -Base $basePass
     }
     if (-not $credMsAccount) {
-        $baseAcc = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "utente" }
+        $baseAcc = if ($baseEmailRete -and $baseEmailRete.ToUpper() -ne "OEM") { $baseEmailRete } else { "utente" }
         $domRete = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
         $credMsAccount = New-EmailCliente -Base $baseAcc -Dominio $domRete
     }
@@ -7674,54 +7763,25 @@ per averlo sempre a disposizione in caso di necessita'.
 
         $sep = "------------------------------------------------------------"
 
-        # === CREDENZIALI: raccolgo TUTTO in un unico posto. Vanno IN CIMA al
-        #     riepilogo (le prime cose che deve vedere l'operatore) e in un file
-        #     dedicato. Ordine: account principale, poi Cyber Protection /
-        #     antivirus attivati in questa sessione. ===
-        $blank = "______________________________"
+        # Le CREDENZIALI del cliente vanno SOLO nella scheda di consegna (PDF sul
+        # Desktop): il riepilogo testuale qui sotto finisce nel log tecnico in
+        # ProgramData\PCFacile\log e NON contiene password ne' recovery key.
         $provNome = if ($Global:credProvider) { $Global:credProvider } elseif ($prov) { $prov.Nome } else { "Microsoft" }
-        $credList = @()
-        $credList += [pscustomobject]@{
-            Servizio = "ACCOUNT PRINCIPALE ($provNome)"
-            Utente   = $credMsAccount; Password = $credMsPassword
-            Extra    = "Serve per Windows, Office e antivirus"
-        }
-        foreach ($a in $av) {
-            $svc = ($a.Voce -replace ' \(antivirus\)', '' -replace ' \(protezione\)', '').Trim()
-            if ($a.Voce -like '*protezione*') {
-                $credList += [pscustomobject]@{ Servizio = "$svc (Cyber Protection)"; Utente = $credMsAccount; Password = "(creata dal sito: arriva via email al cliente)"; Extra = "PIN card grattata: __________" }
-            } else {
-                $credList += [pscustomobject]@{ Servizio = "$svc (Antivirus)"; Utente = $credMsAccount; Password = $credMsPassword; Extra = "Attivato con l'account principale - PIN card: __________" }
-            }
-        }
-        # Blocco testo delle credenziali (riusato in cima al riepilogo e nel file).
-        $credBlocco = @()
-        $credBlocco += "############################################################"
-        $credBlocco += "#   CREDENZIALI E ACCOUNT DEL CLIENTE                       #"
-        $credBlocco += "#   Dati in chiaro: consegnali al cliente, non diffonderli  #"
-        $credBlocco += "############################################################"
-        foreach ($c in $credList) {
-            $credBlocco += ""
-            $credBlocco += ">>> $($c.Servizio)"
-            $credBlocco += "      Email / utente : $(if ($c.Utente)   { $c.Utente }   else { $blank })"
-            $credBlocco += "      Password       : $(if ($c.Password) { $c.Password } else { $blank })"
-            if ($c.Extra) { $credBlocco += "      Nota           : $($c.Extra)" }
-        }
 
         $clienteDisplay = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser -or $env:USERNAME.ToUpper() -eq "OEM") { "Utente" } else { $env:USERNAME }
         $pcDisplay = if ($pcNuovo) { $pcNuovo } elseif ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$' -or $env:COMPUTERNAME.ToUpper() -eq "OEM") { "PC-$clienteDisplay" } else { $env:COMPUTERNAME }
 
         $f = @()
         $f += "============================================================"
-        $f += "   IL TUO NUOVO PC E' PRONTO"
+        $f += "   RIEPILOGO TECNICO CONFIGURAZIONE PC (log assistenza)"
         $f += "============================================================"
         $f += ""
         $f += "Data     : $(Get-Date -Format 'dd/MM/yyyy HH:mm')"
         $f += "Cliente  : $clienteDisplay"
         $f += "Nome PC  : $pcDisplay"
         $f += "Utente   : $clienteDisplay"
-        $f += ""
-        $f += $credBlocco
+        $f += "Account  : $credMsAccount ($provNome)"
+        $f += "           (password e credenziali: solo nella scheda di consegna PDF sul Desktop)"
         $f += ""
         $f += $sep
         $f += "HARDWARE, SERIALE & GARANZIA LEGALE"
@@ -7758,17 +7818,16 @@ per averlo sempre a disposizione in caso di necessita'.
         if ($av.Count -gt 0) { foreach ($a in $av) { $f += "  - $($a.Voce)" } } else { $f += "  (da verificare)" }
         $f += ""
         $f += $sep
-        # DATO SENSIBILE: la recovery key da' accesso completo al disco. Sta qui
-        # apposta, cosi' resta col PC del cliente e non si perde.
-        $f += "CHIAVE DI RIPRISTINO BITLOCKER  (DATO SENSIBILE: accesso al disco)"
+        # La recovery key da' accesso completo al disco: NON va nel log (resta
+        # solo nella scheda di consegna PDF sul Desktop).
+        $f += "CHIAVE DI RIPRISTINO BITLOCKER"
         $f += $sep
         if ($bitlocker) {
             $f += "  Volume        : $($bitlocker.Volume)"
             $f += "  Cifratura     : $($bitlocker.Stato)"
             if ($bitlocker.RecoveryKey) {
                 $f += "  ID chiave     : $($bitlocker.KeyId)"
-                $f += "  Recovery key  : $($bitlocker.RecoveryKey)"
-                $f += "  >> NOTA: Salvata anche nel file 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt' sul Desktop."
+                $f += "  Recovery key  : (non riportata nel log: e' solo nella scheda di consegna PDF sul Desktop)"
             } else {
                 $f += "  $($bitlocker.Messaggio)"
             }
@@ -7803,27 +7862,34 @@ per averlo sempre a disposizione in caso di necessita'.
         $f += "  Unieuro - Assistenza Tecnica & Installazioni PC"
         $f += "============================================================"
 
-        # Il riepilogo tecnico testuale viene archiviato nei log di sistema E salvato sul Desktop
-        $txtDesktop = Join-Path (Get-DesktopDir) "Riepilogo-Configurazione-PC.txt"
+        # Il riepilogo tecnico testuale va SOLO nel log tecnico (ProgramData\PCFacile\log),
+        # mai sul Desktop: al cliente resta soltanto la scheda di consegna PDF.
+        $baseDati = if ($env:ProgramData) { $env:ProgramData } else { [System.IO.Path]::GetTempPath() }
         try {
-            $f | Set-Content -Path $txtDesktop -Encoding UTF8
-            Write-OK "Riepilogo configurazione PC (.txt) salvato sul Desktop: $txtDesktop"
-        } catch {}
-
-        try {
-            $logDir = Join-Path $env:ProgramData "PCFacile\log"
+            $logDir = Join-Path $baseDati "PCFacile\log"
             if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
-            $f | Set-Content -Path (Join-Path $logDir "riepilogo-tecnico.txt") -Encoding UTF8
+            $txtLog = Join-Path $logDir "riepilogo-tecnico.txt"
+            $f | Set-Content -Path $txtLog -Encoding UTF8
+            Write-OK "Riepilogo tecnico salvato nel log (non sul Desktop): $txtLog"
         } catch {}
 
-        # Scheda di Consegna Cliente HTML stampabile con grafica moderna Unieuro (unico documento di consegna)
+        # Scheda di Consegna Cliente con grafica Unieuro: UNICO documento per il
+        # cliente. HTML generato in ProgramData\PCFacile\consegna, convertito in
+        # PDF sul Desktop e poi cancellato (Save-SchedaConsegna).
         try {
-            $htmlFile = Join-Path (Get-DesktopDir) ("Scheda-Consegna-Cliente.html")
             $appInstallate = @($Report | Where-Object { $_.Voce -like '*installazione*' -and $_.Esito -eq 'OK' } | ForEach-Object { ($_.Voce -replace ' \(installazione\)', '' -replace ' \(installazione offline\)', '').Trim() })
             $appItems = ""
             foreach ($app in $appInstallate) { $appItems += "<div class='app-badge'>&#10003; <strong>$app</strong></div>" }
             if (-not $appItems) { $appItems = "<div class='app-badge'>&#10003; <strong>Applicazioni base configurate</strong></div>" }
 
+            # Antivirus / Cyber Protection attivati in questa sessione: prima stavano
+            # solo nel riepilogo TXT sul Desktop, ora nella scheda (unico documento).
+            $avRighe = ""
+            foreach ($a in $av) {
+                $svcAv = [System.Net.WebUtility]::HtmlEncode(($a.Voce -replace ' \(antivirus\)', '' -replace ' \(protezione\)', '').Trim())
+                $notaAv = if ($a.Voce -like '*protezione*') { "Cyber Protection: password creata dal sito, arriva via email al cliente &bull; PIN card: __________" } else { "Attivato con l'account principale &bull; PIN card: __________" }
+                $avRighe += "<tr><td style='font-weight: 600;'>$($svcAv):</td><td>$notaAv</td></tr>"
+            }
             $credBox = ""
             if ($credMsAccount -or $credMsPassword) {
                 $credBox = @"
@@ -7834,21 +7900,29 @@ per averlo sempre a disposizione in caso di necessita'.
                     <tr><td style='font-weight: 600;'>Password iniziale:</td><td><code style='font-size: 14px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px;'>$credMsPassword</code> <em style='color: #64748b; font-size: 11px; margin-left: 8px;'>(da personalizzare al primo accesso)</em></td></tr>
                     <tr><td style='font-weight: 600;'>Account Windows:</td><td><code>$clienteDisplay</code></td></tr>
                     <tr><td style='font-weight: 600;'>Servizi inclusi:</td><td>Windows 11, Office / Microsoft 365, Antivirus &bull; Card PIN annotato</td></tr>
+                    $avRighe
                 </table>
             </div>
 "@
             }
 
+            # Chiave BitLocker: unica copia per il cliente (niente file separato sul
+            # Desktop), quindi riquadro ben visibile subito sotto le credenziali.
             $bitlockerBox = ""
             if ($bitlocker -and $bitlocker.RecoveryKey) {
+                $blKeyId = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.KeyId)")
+                $blKey   = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.RecoveryKey)")
+                $blVol   = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.Volume)")
                 $bitlockerBox = @"
             <div class='card card-bitlocker'>
-                <h3>&#128274; Chiave di Ripristino BitLocker (Protezione Disco)</h3>
+                <div class='bl-titolo'>&#9888; CONSERVA QUESTA CHIAVE &bull; Chiave di ripristino BitLocker</div>
+                <p class='bl-testo'>Il disco di questo PC &egrave; protetto con BitLocker. Se Windows chiede la <strong>chiave di ripristino</strong> (dopo un aggiornamento, un reset o una riparazione), inserisci il codice qui sotto. <strong>Senza questa chiave i dati del PC non sono pi&ugrave; accessibili.</strong></p>
+                <div class='bl-chiave'>$blKey</div>
                 <table class='info-table'>
-                    <tr><td style='width: 32%; font-weight: 600;'>Identificatore (ID):</td><td><code>$($bitlocker.KeyId)</code></td></tr>
-                    <tr><td style='font-weight: 600;'>Chiave di Ripristino:</td><td><code style='font-size: 13px; font-weight: bold; background: #dcfce7; color: #14532d; padding: 4px 8px; border-radius: 4px; letter-spacing: 1px;'>$($bitlocker.RecoveryKey)</code></td></tr>
-                    <tr><td colspan='2' style='font-size: 11px; color: #475569; padding-top: 4px;'><em>Conservare questo codice o scattare una foto con lo smartphone. Serve per sbloccare l'accesso al disco in caso di reset o manutenzione straordinaria.</em></td></tr>
+                    <tr><td>ID chiave:</td><td><code>$blKeyId</code></td></tr>
+                    <tr><td>Volume protetto:</td><td>$blVol</td></tr>
                 </table>
+                <p class='bl-testo' style='margin-top: 8px;'><strong>Stampa questa scheda o fotografala con lo smartphone</strong> e conservala in un posto sicuro, lontano dal PC. Non condividere la chiave con nessuno.</p>
             </div>
 "@
             }
@@ -7874,8 +7948,10 @@ per averlo sempre a disposizione in caso di necessita'.
         .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
         .card-cred { background: #fffaf5; border: 1.5px solid #EE7203; }
         .card-cred h3 { color: #EE7203; border-bottom: 1px solid #fed7aa; }
-        .card-bitlocker { background: #f0fdf4; border: 1.5px solid #22c55e; }
-        .card-bitlocker h3 { color: #166534; border-bottom: 1px solid #bbf7d0; }
+        .card-bitlocker { background: #fff7ed; border: 3px solid #dc2626; page-break-inside: avoid; break-inside: avoid; }
+        .bl-titolo { font-size: 16px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .bl-testo { font-size: 12px; color: #1e293b; }
+        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 10px 12px; margin: 10px 0; text-align: center; word-break: break-all; }
         .card h3 { font-size: 14px; color: #00122B; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
         .info-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         .info-table td { padding: 3px 0; }
@@ -7912,6 +7988,7 @@ per averlo sempre a disposizione in caso di necessita'.
         </div>
         <div class="body">
             $credBox
+            $bitlockerBox
             <div class="grid">
                 <div class="card">
                     <h3>&#128100; Dati Cliente &amp; Garanzia</h3>
@@ -7939,7 +8016,6 @@ per averlo sempre a disposizione in caso di necessita'.
                     </table>
                 </div>
             </div>
-            $bitlockerBox
             <div class="card">
                 <h3>&#128230; Programmi e Utility Installate</h3>
                 <div class="app-grid">$appItems</div>
@@ -7949,7 +8025,7 @@ per averlo sempre a disposizione in caso di necessita'.
                 <ul class="tips-list">
                     <li><strong>Connessione Wi-Fi:</strong> All'accensione a casa, seleziona la tua rete Wi-Fi in basso a destra ed inserisci la password di casa.</li>
                     <li><strong>Sicurezza Credenziali:</strong> Se &egrave; stata creata una password provvisoria, modificala al primo accesso in <em>Impostazioni &gt; Account</em>.</li>
-                    $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di sicurezza del disco &egrave; stata registrata in questa scheda e sul Desktop.</li>" })
+                    $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di ripristino del disco &egrave; <strong>solo in questa scheda</strong> (riquadro rosso in alto): conservala.</li>" })
                     <li><strong>Teleassistenza:</strong> AnyDesk e TeamViewer sono configurati e pronti sul desktop in caso di necessit&agrave; di supporto da remoto.</li>
                 </ul>
             </div>
@@ -7962,33 +8038,44 @@ per averlo sempre a disposizione in caso di necessita'.
 </body>
 </html>
 "@
-            $htmlDoc | Set-Content -Path $htmlFile -Encoding UTF8
-            Write-OK "Scheda di consegna HTML salvata sul Desktop: $htmlFile"
-
-            # Generazione automatica PDF della Scheda di Consegna direttamente sul Desktop via Edge headless
-            try {
-                $pdfDesktop = Join-Path (Get-DesktopDir) "Scheda-Consegna-Cliente.pdf"
-                $edgeExe = Get-EdgePath
-                if ($edgeExe -and (Test-Path $htmlFile)) {
-                    Start-Process -FilePath $edgeExe -ArgumentList "--headless --disable-gpu --run-all-compositor-stages-before-draw --print-to-pdf=`"$pdfDesktop`" `"$htmlFile`"" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
-                    if (Test-Path $pdfDesktop) {
-                        Write-OK "Scheda di Consegna PDF salvata sul Desktop: $pdfDesktop"
-                    }
+            # Volume cifrato ma chiave NON letta in questa sessione: il vecchio file
+            # "NON CANCELLARE" sul Desktop (se c'e') potrebbe essere l'unica copia -> lo tengo.
+            $tieniChiaveVecchia = ($bitlocker -and $bitlocker.Esito -eq 'AVVISO')
+            $scheda = Save-SchedaConsegna -HtmlDoc $htmlDoc -DesktopDir (Get-DesktopDir) -CartellaLavoro (Join-Path $baseDati "PCFacile\consegna") -ConservaVecchiaChiaveBitLocker:$tieniChiaveVecchia
+            if ($tieniChiaveVecchia -and (Test-Path -LiteralPath (Join-Path (Get-DesktopDir) "NON CANCELLARE - Chiave di Ripristino BitLocker.txt"))) {
+                Write-Errore "Chiave BitLocker non letta: lascio sul Desktop il vecchio file 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt'. Verifica a mano."
+            }
+            switch ($scheda.Esito) {
+                'PDF'  {
+                    Write-OK "Scheda di consegna PDF salvata sul Desktop (unico file per il cliente): $($scheda.Percorso)"
+                    Add-Report "Scheda di consegna PDF sul Desktop" "OK"
                 }
-            } catch {}
-
-            try { Start-Process $htmlFile } catch {}
-        } catch {}
+                'HTML' {
+                    Write-Errore "PDF della scheda non creato: sul Desktop resta la scheda HTML ($($scheda.Percorso))."
+                    Write-Info "Aprila e usa 'Stampa / Salva in PDF' dal browser."
+                    Add-Report "Scheda di consegna PDF (ripiego HTML sul Desktop)" "AVVISO"
+                }
+                default {
+                    Write-Errore "Scheda di consegna non salvata: $($scheda.Messaggio)"
+                    Add-Report "Scheda di consegna" "ERRORE"
+                }
+            }
+            if ($scheda.Percorso -and (Test-Path -LiteralPath $scheda.Percorso)) {
+                try { Start-Process -FilePath $scheda.Percorso } catch {}
+            }
+        } catch {
+            Write-Info "Scheda di consegna non creata: $_"
+        }
 
         # ---------------------------------------------------------------------
         # LOG STRUTTURATO (JSON + CSV) per l'assistenza/statistiche. NON sul
         # Desktop (non e' roba per il cliente): va in ProgramData\PCFacile\log.
         # Il JSON contiene tutto (sistema, esiti, verifica, errori imprevisti);
         # il CSV e' la tabella piatta degli esiti, comoda da aprire in Excel.
-        # NIENTE credenziali nel log: restano solo nel .txt del cliente.
+        # NIENTE credenziali nel log: restano solo nella scheda di consegna.
         # ---------------------------------------------------------------------
         try {
-            $logDir = Join-Path $env:ProgramData "PCFacile\log"
+            $logDir = Join-Path $baseDati "PCFacile\log"
             if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
             $stamp   = Get-Date -Format 'yyyyMMdd_HHmmss'
             $baseLog = Join-Path $logDir ("setup_{0}_{1}" -f $env:COMPUTERNAME, $stamp)
@@ -8021,7 +8108,7 @@ per averlo sempre a disposizione in caso di necessita'.
             Write-Info "Log strutturato non salvato: $_"
         }
     } catch {
-        Write-Info "Impossibile creare il file riepilogo: $_"
+        Write-Info "Impossibile creare riepilogo e scheda di consegna: $_"
     }
     Repair-DesktopShortcuts
     Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
@@ -8031,8 +8118,8 @@ per averlo sempre a disposizione in caso di necessita'.
 # PULIZIA FINALE: PC Facile non lascia tracce di se' sul PC del cliente.
 # Cancella la copia dello script scaricata in %TEMP% dal launcher e i due valori
 # di registro dei colori (console riportata allo stato di fabbrica). Remove-Item
-# cancella in modo PERMANENTE, NON passa dal Cestino. Il REPORT sul Desktop
-# resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
+# cancella in modo PERMANENTE, NON passa dal Cestino. La SCHEDA DI CONSEGNA
+# (PDF) sul Desktop resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
 # locale NON viene toccata. Fatto PRIMA dell'eventuale riavvio, cosi' parte sempre.
 # -----------------------------------------------------------------------------
 if ($RunReale) {
@@ -8067,7 +8154,7 @@ if ($RunReale) {
         # prosegue dalla memoria. Cosi' non resta nulla sul disco del cliente.
         try { Remove-Item -LiteralPath $ioStesso -Force -ErrorAction SilentlyContinue } catch {}
     }
-    Write-OK "Pulizia finale: PC Facile rimosso dal PC (il report resta sul Desktop)."
+    Write-OK "Pulizia finale: PC Facile rimosso dal PC (la scheda di consegna resta sul Desktop)."
 }
 
 # AGGIORNAMENTI WINDOWS: erano in DOWNLOAD in background. Ora (dopo driver e

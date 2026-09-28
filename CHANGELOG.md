@@ -4,6 +4,37 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Corretto — password/email invertivano nome e cognome
+- Nello step "Account cliente" e nella rete di sicurezza finale, la password
+  suggerita usava `$nomeCliente` ("Cognome Nome", costruito dal pannello) invece
+  del solo nome: `New-PasswordCliente` prende sempre la prima parola, quindi
+  generava la password dal **cognome**. Ora usa i campi separati Nome/Cognome
+  del pannello (niente ambiguità di ordine), con lo stesso fallback di prima
+  se non disponibili. Corretta anche l'email (nel pannello e nel ripiego
+  console): veniva passata a `New-EmailCliente` nell'ordine "Cognome Nome",
+  che la funzione interpreta al contrario (si aspetta "Nome Cognome"),
+  invertendo cognome e nome nell'indirizzo generato.
+- Tolto `Google Play Games` (bloatware Acer): l'EULA interattiva lo fa fallire
+  sempre in `winget upgrade --all --silent` (exit code 74103). Ora viene
+  rimosso nello step di pulizia iniziale (via winget e via registro), invece
+  di restare installato e fallire ad ogni aggiornamento.
+
+### Modificato — solo PDF sul Desktop
+- A fine lavoro sul Desktop del cliente resta **solo** `Scheda-Consegna-Cliente.pdf`.
+  L'HTML si genera in `C:\ProgramData\PCFacile\consegna`, Edge headless (profilo
+  temporaneo, senza intestazioni) lo converte e, solo se il PDF esiste ed è
+  > 0 byte, l'HTML viene cancellato. Se il PDF fallisce resta sul Desktop
+  l'HTML come ripiego. `Riepilogo-Configurazione-PC.txt` non va più sul Desktop
+  (anche quello lasciato da versioni precedenti viene tolto): il riepilogo è in
+  `C:\ProgramData\PCFacile\log\riepilogo-tecnico.txt`, ora senza password né
+  recovery key BitLocker. Antivirus / Cyber Protection attivati compaiono
+  nella scheda.
+- Niente più `NON CANCELLARE - Chiave di Ripristino BitLocker.txt` sul Desktop:
+  la chiave è solo nella scheda PDF, in un riquadro rosso "Conserva questa
+  chiave" subito sotto le credenziali. La copia lasciata da versioni precedenti
+  viene tolta (tranne se la chiave non è stata letta in questa sessione). La
+  chiave non va mai nei log.
+
 ### Modificato — avvio unico
 - **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →
   auto-aggiornamento → fase 1 subito → pannello locale aperto dallo script dove
