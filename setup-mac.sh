@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.0 (2026-09-05)"
+SCRIPT_VERSION="2.1 (2026-09-26)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -21,16 +21,15 @@ if command -v caffeinate >/dev/null 2>&1 && [[ "$1" != "--test" && "$1" != "-t" 
   caffeinate -dimsu -w $$ >/dev/null 2>&1 &
 fi
 
-# ---- Modalita': -Test / -Diagnostica / -Veloce / -Auto -------------------------
-MODO="MENU"      # MENU | CONFIGURA | VELOCE | DIAGNOSTICA | TEST | AUTOMATICA
+# ---- Un solo flusso: doppio click su "PC Facile.command" = configura --------
+# Niente menu. --test (solo CI) e --diagnostica (manutenzione) non sono per
+# l'operatore; i vecchi --veloce/--auto sono accettati e ignorati.
+MODO="CONFIGURA"  # CONFIGURA | DIAGNOSTICA | TEST
 MODO_TEST=false
-MODO_AUTOMATICO=false
 for arg in "$@"; do
   case "$arg" in
-    --test|-t)                   MODO_TEST=true; [[ "$MODO" == "MENU" ]] && MODO="TEST" ;;
-    --diagnostica|-d)            MODO="DIAGNOSTICA" ;;
-    --veloce|-v)                 MODO="VELOCE" ;;
-    --auto|--automatica|--ia|-a) MODO="AUTOMATICA"; MODO_AUTOMATICO=true ;;
+    --test|-t)        MODO_TEST=true; MODO="TEST" ;;
+    --diagnostica|-d) [[ "$MODO" != "TEST" ]] && MODO="DIAGNOSTICA" ;;
   esac
 done
 
@@ -62,17 +61,15 @@ typeset -a REPORT_VOCI REPORT_ESITI INSTALLATE
 add_report(){ REPORT_VOCI+=("$1"); REPORT_ESITI+=("$2"); }
 
 RUN_REALE=false
-[[ "$MODO" == "CONFIGURA" || "$MODO" == "VELOCE" ]] && RUN_REALE=true
+[[ "$MODO" == "CONFIGURA" ]] && RUN_REALE=true
 beep_attesa(){ $RUN_REALE && printf '\a'; }
 
 # ---- Controllo rete ---------------------------------------------------------
 test_rete(){ curl -s --head --max-time 5 https://www.apple.com >/dev/null 2>&1 || ping -c1 -t2 8.8.8.8 >/dev/null 2>&1; }
 
-VELOCE=false;  [[ "$MODO" == "VELOCE" ]] && VELOCE=true
 $MODO_TEST || { [[ "$MODO" == "TEST" ]] && MODO_TEST=true; }
 
 chiedi(){
-  if $VELOCE;   then REPLY="$2"; dim "$1  [Veloce => '$REPLY']"; return; fi
   if $MODO_TEST; then [[ "$1" == *"S/N"* ]] && REPLY="N" || REPLY=""; dim "$1  [test => '$REPLY']"; return; fi
   beep_attesa; print -n -- "   $1 "; read -r REPLY
 }
@@ -83,7 +80,7 @@ chiedi_sempre(){
 }
 
 pausa(){ return 0; }
-pausa_web(){ { $VELOCE || [[ "$MODO" == "TEST" || "$MODO" == "DIAGNOSTICA" ]]; } && return; beep_attesa; print -n -- "   Premi INVIO per continuare "; read -r _; }
+pausa_web(){ [[ "$MODO" == "TEST" || "$MODO" == "DIAGNOSTICA" ]] && return; beep_attesa; print -n -- "   Premi INVIO per continuare "; read -r _; }
 
 password_cliente(){
   local b="${1//[^A-Za-z]/}"; [[ -z "$b" ]] && b="Cliente"
@@ -524,9 +521,15 @@ open_pannello_mac() {
                         <label class="svc"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
                         <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection</span></label>
                     </div>
+                    <label class="etichetta" for="selProfilo" style="margin-top:10px;">Programmi</label>
+                    <select id="selProfilo" class="cred-input">
+                        <option value="BASE" selected>Base</option>
+                        <option value="UFFICIO">Ufficio</option>
+                        <option value="GAMING">Gaming</option>
+                    </select>
                 </div>
 
-                <button type="button" id="btnAvviaAuto" class="btn-avvia" onclick="avviaAutoMac()">&#128640; AVVIA CONFIGURAZIONE</button>
+                <button type="button" id="btnAvviaAuto" class="btn-avvia" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
             </div>
         </div>
@@ -609,6 +612,7 @@ open_pannello_mac() {
                 Nome: n,
                 Cognome: c,
                 Telefono: t,
+                ProfiloApp: document.getElementById('selProfilo').value,
                 Servizi: {
                     Proton: proton,
                     Office: office,
@@ -690,7 +694,8 @@ try:
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         d = json.load(f)
     for k, nome in (('Email', 'EMAIL_CLIENTE'), ('Password', 'PASS_CLIENTE'),
-                    ('Cliente', 'NOME_CLIENTE'), ('Telefono', 'TELEFONO_CLIENTE')):
+                    ('Cliente', 'NOME_CLIENTE'), ('Telefono', 'TELEFONO_CLIENTE'),
+                    ('ProfiloApp', 'PROFILO_APP')):
         if d.get(k):
             print(nome + '\t' + pulito(d[k]))
     svcs = d.get('Servizi', {})
@@ -708,12 +713,15 @@ PYEOF
                         chiave="${riga%%$'\t'*}"
                         valore="${riga#*$'\t'}"
                         case "$chiave" in
-                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|TELEFONO_CLIENTE|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
+                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
                                 typeset -g "$chiave=$valore" ;;
                         esac
                     done <<< "$res"
                     # Letto: il file contiene la password in chiaro, lo cancello.
                     rm -f -- "$p" 2>/dev/null
+                    DATI_RICEVUTI=true
+                    [[ -n "$EMAIL_CLIENTE" ]] && CRED_ACCOUNT="$EMAIL_CLIENTE"
+                    [[ -n "$PASS_CLIENTE" ]] && CRED_PASSWORD="$PASS_CLIENTE"
                     return 0
                 fi
             fi
@@ -722,41 +730,44 @@ PYEOF
     return 1
 }
 
+# Aspetta i dati del cliente dal pannello: si chiama SOLO all'inizio dei passi
+# manuali (la fase 1 non si ferma). Nessun timeout. INVIO nel terminale =
+# ripiego minimo: nome del cliente scritto qui (servizi: nessuno tranne Cyber).
 attendi_credenziali_mac() {
-    local timeout_s="${1:-120}"
-    if $MODO_TEST; then return 0; fi
+    if $MODO_TEST; then DATI_RICEVUTI=true; NOME_CLIENTE="Rossi Mario"; return 0; fi
+    $DATI_RICEVUTI && return 0
     if leggi_credenziali_salvate_mac; then return 0; fi
 
-    titolo "IN ATTESA DATI DAL PANNELLO OPERATORE (A SINISTRA)"
-    print -r -- "${C_CYAN}  -> Compila Cognome, Nome, Telefono e spunta i servizi nel Pannello Web a SINISTRA.${C_RST}"
-    print -r -- "${C_OK}  -> Premi il pulsante verde '🚀 AVVIA CONFIGURAZIONE' per partire.${C_RST}"
-    print -r -- "${C_DIM}     (Oppure premi INVIO in questo terminale per usare i valori correnti)${C_RST}"
+    titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
+    print -r -- "${C_CYAN}  -> Compila Cognome, Nome, Telefono e servizi nel pannello (scheda Cliente).${C_RST}"
+    print -r -- "${C_OK}  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo.${C_RST}"
+    print -r -- "${C_DIM}     (Se il pannello non funziona premi INVIO qui e scrivi il nome del cliente)${C_RST}"
     print -r -- ""
-
-    local start_time=$(date +%s)
-    while (( $(date +%s) - start_time < timeout_s )); do
+    beep_attesa
+    while true; do
         if leggi_credenziali_salvate_mac; then
-            ok "Dati cliente e servizi ricevuti con successo dal Pannello Web!"
+            ok "Dati cliente e servizi ricevuti dal pannello."
             [[ -n "$NOME_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Cliente :${C_RST} $NOME_CLIENTE"
             [[ -n "$TELEFONO_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Telefono:${C_RST} $TELEFONO_CLIENTE"
             return 0
         fi
         if read -t 0.5 -r tasto 2>/dev/null; then
-            info "Avvio manuale confermato da terminale."
+            chiedi_sempre "Cognome e nome del cliente:"
+            [[ -n "$REPLY" ]] && NOME_CLIENTE="$REPLY"
+            SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false
+            DATI_RICEVUTI=true
             return 0
         fi
         sleep 0.5
     done
-    return 1
 }
 
 invoke_auto_signup_mac() {
     local nome_c="${1:-Utente}"
     leggi_credenziali_salvate_mac
 
-    titolo "AUTOMAZIONE BROWSER (MAC) - REGISTRAZIONE PROTON MAIL & ATTIVAZIONI"
-    info "Automazione nativa ultra-rapida per la creazione account e attivazione servizi."
-    print -r -- "${C_INFO}   Compilazione rapida ed emissione avviso sonoro solo su codici OTP/SMS/Card/PIN.${C_RST}"
+    titolo "PASSI MANUALI - ACCOUNT E SERVIZI DEL CLIENTE"
+    info "Per ogni servizio indicato nel pannello si apre la pagina giusta con i dati pronti."
     print -r -- ""
 
     if $MODO_TEST; then
@@ -768,7 +779,7 @@ invoke_auto_signup_mac() {
     if [[ -z "$nome_c" || "$nome_c" == "Utente" ]]; then
         if [[ -n "$NOME_CLIENTE" && "$NOME_CLIENTE" != "Utente" ]]; then
             nome_c="$NOME_CLIENTE"
-        elif ! $MODO_AUTOMATICO; then
+        elif ! $MODO_TEST; then
             chiedi_sempre "Nome e Cognome del Cliente (es. Mario Rossi):"
             [[ -n "$REPLY" ]] && nome_c="$REPLY"
             NOME_CLIENTE="$nome_c"
@@ -950,58 +961,6 @@ invoke_ai_agent_mac() {
     invoke_auto_signup_mac "$@"
 }
 
-# =============================================================================
-# MENU PRINCIPALE
-# =============================================================================
-if [[ "$MODO" == "AUTOMATICA" ]]; then
-    MODO_AUTOMATICO=true
-    MODO="CONFIGURA"
-    RUN_REALE=true
-fi
-
-if [[ "$MODO" == "MENU" ]]; then
-  clear
-  print -r -- "${C_ACC}  $LINEA${C_RST}"
-  print -r -- "${C_TXT}     PC FACILE (Mac)   -   versione $SCRIPT_VERSION${C_RST}"
-  print -r -- "${C_ACC}  $LINEA${C_RST}"
-  print -r -- ""
-  print -r -- "   ${C_TXT}Seleziona Modalita' Operativa:${C_RST}"
-  print -r -- ""
-  print -r -- "   ${C_OK}[1] MODALITÀ SEMI-AUTOMATICA (Standard Unieuro - Consigliata)${C_RST}"
-  print -r -- "       ${C_DIM}-> Setup parallelo con Pannello Operatore Safari/Edge 50% e portali 1-Click${C_RST}"
-  print -r -- "   ${C_CYAN}[2] MODALITÀ AUTOMATICA (Proton Mail Rapido + Setup Completo)${C_RST}"
-  print -r -- "       ${C_DIM}-> Registrazione rapida Proton Mail + installazione app e ottimizzazioni in parallelo${C_RST}"
-  print -r -- "   ${C_INFO}[3] PREPARA USB OFFLINE (Scarica pacchetti su memoria esterna)${C_RST}"
-  print -r -- "   ${C_CYAN}[4] CHECK SALUTE & DIAGNOSTICA HARDWARE (Report Batteria, SSD, FileVault)${C_RST}"
-  print -r -- "   ${C_DIM}[Q] Esci${C_RST}"
-  print -r -- ""
-  print -n -- "   Scelta [1-4 / Q] (default = 1): "; read -r t
-  case "${(U)t}" in
-    2)
-      MODO_AUTOMATICO=true
-      MODO="CONFIGURA"
-      RUN_REALE=true
-      ;;
-    3)
-      info "Preparazione USB offline per Mac..."
-      ok "Creazione cartella installers su USB pronta."
-      exit 0
-      ;;
-    4|D)
-      MODO="DIAGNOSTICA"
-      ;;
-    Q)
-      print -r -- "Uscita."
-      exit 0
-      ;;
-    *)
-      MODO="CONFIGURA"
-      RUN_REALE=true
-      ;;
-  esac
-  print -r -- ""
-fi
-
 if [[ "$MODO" == "DIAGNOSTICA" ]]; then
   diagnostica_salute_mac
   exit 0
@@ -1027,17 +986,18 @@ if $RUN_REALE; then
   fi
 fi
 
-# Dati iniziali
+# Dati iniziali: i veri arrivano dal pannello (una volta sola) mentre la fase 1
+# lavora; servono solo dai passi manuali in poi.
 NOME_CLIENTE="Utente"
 CRED_ACCOUNT="utente@icloud.com"
 CRED_PASSWORD="Utente123!"
+DATI_RICEVUTI=false
+PROFILO_APP=""
 
 $RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
 
-if [[ "$MODO_AUTOMATICO" == true ]]; then
-    $RUN_REALE && attendi_credenziali_mac
-    invoke_auto_signup_mac "${NOME_CLIENTE:-Utente}"
-fi
+titolo "FASE 1 di 3 - Programmi e lingua (automatico)"
+info "Intanto inserisci i dati del cliente nel pannello operatore."
 
 # =============================================================================
 # PASSO 1: LINGUA & REGIONE ITALIANA
@@ -1059,26 +1019,12 @@ fi
 # =============================================================================
 # PASSO 2: SINCRONIZZAZIONE ORA & NOME MAC
 # =============================================================================
-update_pannello_mac_status 25 "Nome Mac & Sincronizzazione" "Impostazione orario e nome..."
-titolo "2. Nome Mac e Sincronizzazione Rete"
+update_pannello_mac_status 25 "Sincronizzazione orario" "Orario di rete..."
+titolo "2. Sincronizzazione orario"
 if $RUN_REALE; then
     sudo systemsetup -setusingnetworktime on >/dev/null 2>&1
     sudo systemsetup -setnetworktimeserver time.apple.com >/dev/null 2>&1
-fi
-if [[ -z "$NOME_CLIENTE" || "$NOME_CLIENTE" == "Utente" ]] && ! $MODO_AUTOMATICO && ! $MODO_TEST; then
-    chiedi_sempre "Nome del cliente / Mac (INVIO per default 'Utente'):"; nome_in="$REPLY"
-    [[ -n "$nome_in" ]] && NOME_CLIENTE="$nome_in"
-fi
-[[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
-[[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
-
-if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
-    local host="${NOME_CLIENTE//[^A-Za-z0-9-]/}"
-    sudo scutil --set ComputerName "$NOME_CLIENTE" 2>/dev/null
-    sudo scutil --set HostName "$host" 2>/dev/null
-    sudo scutil --set LocalHostName "$host" 2>/dev/null
-    ok "Nome Mac impostato a: $NOME_CLIENTE"
-    add_report "Nome Mac ($NOME_CLIENTE)" "OK"
+    ok "Orario di rete attivo."
 fi
 
 # =============================================================================
@@ -1142,13 +1088,11 @@ command -v brew >/dev/null 2>&1 && ok "Homebrew pronto."
 # =============================================================================
 update_pannello_mac_status 75 "Installazione App" "Download e installazione profilo..."
 titolo "6. Installazione Applicazioni"
-print -r -- "   1) BASE     (Chrome, VLC, Adobe Reader, The Unarchiver, WhatsApp, AnyDesk, TeamViewer, Spotify)"
-print -r -- "   2) UFFICIO  (BASE + Zoom, Firefox, LibreOffice, GIMP)"
-print -r -- "   3) GAMING   (BASE + Steam, Epic Games, Discord)"
-print -r -- "   S) Salta"
-chiedi_sempre "Scelta profilo app (1-3 o S):"; prof="$REPLY"
-PROFILO=""
-case "$prof" in 1) PROFILO="BASE";; 2) PROFILO="UFFICIO";; 3) PROFILO="GAMING";; esac
+# Profilo dal pannello se i dati sono gia' arrivati, altrimenti BASE (la
+# fase 1 non si ferma ad aspettare).
+$RUN_REALE && ! $DATI_RICEVUTI && leggi_credenziali_salvate_mac
+case "$PROFILO_APP" in UFFICIO|GAMING) PROFILO="$PROFILO_APP";; *) PROFILO="BASE";; esac
+info "Profilo app: $PROFILO"
 if [[ -n "$PROFILO" ]] && $RUN_REALE; then
     for riga in "${CATALOGO[@]}"; do
         nome="${${(s:|:)riga}[1]}"; cask="${${(s:|:)riga}[2]}"; profili="${${(s:|:)riga}[3]}"
@@ -1161,6 +1105,12 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
                 continue
             fi
 
+            # Gia' installata: salto (i passi gia' fatti non si rifanno).
+            if [[ -d "/Applications/$nome.app" ]] || { command -v brew >/dev/null 2>&1 && brew list --cask "$cask" >/dev/null 2>&1; }; then
+                ok "$nome gia' installato: salto."
+                INSTALLATE+=("$nome")
+                continue
+            fi
             # 2. Fallback su Homebrew se connesso e offline non presente
             if command -v brew >/dev/null 2>&1; then
                 if brew install --cask "$cask" >/dev/null 2>&1; then
@@ -1183,17 +1133,50 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
 fi
 
 # =============================================================================
-# PASSO 7: UNIEURO CYBER PROTECTION
+# FASE 2: PASSI MANUALI (dati del cliente dal pannello, una volta sola)
 # =============================================================================
-update_pannello_mac_status 88 "Unieuro Cyber Protection" "Configurazione servizio..."
-titolo "7. Unieuro Cyber Protection"
-chiedi "Attivare Unieuro Cyber Protection? (S = si / INVIO = no)" "N"
-if [[ "$REPLY" == [Ss]* ]] && $RUN_REALE; then
-    set_split_screen_mac "https://unieuro-cyber-protection.covercare.it"
-    ok "Portale Cyber Protection aperto nel browser a sinistra."
-    add_report "Unieuro Cyber Protection" "OK"
-else
-    add_report "Unieuro Cyber Protection" "SALTATO"
+titolo "FASE 2 di 3 - Passi manuali (operatore)"
+update_pannello_mac_status 80 "Passi manuali" "Dati cliente, account e servizi..."
+$RUN_REALE && attendi_credenziali_mac
+[[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
+[[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
+
+titolo "7. Nome del Mac"
+if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
+    host="${NOME_CLIENTE//[^A-Za-z0-9-]/}"
+    if [[ "$(scutil --get ComputerName 2>/dev/null)" == "$NOME_CLIENTE" ]]; then
+        ok "Nome Mac gia' impostato: $NOME_CLIENTE"
+    else
+        sudo scutil --set ComputerName "$NOME_CLIENTE" 2>/dev/null
+        sudo scutil --set HostName "$host" 2>/dev/null
+        sudo scutil --set LocalHostName "$host" 2>/dev/null
+        ok "Nome Mac impostato a: $NOME_CLIENTE"
+    fi
+    add_report "Nome Mac ($NOME_CLIENTE)" "OK"
+fi
+
+# Account e servizi indicati nel pannello (Proton, Office, antivirus, Cyber
+# Protection): pagina giusta + dati pronti, conferma con INVIO.
+invoke_auto_signup_mac "${NOME_CLIENTE:-Utente}"
+
+# =============================================================================
+# FASE 3: AGGIORNAMENTI (sempre per ultimi)
+# =============================================================================
+titolo "FASE 3 di 3 - Aggiornamenti (ultimo passo)"
+update_pannello_mac_status 90 "Aggiornamenti" "App (Homebrew) e macOS..."
+if $RUN_REALE; then
+    if command -v brew >/dev/null 2>&1; then
+        info "Aggiorno le app installate con Homebrew..."
+        brew upgrade >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
+    fi
+    info "Scarico gli aggiornamenti di macOS (si installano al riavvio da Impostazioni di Sistema)..."
+    if softwareupdate --download --all >/dev/null 2>&1; then
+        ok "Aggiornamenti macOS scaricati."
+        add_report "Aggiornamenti macOS (scaricati)" "OK"
+    else
+        info "Nessun aggiornamento macOS scaricato (gia' aggiornato o rete assente)."
+        add_report "Aggiornamenti macOS" "AVVISO"
+    fi
 fi
 
 # =============================================================================

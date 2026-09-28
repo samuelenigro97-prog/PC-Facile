@@ -415,20 +415,16 @@
             <div id="badgeStato" class="badge-stato stato-off" role="status">Script non avviato</div>
         </div>
 
-        <!-- AVVISO: SCRIPT NON AVVIATO (visibile in tutte le schede) -->
+        <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE (visibile in tutte le schede) -->
         <div id="offlineNoticeBox" class="notice notice-off" style="display: block;">
-            <h2>&#9888; PC Facile non &egrave; ancora avviato su questo computer</h2>
-            <p>Avvia <strong>PC Facile.bat</strong> dalla chiavetta (o scaricalo qui sotto). Il pannello si collega da solo appena lo script parte.</p>
-            <div class="notice-azioni">
-                <a href="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC%20Facile.bat" download="PC Facile.bat" onclick="return scaricaLauncher(event)" class="btn-sec" style="flex: 1;">&#128229; Scarica &quot;PC Facile.bat&quot;</a>
-                <button type="button" class="btn-sec" onclick="copiaComandoAvvio()" style="flex: 1;">&#128203; Copia comando (Win+R)</button>
-            </div>
+            <h2>&#9888; PC Facile non risponde</h2>
+            <p>Questo pannello lo apre PC Facile da solo e parla solo con lo script avviato su questo PC. Controlla la finestra di PC Facile: se l'hai chiusa, riapri <strong>PC Facile.bat</strong> dalla chiavetta (riprende da dove era arrivato).</p>
         </div>
 
         <!-- AVVISO: IL PC ASPETTA I DATI DEL CLIENTE -->
         <div id="attesaDatiBox" class="notice notice-attesa">
             <h2>&#9998; Il PC aspetta i dati del cliente</h2>
-            <p>Compila cognome, nome e servizi nella scheda <strong>Cliente</strong> e premi <strong>AVVIA CONFIGURAZIONE</strong>.</p>
+            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila cognome, nome e servizi nella scheda <strong>Cliente</strong> e premi <strong>CONFERMA DATI CLIENTE</strong>.</p>
             <div class="notice-azioni">
                 <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">Vai alla scheda Cliente</button>
             </div>
@@ -472,7 +468,7 @@
                 <span><span class="tab-lungo">&#128100; </span>1. Cliente</span>
             </button>
             <button type="button" class="tab-btn" role="tab" id="btn-tab-live" aria-controls="view-tab-live" aria-selected="false" onclick="apriScheda('tab-live')">
-                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/10</span>
+                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/13</span>
             </button>
             <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
                 <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
@@ -482,7 +478,7 @@
         <!-- SCHEDA 1: DATI CLIENTE -->
         <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
             <div class="card">
-                <div class="card-subtitle">Inserisci cognome e nome: email e password si creano da sole (puoi modificarle).</div>
+                <div class="card-subtitle">Mentre il PC installa programmi e lingua, inserisci qui i dati del cliente <strong>una volta sola</strong>: email e password si creano da sole (puoi modificarle). Puoi correggerli e confermare di nuovo finch&eacute; il passo che li usa non &egrave; partito.</div>
 
                 <div class="cred-step-box">
                     <div class="cred-step-title"><span class="step-badge">1</span> Cliente</div>
@@ -536,16 +532,35 @@
 
                 <div class="cred-step-box">
                     <div class="cred-step-title"><span class="step-badge">4</span> Servizi sullo scontrino</div>
+                    <div class="campi-2" style="margin-bottom: 10px;">
+                        <div>
+                            <label class="cred-label" for="selOffice">Office</label>
+                            <select id="selOffice" class="cred-input">
+                                <option value="no" selected>Nessuna card Office</option>
+                                <option value="m365">Card Microsoft 365 (abbonamento)</option>
+                                <option value="perpetuo">Card Office 2024/2021 (perpetuo)</option>
+                                <option value="libreoffice">LibreOffice (gratuito)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cred-label" for="selProfilo">Programmi</label>
+                            <select id="selProfilo" class="cred-input">
+                                <option value="BASE" selected>Base (Chrome, VLC, Reader, 7-Zip...)</option>
+                                <option value="UFFICIO">Ufficio (Base + GIMP, Sumatra PDF)</option>
+                                <option value="GAMING">Gaming (Opera GX + Base + Steam, Epic, Discord)</option>
+                                <option value="COMPLETO">Completo (tutte le app)</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="services-grid">
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
-                        <label class="svc-item"><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
                         <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
                     </div>
                 </div>
 
-                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#128640; AVVIA CONFIGURAZIONE</button>
+                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top: 10px;">
                     <button type="button" class="btn-sec" style="width: 100%;" onclick="copiaRiepilogoCred()">&#128203; Copia dati per il ticket</button>
@@ -563,8 +578,8 @@
                     <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Programmi base</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 2 &middot; Passi manuali (operatore) &ndash; intanto la pulizia va in background</li>
                     <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
@@ -615,9 +630,8 @@
         var inizioLavori = 0;
         var isScriptConnected = false;
         var lastStatusPing = 0;
-        var lastFilePing = 0;
         var schedaScelta = false;
-        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'office', 'app', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
+        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
@@ -823,9 +837,11 @@
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
+                ProfiloApp: el('selProfilo').value,
                 Servizi: {
                     Proton: el('chkSvcProton').checked,
-                    Office: el('chkSvcOffice').checked,
+                    Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
+                    OfficeTipo: el('selOffice').value,
                     McAfee: el('chkSvcMcAfee').checked,
                     Norton: el('chkSvcNorton').checked,
                     Cyber: cyber
@@ -850,7 +866,7 @@
             }).then(function(res) {
                 btn.disabled = false;
                 if (res.ok && res.j && res.j.ok !== false) {
-                    mostraEsito('\u2713 Dati ricevuti dal PC: la configurazione parte (o prosegue) con questi dati.', 'ok');
+                    mostraEsito('\u2713 Dati ricevuti dal PC: i passi che li usano partono con questi dati.', 'ok');
                     showToast('Dati ricevuti dal PC');
                     apriScheda('tab-live');
                 } else {
@@ -858,51 +874,10 @@
                 }
             }).catch(function() {
                 btn.disabled = false;
-                // Ripiego: lo script legge anche gli appunti (prefisso PCFACILE_CRED:)
-                // appena e' in ascolto, poi li svuota.
-                var copiato = false;
-                try {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText('PCFACILE_CRED:' + JSON.stringify(payload)).catch(function() {});
-                        copiato = true;
-                    }
-                } catch (e) {}
-                mostraEsito('PC non raggiunto: dati NON ricevuti. ' + (copiato ? 'Li ho messi negli appunti: PC Facile li legge appena \u00e8 avviato su questo PC. ' : '') + 'Avvia PC Facile.bat e riprova.', 'errore');
+                // Un solo canale: il server locale di PC Facile (127.0.0.1:8899).
+                mostraEsito('PC Facile non risponde: dati NON ricevuti. Controlla che la finestra di PC Facile sia aperta e riprova.', 'errore');
                 showToast('PC non raggiunto', 'errore');
             });
-        }
-
-        // Download del launcher: GitHub raw serve il .bat come text/plain da un altro
-        // dominio, quindi l'attributo download verrebbe ignorato (il file si aprirebbe
-        // come testo). raw consente CORS: lo scarico con fetch e lo salvo come Blob
-        // con il nome giusto. Se fetch non e' disponibile o fallisce, apro il link.
-        var LAUNCHER_URL = 'https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC%20Facile.bat';
-        function scaricaLauncher(ev) {
-            if (!window.fetch || !window.Blob || !window.URL || !URL.createObjectURL) return true;
-            if (ev && ev.preventDefault) ev.preventDefault();
-            fetch(LAUNCHER_URL, { cache: 'no-store' })
-                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
-                .then(function(b) {
-                    var url = URL.createObjectURL(new Blob([b], { type: 'application/octet-stream' }));
-                    var a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'PC Facile.bat';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
-                    showToast('Download di "PC Facile.bat" avviato');
-                })
-                .catch(function() { window.open(LAUNCHER_URL, '_blank'); });
-            return false;
-        }
-
-        function copiaComandoAvvio() {
-            // Deve stare sotto i ~259 caratteri della finestra Esegui (Win+R) e non
-            // passa da cmd: $env:TEMP viene espanso da PowerShell, lo spazio nell'URL
-            // tra apici singoli viene codificato da .NET.
-            var cmd = 'powershell -nop -c "[Net.ServicePointManager]::SecurityProtocol=3072;iwr \'https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC Facile.bat\' -UseBasicParsing -OutFile $env:TEMP\\pcf.bat;start $env:TEMP\\pcf.bat"';
-            scriviAppunti(cmd, 'Comando copiato: premi Win+R, incolla e premi Invio');
         }
 
         // STATO DELLA CONNESSIONE E INDICATORE IN ALTO
@@ -912,15 +887,14 @@
             var off = el('offlineNoticeBox');
             var attesa = el('attesaDatiBox');
             var s = ultimoStato || {};
-            // Collegato = risponde il server locale, oppure (pannello aperto dallo
-            // script) il file di stato e' stato aggiornato da poco.
-            var collegato = isScriptConnected || (Date.now() - lastFilePing < 5000);
+            // Collegato = risponde il server locale di PC Facile (unico canale).
+            var collegato = isScriptConnected;
             if (off) off.style.display = collegato ? 'none' : 'block';
             if (attesa) attesa.style.display = (collegato && s.InAttesaDati) ? 'block' : 'none';
             if (!b) return;
             if (!collegato) {
                 b.className = 'badge-stato stato-off';
-                b.innerText = (s.Completato ? 'Script chiuso' : 'Script non avviato');
+                b.innerText = (s.Completato ? 'Script chiuso' : 'PC Facile non risponde');
             } else if (s.Completato) {
                 var n = contaErrori(s);
                 b.className = 'badge-stato ' + (n > 0 ? 'stato-avvisi' : 'stato-ok');
@@ -969,9 +943,10 @@
         checkConnection();
 
         var NOMI_TASK = {};
-        function applyStatus(data, daFile) {
+        function applyStatus(data) {
             if (!data) return;
-            if (daFile) { lastFilePing = Date.now(); } else { lastStatusPing = Date.now(); isScriptConnected = true; }
+            lastStatusPing = Date.now();
+            isScriptConnected = true;
             ultimoStato = data;
 
             var pct = parseInt(data.Percentuale !== undefined ? data.Percentuale : (data.percentuale || 0), 10) || 0;
@@ -1058,21 +1033,6 @@
             aggiornaIndicatore();
         }
 
-        window.onPCFacileStatusUpdate = function(d) { applyStatus(d, true); };
-
-        // Ripiego per il pannello aperto dallo script (file locale): se il server
-        // locale non risponde, lo stato arriva dal file pcfacile-status.js scritto
-        // accanto alla pagina nella cartella TEMP. Dal sito GitHub non serve.
-        if (location.protocol === 'file:') {
-            setInterval(function() {
-                if (Date.now() - lastStatusPing < 3000) return;
-                aggiornaIndicatore();
-                var s = document.createElement('script');
-                s.src = 'pcfacile-status.js?t=' + Date.now();
-                s.onload = s.onerror = function() { if (this.parentNode) this.parentNode.removeChild(this); };
-                document.head.appendChild(s);
-            }, 1500);
-        }
     </script>
 </body>
 </html>
