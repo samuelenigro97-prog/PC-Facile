@@ -30,7 +30,10 @@ BeforeAll {
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
         'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Test-CartellaKitUSB',
-        'Test-DatiClienteConfermati', 'Start-ServerPannello'
+        'Test-DatiClienteConfermati', 'Start-ServerPannello',
+        'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
+        'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
+        'Start-LavoriInBackground', 'Complete-LavoriInBackground'
     )
     $allFns = $ast.FindAll({
         param($n)
@@ -984,5 +987,101 @@ Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
         $out = Rileva
         $out | Should -Not -Contain 'NOME=Altro programma'
         Remove-Item -LiteralPath $script:ChiaveFinta -Recurse -Force
+    }
+}
+
+# Ordine dei passi: fase 1 app e lingua, fase 2 passi manuali, fase 3 resto;
+# aggiornamenti per ULTIMI. Stesso ordine nel pannello (script e docs/index.html).
+Describe 'Ordine dei passi e pannello' {
+    BeforeAll {
+        $script:Radice = Split-Path $PSScriptRoot -Parent
+        $astS = [System.Management.Automation.Language.Parser]::ParseFile($script:SetupPath, [ref]$null, [ref]$null)
+        $ass = $astS.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$Global:Passi' }, $true)
+        $script:Passi = @(& ([scriptblock]::Create($ass.Right.Extent.Text)))
+        $script:Ids = @($script:Passi | ForEach-Object { $_.Id })
+        $html = [System.IO.File]::ReadAllText((Join-Path $script:Radice 'docs/index.html'))
+        $m = [regex]::Match($html, "var TASK_KEYS = \[([^\]]+)\]")
+        $script:TaskKeys = @($m.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") })
+        $script:LiIds = @([regex]::Matches($html, '<li id="task-([a-z]+)"') | ForEach-Object { $_.Groups[1].Value })
+        $src = [System.IO.File]::ReadAllText($script:SetupPath)
+        $blocco = $src.Substring($src.IndexOf('Tasks         = [ordered]@{'))
+        $blocco = $blocco.Substring(0, $blocco.IndexOf('"diagnostica"') + 40)
+        $script:TaskScript = @([regex]::Matches($blocco, '"([a-z]+)"\s*=\s*\[ordered\]') | ForEach-Object { $_.Groups[1].Value })
+    }
+    It 'gli aggiornamenti sono l''ultimo passo e i driver vengono prima' {
+        $script:Ids[-1] | Should -Be 'aggiorna'
+        [array]::IndexOf($script:Ids, 'driver') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'aggiorna'))
+    }
+    It 'fase 1 = app e lingua, fase 2 = passi manuali, fase 3 = il resto (in ordine)' {
+        $gruppi = @($script:Passi | ForEach-Object { [int]$_.Gruppo })
+        for ($i = 1; $i -lt $gruppi.Count; $i++) { $gruppi[$i] | Should -BeGreaterOrEqual $gruppi[$i - 1] }
+        @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id }) | Should -Contain 'app'
+        @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id }) | Should -Contain 'lingua'
+        $manuali = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
+        foreach ($id in @('nome', 'account', 'officeattiva', 'antivirus', 'cyber')) { $manuali | Should -Contain $id }
+        @($script:Passi | Where-Object { $_.Gruppo -eq 3 } | ForEach-Object { $_.Id }) | Should -Contain 'pulizia'
+    }
+    It 'gli antivirus di prova si tolgono prima dell''antivirus definitivo' {
+        [array]::IndexOf($script:Ids, 'avprova') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'antivirus'))
+    }
+    It 'ogni passo ha un id unico e un task presente nel pannello (script e HTML)' {
+        @($script:Ids | Sort-Object -Unique).Count | Should -Be $script:Ids.Count
+        foreach ($p in $script:Passi) {
+            $script:TaskScript | Should -Contain $p.Task
+            $script:TaskKeys | Should -Contain $p.Task
+        }
+    }
+    It 'pannello: stesso elenco e stesso ordine di task in script, TASK_KEYS e righe HTML' {
+        ($script:TaskKeys -join ',') | Should -Be ($script:TaskScript -join ',')
+        ($script:LiIds -join ',') | Should -Be ($script:TaskKeys -join ',')
+    }
+    It 'l''ordine dei task del pannello segue l''ordine dei passi' {
+        $ordine = @()
+        foreach ($p in $script:Passi) { if ($ordine -notcontains $p.Task) { $ordine += $p.Task } }
+        $posizioni = @($ordine | ForEach-Object { [array]::IndexOf($script:TaskKeys, $_) })
+        for ($i = 1; $i -lt $posizioni.Count; $i++) { $posizioni[$i] | Should -BeGreaterThan $posizioni[$i - 1] }
+    }
+}
+
+Describe 'Controlli "gia'' fatto"' {
+    AfterEach { Remove-Variable -Name serviziSelezionati -Scope Global -ErrorAction SilentlyContinue }
+    It 'Test-AvDaTenere tiene solo l''antivirus della card scelta nel pannello' {
+        $Global:serviziSelezionati = [pscustomobject]@{ McAfee = $true; Norton = $false }
+        Test-AvDaTenere 'McAfee LiveSafe' | Should -BeTrue
+        Test-AvDaTenere 'Norton 360' | Should -BeFalse
+        Test-AvDaTenere 'Avast Free Antivirus' | Should -BeFalse
+    }
+    It 'Test-AvDaTenere senza servizi scelti non tiene nulla (sono antivirus di prova)' {
+        Test-AvDaTenere 'McAfee LiveSafe' | Should -BeFalse
+    }
+    It 'Test-PassoGiaFatto in modalita test non salta mai (si esercitano tutti i passi)' {
+        $Global:Test = $true
+        try {
+            foreach ($id in @('ripristino', 'avprova', 'lingua', 'officeattiva', 'antivirus', 'nome')) { Test-PassoGiaFatto -Id $id | Should -BeNullOrEmpty }
+        } finally { Remove-Variable -Name Test -Scope Global -ErrorAction SilentlyContinue }
+    }
+    It 'Test-LinguaItaliana, Test-OfficeInstallato e Get-AntivirusTerzi non lanciano errori' {
+        { Test-LinguaItaliana } | Should -Not -Throw
+        { Test-OfficeInstallato } | Should -Not -Throw
+        { @(Get-AntivirusTerzi) } | Should -Not -Throw
+    }
+}
+
+Describe 'Lavori in background durante i passi manuali' {
+    BeforeAll {
+        function global:Invoke-PuliziaSistema { Add-Report "Pulizia di prova in background" "OK" }
+    }
+    AfterAll {
+        Remove-Item -Path 'function:global:Invoke-PuliziaSistema' -ErrorAction SilentlyContinue
+        Remove-Variable -Name LavoriBg -Scope Global -ErrorAction SilentlyContinue
+    }
+    It 'esegue la pulizia in un runspace e riporta le voci nel riepilogo principale' {
+        $script:Report = [System.Collections.ArrayList]::new()
+        $Global:Report = $script:Report
+        Start-LavoriInBackground
+        $Global:LavoriBg | Should -Not -BeNullOrEmpty
+        Complete-LavoriInBackground -TimeoutMin 1 | Should -BeTrue
+        $Global:LavoriBg | Should -BeNullOrEmpty
+        @($Global:Report | Where-Object { "$($_.Voce)$_" -match 'Pulizia di prova in background' }).Count | Should -BeGreaterThan 0
     }
 }

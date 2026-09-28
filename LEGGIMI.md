@@ -88,7 +88,7 @@ https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps
 - chiede i privilegi di amministratore (UAC → *Sì*)
 - scarica ed esegue l'ultima versione da GitHub (con fallback offline su chiavetta)
 - avvia con ExecutionPolicy Bypass ed esegue la **Configurazione Automatica Parallela**:
-  1. **PARTE SUBITO**: senza pause o questionari, la console inizia subito la pulizia bloatware/AV trial, lingua italiana, ottimizzazioni, installazione app e update driver.
+  1. **PARTE SUBITO**: senza pause o questionari, la console inizia con antivirus di prova, lingua italiana, Office e app; poi i passi manuali (con la pulizia in background) e per ultimi driver e aggiornamenti.
   2. **NEL FRATTEMPO LAVORI TU**: apre in parallelo nel browser il **Pannello Operatore Tecnico** con:
       - 🔑 Credenziali cliente generate con pulsanti **Copia Email** e **Copia Password** a 1 click.
       - 🌐 Accesso rapido ai portali: Account Microsoft, Riscatto Office 365 (`microsoft365.com/setup`), Attivazione McAfee/Norton e Unieuro Cyber Protection.
@@ -163,19 +163,29 @@ All'avvio lo script esegue alcuni **controlli**: privilegi admin, blocchi Window
 sospeso**, **spazio disco**, **preflight di rete** (GitHub/Microsoft/CDN winget),
 sincronizza l'**orologio** ed evita che il PC vada in **sospensione**.
 
+Tre fasi, sempre in quest'ordine. **Ogni passo prima controlla se il suo lavoro
+c'è già** (es. antivirus installato a mano, Windows già in italiano, Office già
+attivato, app già presenti) e in quel caso lo **salta**, segnandolo "già fatto" in
+console, nel pannello e nel riepilogo.
+
 | Step | Azione |
 |------|--------|
-| 1  | **Nome cliente** (cambia il "Nome visualizzato" dell'account **e** il nome del PC): serve subito, genera anche le credenziali suggerite |
-| 2  | **Account Microsoft** (subito, col cliente davanti): apre il login/registrazione; genera o annota email + password `Nome123!` nel riepilogo. Così Office e antivirus dopo non richiedono altri OTP |
-| 3  | **Pulizia e ottimizzazione**: rimuove antivirus di prova, bloatware OEM, promo dal menu Start, disinstalla OneDrive, potenzia la **privacy** (disattivazione telemetria diagnostica Microsoft e Advertising ID), piccole comodità Windows (estensioni file visibili, Questo PC predefinito) |
-| 4  | Lingua/regione **Italiano (it-IT)** + tastiera + language pack + propagazione a login/nuovi utenti |
-| 5  | **Punto di ripristino** (opzionale, consigliato): rete di sicurezza prima delle modifiche |
-| 6  | **App Office**: installa la suite scelta se manca (Office 365, perpetuo, OpenOffice, LibreOffice), poi **attivazione** — card PIN → riscatto web (`microsoft365.com/setup` o `office.com/setup`) + accesso in Word. Crea i collegamenti Office sul Desktop |
-| 7  | **Unieuro Cyber Protection** (opzionale, skippabile) — solo sito + credenziali app |
-| 8  | **App + browser**: scegli il profilo e il **browser si installa da solo** — **Chrome** per tutti, **Opera GX** se scegli GAMING (niente più passo Browser separato) |
-| 9  | **Aggiornamento** di tutte le app installate (`winget upgrade --all`) |
-| 10 | **Driver**: scheda video dedicata (tool del produttore) + driver generici da Windows Update |
-| 11 | **Antivirus** (ultimo passo): McAfee, Norton, o Salta — dopo le altre installazioni, così un AV appena attivato non le blocca |
+| **Fase 1** | **Programmi e lingua (automatico)** |
+| 1  | **Punto di ripristino** (opzionale): rete di sicurezza prima delle modifiche. *Salta se già creato oggi* |
+| 2  | **Rimozione antivirus di prova** (prima delle installazioni, così non le bloccano). Non tocca l'antivirus della card scelta nel pannello. *Salta se non ce ne sono* |
+| 3  | Lingua/regione **Italiano (it-IT)** + tastiera + language pack + propagazione a login/nuovi utenti. *Salta se Windows è già tutto in italiano* |
+| 4  | **Office: installazione** della suite scelta se manca (Office 365, perpetuo, OpenOffice, LibreOffice) + Visual C++ (*saltato se già presente*) + collegamenti Office sul Desktop |
+| 5  | **App + browser**: scegli il profilo e il **browser si installa da solo** — **Chrome** per tutti, **Opera GX** se scegli GAMING. *Le app già installate si saltano* |
+| **Fase 2** | **Passi manuali dell'operatore** — intanto la **pulizia gira in background** |
+| 6  | **Nome cliente** (nome visualizzato dell'account **e** nome del PC): genera anche le credenziali suggerite |
+| 7  | **Account cliente** (col cliente davanti): login/registrazione; genera o annota email + password `Nome123!` nel riepilogo |
+| 8  | **Office: attivazione** con la card PIN (`microsoft365.com/setup` o `office.com/setup`) + accesso in Word. *Salta se Office è già attivato* |
+| 9  | **Antivirus**: McAfee, Norton o Salta. *Se un antivirus è già installato (Centro sicurezza di Windows o programmi installati) il passo si salta: "già installato"* |
+| 10 | **Unieuro Cyber Protection** (opzionale) — solo sito + credenziali app |
+| **Fase 3** | **Pulizia, driver e aggiornamenti (automatico)** |
+| 11 | **Pulizia e ottimizzazione** (partita in background nella fase 2, qui si attende la fine): bloatware OEM, promo dal menu Start, avvio automatico, OneDrive, **privacy**, piccole comodità Windows |
+| 12 | **Driver**: scheda video dedicata (tool del produttore) + driver generici da Windows Update |
+| 13 | **Aggiornamenti — sempre per ultimi**: app (`winget upgrade --all`), app del **Microsoft Store**, e **Windows Update** (scaricati in background, installati a fine lavoro prima del riavvio) |
 | —  | **Report finale & Consegna**: verifica finale + diagnostica **Salute SSD (SMART)**, **Salute Batteria** (notebook) e **Licenza Windows** + generazione file **`NON CANCELLARE - Chiave di Ripristino BitLocker.txt`** (se crittografato) + **Scheda Consegna Cliente HTML** stampabile + riavvio |
 
 **Profili app** (browser incluso: Chrome, o Opera GX per GAMING):
@@ -200,7 +210,8 @@ credenziali per l'app mobile del cliente (nessun installer PC).
 **Ripresa sessione**: se lo script si chiude a metà (crash, riavvio, blocco
 antivirus), al lancio successivo propone di **riprendere da dove eri arrivato**:
 i passi già completati vengono saltati. Il checkpoint si cancella da solo a
-lavoro finito.
+lavoro finito. Un checkpoint salvato da una versione precedente (con un altro
+ordine dei passi) riparte dal primo passo: i lavori già fatti si saltano da soli.
 
 **Collegamenti sul Desktop**: dopo l'installazione di Office lo script crea i
 collegamenti a **Word, Excel, PowerPoint, Outlook e OneNote**; inoltre mette sul
