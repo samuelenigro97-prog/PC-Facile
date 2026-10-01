@@ -1,6 +1,6 @@
 # Sicurezza
 
-## Distribuzione e integrità
+## Distribuzione e Integrità
 
 `PC Facile.bat` scarica sempre l'ultima versione di `setup-pc.ps1` da `main` e
 ne verifica lo **SHA256** contro `setup-pc.ps1.sha256` pubblicato accanto allo
@@ -16,7 +16,7 @@ Quando è disponibile un certificato aziendale di code signing, firmare
 negozio. La chiave privata non deve mai finire nel repository o nei workflow
 senza un archivio segreti dedicato.
 
-## Dati sensibili
+## Dati Sensibili
 
 Il riepilogo finale e il file `Credenziali - <cliente>.txt` sul Desktop
 contengono **intenzionalmente** credenziali in chiaro e la chiave di ripristino

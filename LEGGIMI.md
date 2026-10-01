@@ -6,7 +6,7 @@ con **report finale** degli esiti.
 
 ---
 
-## 0. Prima di iniziare — Lingua in Italiano
+## 0. Prima di Iniziare — Lingua in Italiano
 
 I PC installati da chiavetta USB spesso saltano la scelta lingua e partono in
 **inglese**. Lo **STEP 0** dello script imposta tutto in `it-IT` (display, formati,
@@ -82,7 +82,7 @@ https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps
 
 ---
 
-## 2. Avvio FACILE (consigliato) — doppio click
+## 2. Avvio FACILE (Consigliato) — Doppio Click
 
 **Doppio click su `PC Facile.bat`.** Fa tutto da solo:
 - chiede i privilegi di amministratore (UAC → *Sì*)
@@ -99,7 +99,7 @@ https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps
 
 ---
 
-## 2-bis. Avvio manuale da PowerShell o con parametri
+## 2-bis. Avvio Manuale da PowerShell o con Parametri
 
 Apri **Windows PowerShell** come Amministratore e usa questi comandi:
 
@@ -138,7 +138,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\Desktop\setup-pc.ps1"
 
 ---
 
-## 3. Se lo script NON parte proprio (Smart App Control)
+## 3. Se lo Script NON Parte Proprio (Smart App Control)
 
 Su alcuni PC il **Controllo intelligente delle app** (Smart App Control) blocca il
 `.ps1` scaricato da Internet **senza** dare l'opzione "Esegui comunque".
@@ -156,7 +156,7 @@ Lo script, se riesce a partire, rileva da solo Smart App Control attivo e ti avv
 
 ---
 
-## 4. Cosa fa lo script (in ordine)
+## 4. Cosa Fa lo Script (in Ordine)
 
 All'avvio lo script esegue alcuni **controlli**: privilegi admin, blocchi Windows
 (Smart App Control/ExecutionPolicy), versione Windows/PowerShell, **riavvio in
@@ -242,7 +242,7 @@ qualcosa.
 
 ---
 
-## 4-bis. Rete aziendale / con firewall o proxy
+## 4-bis. Rete Aziendale / con Firewall o Proxy
 
 I PC nuovi **non sono nel dominio** aziendale: usano solo la connessione. Le policy
 aziendali (Group Policy, AppLocker) **non** si applicano al PC fresco. Il rischio è
@@ -260,7 +260,7 @@ blocco a metà lavoro.
 
 ---
 
-## 5. File generati (log e report)
+## 5. File Generati (Log e Report)
 
 Al termine, sul **Desktop** trovi due file datati:
 
@@ -287,7 +287,7 @@ errori**, il resto funziona.
 
 ---
 
-## 7. Prima prova sicura (dry-run)
+## 7. Prima Prova Sicura (Dry-Run)
 
 Per vedere il flusso senza installare nulla, rispondi:
 Punto di ripristino `N` · STEP 0 `N` · STEP 2 `N` · STEP 3 `4` poi attivazione

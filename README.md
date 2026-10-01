@@ -8,14 +8,14 @@ Script PowerShell (`setup-pc.ps1`) per configurare i PC Windows dei clienti: lin
 
 Per le istruzioni complete (download, avvio, risoluzione problemi) vedi **[LEGGIMI.md](./LEGGIMI.md)**.
 
-## Avvio rapido
+## Avvio Rapido
 
 1. **Web App Operatore (Online)**:
    Apri il **[Pannello Web PC Facile](https://samuelenigro97-prog.github.io/pc-facile/)** per preparare le credenziali, monitorare l'avanzamento o accedere ai portali di attivazione a 1-click.
 2. **Sul PC da configurare**:
    Scarica **`PC Facile.bat`** (anche con il tasto di download diretto dentro la Web App) ed eseguilo come amministratore per far partire la configurazione automatica.
 
-## Sviluppo / qualità
+## Sviluppo / Qualità
 
 - **Integrità**: `PC Facile.bat` verifica lo **SHA256** dello script scaricato contro `setup-pc.ps1.sha256`. Se l'impronta non combacia **o non si riesce a scaricarla**, il download viene scartato (riprova anche dal mirror jsDelivr) e, se nessun download è verificato, si usa la copia sulla chiavetta; la copia sulla chiavetta viene aggiornata solo dopo una verifica riuscita. Su Mac `PC Facile.command` fa lo stesso con `setup-mac.sh.sha256`.
 - **Pannello operatore**: la sorgente è `docs/index.html` (GitHub Pages). `setup-pc.ps1` ne contiene una copia identica (aperta come file locale): **dopo averlo modificato** esegui `pwsh ./tools/sincronizza-pannello.ps1` e poi `pwsh ./tools/aggiorna-manifest.ps1`. Un test Pester fallisce se le due copie divergono. Protocollo con lo script (server locale in background su `127.0.0.1:8899`): `GET /status` (avanzamento, fasi, hardware, versione, `InAttesaDati`), `POST /cred` (solo con `Conferma: true`, cognome, nome e servizi; origini ammesse: GitHub Pages e `file://`).
