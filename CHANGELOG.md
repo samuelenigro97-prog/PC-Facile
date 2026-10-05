@@ -4,6 +4,10 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Modificato — scheda di consegna
+- Tolta la sezione "Garanzia Legale" dalla scheda PDF/HTML di consegna
+  (restava altrove: check salute e log tecnico interno).
+
 ### Modificato — avvio unico
 - **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →
   auto-aggiornamento → fase 1 subito → pannello locale aperto dallo script dove

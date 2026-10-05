@@ -7914,13 +7914,12 @@ per averlo sempre a disposizione in caso di necessita'.
             $credBox
             <div class="grid">
                 <div class="card">
-                    <h3>&#128100; Dati Cliente &amp; Garanzia</h3>
+                    <h3>&#128100; Dati Cliente</h3>
                     <table class="info-table">
                         <tr><td>Cliente:</td><td><strong>$clienteDisplay</strong></td></tr>
                         $(if ($Global:telefonoCliente) { "<tr><td>Cellulare / Tel:</td><td><strong>$([System.Net.WebUtility]::HtmlEncode($Global:telefonoCliente))</strong></td></tr>" })
                         <tr><td>Nome Computer:</td><td><code>$pcDisplay</code></td></tr>
                         <tr><td>Seriale / S/N:</td><td><strong>$($hwInfo.Seriale)</strong></td></tr>
-                        <tr><td>Garanzia Legale:</td><td><strong style="color:#0284c7;">2 Anni (fino al $($hwInfo.ScadenzaGaranzia))</strong></td></tr>
                         <tr><td>Data Setup:</td><td>$(Get-Date -Format 'dd/MM/yyyy HH:mm')</td></tr>
                         <tr><td>Licenza Windows:</td><td><strong style="color:$(if ($winActInfo.Attivo) { '#16a34a' } else { '#e11d48' });">&#10003; $($winActInfo.StatoBreve)</strong></td></tr>
                         <tr><td>Stato Setup:</td><td><strong style="color:#16a34a;">&#10003; Pronto e Collaudato</strong></td></tr>
