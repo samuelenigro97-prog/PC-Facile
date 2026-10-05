@@ -4,9 +4,19 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Aggiunto — auto-report su GitHub
+- A fine lavoro, se ci sono voci ERRORE/AVVISO (o imprevisti gestiti), lo
+  script apre automaticamente una Issue su GitHub con i dettagli tecnici
+  (modello PC, versione Windows/script, data) e l'elenco dei problemi.
+  **Mai** nome cliente, email o password. Niente issue se tutto è andato
+  liscio. Silenzioso su qualunque fallimento (rete, token scaduto): non
+  blocca mai la consegna del PC. Usa un token GitHub fine-grained con
+  l'unico permesso "Issues: write" su questo repository.
+
 ### Modificato — scheda di consegna
-- Tolta la sezione "Garanzia Legale" dalla scheda PDF/HTML di consegna
-  (restava altrove: check salute e log tecnico interno).
+- Tolta **ogni** info sulla Garanzia Legale: non appare più né sulla scheda
+  PDF/HTML di consegna, né nel check salute (diagnostica), né nel log
+  tecnico interno, né nei dati del pannello operatore.
 
 ### Modificato — avvio unico
 - **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →

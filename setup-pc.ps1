@@ -474,6 +474,54 @@ function Add-Report {
     [void]$Report.Add([pscustomobject]@{ Voce = $Voce; Esito = $Esito })
 }
 
+# Token fine-grained con l'UNICO permesso "Issues: write" su questo repository
+# (niente Contents, niente Actions, niente altro repo): e' per forza visibile
+# a chiunque scarichi lo script, quindi il danno massimo possibile se abusato
+# resta creare/modificare issue qui, mai toccare codice o altri account.
+$Global:GH_REPORT_TOKEN = "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"
+$Global:GH_REPORT_REPO  = "samuelenigro97-prog/pc-facile"
+
+# Invia un report automatico (solo voci ERRORE/AVVISO + imprevisti gestiti)
+# come GitHub Issue a fine lavoro: MAI nome cliente, email o password, solo
+# dati tecnici (modello PC, versione Windows/script). Niente issue se tutto e'
+# andato liscio (eviterebbe spam). Silenzioso su qualsiasi fallimento (rete,
+# token scaduto, ecc.): non deve mai rallentare o bloccare la consegna del PC.
+function Send-ReportGitHub {
+    param($ReportVoci)
+    if (-not $RunReale -or $Test -or $Global:Test -or $env:PESTER_TEST) { return }
+    try {
+        $problemi = @($ReportVoci | Where-Object { $_.Esito -eq 'ERRORE' -or $_.Esito -eq 'AVVISO' })
+        if ($problemi.Count -eq 0) { return }
+
+        $hw      = Get-SystemHardwareDetails
+        $modello = if ($hw.Produttore -and $hw.Modello) { "$($hw.Produttore) $($hw.Modello)" } else { "PC sconosciuto" }
+        $nErrore = @($problemi | Where-Object { $_.Esito -eq 'ERRORE' }).Count
+        $nAvviso = @($problemi | Where-Object { $_.Esito -eq 'AVVISO' }).Count
+
+        $corpo = [System.Text.StringBuilder]::new()
+        [void]$corpo.AppendLine("**PC**: $modello")
+        [void]$corpo.AppendLine("**Windows**: $([System.Environment]::OSVersion.VersionString)")
+        [void]$corpo.AppendLine("**Script**: v$SCRIPT_VERSION")
+        [void]$corpo.AppendLine("**Data**: $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
+        [void]$corpo.AppendLine("")
+        [void]$corpo.AppendLine("### Esiti da controllare")
+        foreach ($p in $problemi) { [void]$corpo.AppendLine("- **$($p.Esito)**: $($p.Voce)") }
+        if ($Global:ErroriImprevisti -and $Global:ErroriImprevisti.Count -gt 0) {
+            [void]$corpo.AppendLine("")
+            [void]$corpo.AppendLine("### Imprevisti gestiti (non bloccanti)")
+            foreach ($e in $Global:ErroriImprevisti) { [void]$corpo.AppendLine("- $($e.Messaggio) (riga $($e.Riga))") }
+        }
+
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $headers = @{ Authorization = "Bearer $Global:GH_REPORT_TOKEN"; Accept = "application/vnd.github+json" }
+        $payload = @{ title = "[Auto-report] $modello - $nErrore errori, $nAvviso avvisi"; body = $corpo.ToString() } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri "https://api.github.com/repos/$Global:GH_REPORT_REPO/issues" -Method Post `
+            -Headers $headers -Body $payload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 | Out-Null
+    } catch {
+        # Silenzioso: GitHub irraggiungibile, token scaduto, rete bloccata...
+    }
+}
+
 $Global:ErroriImprevisti = [System.Collections.ArrayList]::new()
 
 function Register-ErroreImprevisto {
@@ -1042,7 +1090,6 @@ function Invoke-PcFacileDiagnostics {
     Write-Host "    Processore (CPU) : $($hw.Cpu)"
     Write-Host "    Memoria RAM      : $($hw.RamGB) GB"
     Write-Host "    Scheda Video     : $($hw.Gpu)"
-    Write-Host "    Garanzia Legale  : Fino al $($hw.ScadenzaGaranzia) (2 Anni)"
     Write-Host ""
 
     Write-Host " 2. SALUTE DISCO & MEMORIA DI MASSA (SMART)" -ForegroundColor White
@@ -7480,6 +7527,7 @@ if ($Report.Count -eq 0) {
     if ($nErrore -gt 0) {
         Write-Host "Controlla le voci in ERRORE prima di consegnare il PC." -ForegroundColor Red
     }
+    Send-ReportGitHub -ReportVoci $Report
 }
 
 # UN SOLO file riepilogo, ordinato - solo run reale (Configura)
@@ -7732,7 +7780,6 @@ per averlo sempre a disposizione in caso di necessita'.
         $f += "  Processore (CPU)     : $($hwInfo.Cpu)"
         $f += "  Memoria RAM          : $($hwInfo.RamGB) GB"
         $f += "  Scheda Video (GPU)   : $($hwInfo.Gpu)"
-        $f += "  Garanzia Legale (2a) : Valida fino al $($hwInfo.ScadenzaGaranzia)"
         $f += ""
         $f += $sep
         $f += "STATO SISTEMA & DIAGNOSTICA"
@@ -8001,7 +8048,6 @@ per averlo sempre a disposizione in caso di necessita'.
                 seriale          = "$($hwInfo.Seriale)"
                 produttore       = "$($hwInfo.Produttore)"
                 modello          = "$($hwInfo.Modello)"
-                scadenzaGaranzia = "$($hwInfo.ScadenzaGaranzia)"
                 sistema          = if ($osInfo) { "$($osInfo.Caption) build $($osInfo.BuildNumber)" } else { 'n/d' }
                 powershell       = "$($PSVersionTable.PSVersion)"
                 winget           = "$wgVer"
