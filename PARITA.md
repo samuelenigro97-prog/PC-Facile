@@ -6,7 +6,9 @@ allineati come flusso e funzioni.
 
 | Passo / funzione            | Windows (`setup-pc.ps1`)                  | Mac (`setup-mac.sh`)                          | Note |
 |-----------------------------|-------------------------------------------|-----------------------------------------------|------|
-| Avvio diretto (no menu)     | doppio click = configura; `-Diagnostica`/`-Test` solo da CLI | menu + `--veloce`                  | Win: flusso unico essenziale |
+| Avvio unico (no menu)       | doppio click `PC Facile.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
+| Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (unico canale); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (zsh non ha un server HTTP) ; INVIO = nome in console | canale diverso per limite tecnico |
+| Ordine                      | fase 1 app+lingua (+Office) · fase 2 manuali · fase 3 pulizia/driver/aggiornamenti per ultimi | fase 1 lingua/app · fase 2 nome+account/servizi · fase 3 aggiornamenti per ultimi | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
 | Sincronizzazione orario     | `w32tm` + W32Time auto + tzautoupdate     | `systemsetup -setusingnetworktime on` + sntp  | pari |
 | Nome cliente + host         | `Set-LocalUser` + `Rename-Computer`       | `scutil --set ComputerName/HostName`          | pari |
@@ -24,7 +26,7 @@ allineati come flusso e funzioni.
 | Avviso sonoro fine passo    | `[console]::Beep`                         | `printf '\a'`                                 | pari |
 | Bip di richiamo se non rispondi| runspace: dopo 2 min bip corto ogni ~4s | —                                             | solo Win |
 | Credenziali (esist./gen.)   | `Nome123!` + `Set-Clipboard`              | `Nome123!` + `pbcopy`                         | pari |
-| Report finale / Scheda      | Desktop `Scheda-Consegna-Cliente.html/.pdf` + `Riepilogo-Configurazione-PC.txt` | Desktop `Riepilogo-Mac_*.txt` | pari |
+| Report finale / Scheda      | Desktop solo `Scheda-Consegna-Cliente.pdf` (ripiego `.html` se il PDF fallisce); riepilogo tecnico in `C:\ProgramData\PCFacile\log` | Desktop solo `Scheda-Consegna-Mac.html` | pari (un solo file sul Desktop; su Mac niente PDF automatico) |
 | Assist credenziali pagine   | copia email/password negli appunti quando apre Cyber Protection/antivirus | — | solo Win |
 | Pulizia finale (auto-elimina)| rimuove `%TEMP%\setup-pc.ps1` + reg colori + checkpoint | `rm` dello script scaricato in `/tmp` | pari |
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |

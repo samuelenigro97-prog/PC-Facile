@@ -4,6 +4,87 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Aggiunto — auto-report su GitHub
+- A fine lavoro, se ci sono voci ERRORE/AVVISO (o imprevisti gestiti), lo
+  script apre automaticamente una Issue su GitHub con i dettagli tecnici
+  (modello PC, versione Windows/script, data) e l'elenco dei problemi.
+  **Mai** nome cliente, email o password. Niente issue se tutto è andato
+  liscio. Silenzioso su qualunque fallimento (rete, token scaduto): non
+  blocca mai la consegna del PC. Usa un token GitHub fine-grained con
+  l'unico permesso "Issues: write" su questo repository.
+
+### Corretto — errore rosso nel passo lingua
+- `Set-SystemPreferredUILanguage` stampava in rosso "RPC_E_CHANGED_MODE"
+  (errore non terminante, il `catch {}` non lo fermava). Ora è silenzioso: se
+  il display è già in italiano non cambia nulla, e il resto della lingua viene
+  impostato dalle altre chiamate del passo.
+
+### Modificato — primo avvio di Edge
+- Disattivata anche la schermata del consenso ai dati di esplorazione
+  ("Consenti / Non consentire / Conferma e continua"), le schede promozionali
+  e gli inviti all'accesso, tramite le policy Edge in `Set-EdgeFirstRunPolicies`
+  (si aggiungono a quelle già presenti per accesso, sincronizzazione e import).
+
+### Modificato — scheda di consegna
+- Tolta **ogni** info sulla Garanzia Legale: non appare più né sulla scheda
+  PDF/HTML di consegna, né nel check salute (diagnostica), né nel log
+  tecnico interno, né nei dati del pannello operatore.
+
+### Corretto — password/email invertivano nome e cognome
+- Nello step "Account cliente" e nella rete di sicurezza finale, la password
+  suggerita usava `$nomeCliente` ("Cognome Nome", costruito dal pannello) invece
+  del solo nome: `New-PasswordCliente` prende sempre la prima parola, quindi
+  generava la password dal **cognome**. Ora usa i campi separati Nome/Cognome
+  del pannello (niente ambiguità di ordine), con lo stesso fallback di prima
+  se non disponibili. Corretta anche l'email (nel pannello e nel ripiego
+  console): veniva passata a `New-EmailCliente` nell'ordine "Cognome Nome",
+  che la funzione interpreta al contrario (si aspetta "Nome Cognome"),
+  invertendo cognome e nome nell'indirizzo generato.
+- Tolto `Google Play Games` (bloatware Acer): l'EULA interattiva lo fa fallire
+  sempre in `winget upgrade --all --silent` (exit code 74103). Ora viene
+  rimosso nello step di pulizia iniziale (via winget e via registro), invece
+  di restare installato e fallire ad ogni aggiornamento.
+
+### Modificato — solo PDF sul Desktop
+- A fine lavoro sul Desktop del cliente resta **solo** `Scheda-Consegna-Cliente.pdf`.
+  L'HTML si genera in `C:\ProgramData\PCFacile\consegna`, Edge headless (profilo
+  temporaneo, senza intestazioni) lo converte e, solo se il PDF esiste ed è
+  > 0 byte, l'HTML viene cancellato. Se il PDF fallisce resta sul Desktop
+  l'HTML come ripiego. `Riepilogo-Configurazione-PC.txt` non va più sul Desktop
+  (anche quello lasciato da versioni precedenti viene tolto): il riepilogo è in
+  `C:\ProgramData\PCFacile\log\riepilogo-tecnico.txt`, ora senza password né
+  recovery key BitLocker. Antivirus / Cyber Protection attivati compaiono
+  nella scheda.
+- Niente più `NON CANCELLARE - Chiave di Ripristino BitLocker.txt` sul Desktop:
+  la chiave è solo nella scheda PDF, in un riquadro rosso "Conserva questa
+  chiave" subito sotto le credenziali. La copia lasciata da versioni precedenti
+  viene tolta (tranne se la chiave non è stata letta in questa sessione). La
+  chiave non va mai nei log.
+
+### Modificato — avvio unico
+- **Un solo modo di avvio**: doppio click su `PC Facile.bat` → McAfee →
+  auto-aggiornamento → fase 1 subito → pannello locale aperto dallo script dove
+  si inseriscono una volta i dati del cliente → fase 2 e 3. Office è l'ultimo
+  passo della fase 1 (il primo che usa i dati); i passi manuali leggono tutto
+  dal pannello (nessuna domanda in console). Ripresa automatica con i dati del
+  cliente nel checkpoint (Schema 3).
+- Pannello: scelta Office (nessuna / Microsoft 365 / perpetuo / LibreOffice) e
+  profilo programmi; pulsante **CONFERMA DATI CLIENTE**.
+- Mac: niente menu, stesso ordine (aggiornamenti per ultimi), dati dal pannello.
+
+### Rimosso
+- Menu iniziale (1 Zero-Touch, 2 Registrazione guidata/Agente IA, 3 Prepara USB,
+  4 Check salute) e i parametri `-Espresso`/`-ZeroTouch`, `-Manuale`, `-Menu`,
+  `-AgenteIA`, `-Migrazione`, `-Veloce`, `-skipRestore` (ora ignorati).
+- Modulo `Invoke-BrowserAutoSignup` (Agente IA) e `Invoke-MigrazioneDati`.
+- Pannello su GitHub Pages (`docs/index.html`, mai pubblicato): la sorgente è
+  ora `pannello/pannello-operatore.html`; il server locale non accetta più
+  l'origine GitHub Pages. Via anche "Scarica PC Facile.bat" e il comando Win+R.
+- Canali dati alternativi: appunti `PCFACILE_CRED:`, file
+  `pcfacile-cred*.json` in Download/Desktop/TEMP, file di stato
+  `pcfacile-status.js`, prompt console a timeout. Resta solo HTTP locale (più un
+  ripiego minimo in console se il pannello non si apre).
+
 ### Aggiunto
 - Aggiornamento automatico della chiavetta: `manifest.txt` (file + SHA256) e
   modalità `setup-pc.ps1 -AggiornaUSB`, usata da `PC Facile.bat` a ogni avvio;

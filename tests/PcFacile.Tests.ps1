@@ -18,7 +18,7 @@ BeforeAll {
     $script:FunzioniTestate = @(
         'Write-Titolo', 'Write-OK', 'Write-Info', 'Write-Errore', 'Add-Report',
         'New-PasswordCliente', 'New-EmailCliente',
-        'Test-NomeSimile', 'Test-LnkJunk', 'Test-Indietro',
+        'Test-NomeSimile', 'Test-LnkJunk',
         'Get-OfflineDirs', 'Find-OfflineInstaller', 'Install-OfflinePackage', 'Stop-AppPopups', 'Select-DestinazioneUSB', 'Test-IsAppInstalled',
         'Get-StorageHealthInfo', 'Get-BatteryHealthInfo', 'Get-WindowsActivationStatus', 'Get-BitLockerRecovery',
         'Get-SystemHardwareDetails', 'Invoke-PcFacileDiagnostics', 'Install-VisualCRuntime',
@@ -26,14 +26,15 @@ BeforeAll {
         'Start-LocalCredServer', 'Stop-LocalCredServer',
         'Enable-SilentElevation', 'Restore-SilentElevation', 'Set-PreventSleep', 'Set-EdgeFirstRunPolicies',
         'New-WlanProfileXml', 'Connect-AutoWiFi', 'Save-StoreWiFiProfile',
-        'Invoke-BrowserAutoSignup', 'Wait-CredenzialiPannello',
+        'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb',
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
         'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Test-CartellaKitUSB',
         'Test-DatiClienteConfermati', 'Start-ServerPannello',
         'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
         'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
-        'Start-LavoriInBackground', 'Complete-LavoriInBackground'
+        'Start-LavoriInBackground', 'Complete-LavoriInBackground',
+        'Save-SchedaConsegna'
     )
     $allFns = $ast.FindAll({
         param($n)
@@ -129,17 +130,6 @@ Describe 'Test-LnkJunk' {
     It 'lascia passare le app vere' {
         Test-LnkJunk 'VLC media player'   | Should -BeFalse
         Test-LnkJunk 'Google Chrome'      | Should -BeFalse
-    }
-}
-
-Describe 'Test-Indietro' {
-    It 'riconosce B/b (anche con spazi) come "indietro"' {
-        Test-Indietro 'b'   | Should -BeTrue
-        Test-Indietro ' B ' | Should -BeTrue
-    }
-    It 'non scatta su altri valori' {
-        Test-Indietro '3' | Should -BeFalse
-        Test-Indietro 'S' | Should -BeFalse
     }
 }
 
@@ -370,15 +360,10 @@ Describe 'Open-PannelloOperatore (escape HTML)' {
 }
 
 Describe 'Update-PannelloStatus' {
-    It 'scrive lo stato live in formato js senza errori' {
+    It 'aggiorna lo stato live (servito solo da GET /status) senza errori' {
         Update-PannelloStatus -TaskId "pulizia" -Stato "running" -Percentuale 15 -FaseCorrente "Pulizia Bloatware" -Dettaglio "Rimozione in corso..."
-        $tempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { [System.IO.Path]::GetTempPath() }
-        $statusFile = Join-Path $tempDir "pcfacile-status.js"
-        Test-Path $statusFile | Should -BeTrue
-        $content = Get-Content $statusFile -Raw
-        $content | Should -Match "window\.onPCFacileStatusUpdate"
-        $content | Should -Match "pulizia"
-        $content | Should -Match "running"
+        $Global:PannelloStatus.Tasks["pulizia"].Stato | Should -Be "running"
+        $Global:PannelloStatus.FaseCorrente | Should -Be "Pulizia Bloatware"
     }
 
     It 'imposta tutti i task pending su done quando viene passato -Completato' {
@@ -393,27 +378,57 @@ Describe 'Update-PannelloStatus' {
     }
 }
 
-Describe 'Get-CredenzialiSalvatePannello' {
-    It 'legge correttamente il file json salvato dal pannello operatore' {
-        $tempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { [System.IO.Path]::GetTempPath() }
+Describe 'Dati cliente: un solo canale (server locale del pannello)' {
+    BeforeEach {
+        foreach ($v in 'PannelloSync', 'DatiCliente', 'DatiClienteRicevuti', 'nomeCliente', 'credMsAccount', 'credMsPassword', 'serviziSelezionati', 'SceltaOffice', 'ProfiloAppCliente') {
+            Remove-Variable -Name $v -Scope Global -ErrorAction SilentlyContinue
+        }
+    }
+    It 'Get-CredenzialiSalvatePannello NON legge piu'' file pcfacile-cred*.json ne'' appunti' {
+        $tempDir = [System.IO.Path]::GetTempPath()
         $jsonFile = Join-Path $tempDir "pcfacile-cred.json"
-        $testData = @{
-            Email = "rossimario@gmail.com"
-            Password = "Mario123!"
-            Provider = "Google"
-            Cliente = "Mario Rossi"
-        } | ConvertTo-Json
-        $testData | Set-Content -Path $jsonFile -Encoding UTF8
-        
-        $res = Get-CredenzialiSalvatePannello
-        $res | Should -BeTrue
-        $Global:credMsAccount | Should -Be "rossimario@gmail.com"
-        $Global:credMsPassword | Should -Be "Mario123!"
-        $Global:provNome | Should -Be "Google"
-        # Dopo la lettura il file (password in chiaro) viene cancellato.
-        Test-Path $jsonFile | Should -BeFalse
-        
-        Remove-Item $jsonFile -Force -ErrorAction SilentlyContinue
+        '{"Conferma":true,"Email":"x@y.it","Cliente":"Rossi Mario","Nome":"Mario","Cognome":"Rossi","Servizi":{"Cyber":true}}' | Set-Content -Path $jsonFile -Encoding UTF8
+        try {
+            Get-CredenzialiSalvatePannello | Should -BeFalse
+            $Global:DatiClienteRicevuti | Should -Not -BeTrue
+        } finally { Remove-Item $jsonFile -Force -ErrorAction SilentlyContinue }
+        $src = Get-Content $script:SetupPath -Raw
+        $src | Should -Not -Match 'pcfacile-cred'
+        $src | Should -Not -Match 'PCFACILE_CRED'
+        $src | Should -Not -Match 'pcfacile-status\.js'
+    }
+    It 'Set-DatiCliente applica nome, credenziali, profilo e suite Office (OfficeTipo)' {
+        $d = [pscustomobject]@{ Conferma = $true; Cliente = 'Rossi Mario'; Nome = 'Mario'; Cognome = 'Rossi'; Email = 'rossimario@gmail.com'; Password = 'Mario123!'; Provider = 'Google'; ProfiloApp = 'GAMING'
+            Servizi = [pscustomobject]@{ Office = $true; OfficeTipo = 'perpetuo'; McAfee = $false; Norton = $true; Cyber = $false } }
+        Set-DatiCliente $d | Should -BeTrue
+        $Global:DatiClienteRicevuti | Should -BeTrue
+        $Global:nomeCliente | Should -Be 'Rossi Mario'
+        $Global:credMsAccount | Should -Be 'rossimario@gmail.com'
+        $Global:credDominio | Should -Be 'gmail.com'
+        $Global:credProvider | Should -Be 'Google'
+        $Global:ProfiloAppCliente | Should -Be 'GAMING'
+        $Global:SceltaOffice | Should -Be '2'
+        $Global:serviziSelezionati.Norton | Should -BeTrue
+    }
+    It 'Set-DatiCliente: senza OfficeTipo la spunta Office vale Microsoft 365, altrimenti nessuna suite' {
+        Set-DatiCliente ([pscustomobject]@{ Conferma = $true; Cliente = 'A B'; Servizi = [pscustomobject]@{ Office = $true } }) | Should -BeTrue
+        $Global:SceltaOffice | Should -Be '1'
+        Set-DatiCliente ([pscustomobject]@{ Conferma = $true; Cliente = 'A B'; Servizi = [pscustomobject]@{ Office = $false } }) | Should -BeTrue
+        $Global:SceltaOffice | Should -Be '5'
+        Set-DatiCliente ([pscustomobject]@{ Conferma = $true; Cliente = 'A B'; Servizi = [pscustomobject]@{ OfficeTipo = 'libreoffice' } }) | Should -BeTrue
+        $Global:SceltaOffice | Should -Be '4'
+    }
+    It 'Wait-DatiCliente in modalita test usa i dati di prova e non si ferma' {
+        $Global:Test = $true
+        try {
+            Wait-DatiCliente | Should -BeTrue
+            $Global:DatiClienteRicevuti | Should -BeTrue
+            $Global:nomeCliente | Should -Be 'Rossi Mario'
+        } finally { Remove-Variable -Name Test -Scope Global -ErrorAction SilentlyContinue }
+    }
+    It 'Wait-DatiCliente non aspetta nulla se i dati sono gia'' arrivati' {
+        $Global:DatiClienteRicevuti = $true
+        Wait-DatiCliente | Should -BeTrue
     }
 }
 
@@ -470,7 +485,7 @@ Describe 'Set-EdgeFirstRunPolicies' {
     }
 }
 
-Describe 'Sequenza Bootstrap Modalita 1 e 2' {
+Describe 'Avvio unico: sequenza di bootstrap' {
     It 'esegue Connect-AutoWiFi seguito da Open-PannelloOperatore e Set-SplitScreenLayout senza errori' {
         $Global:Test = $true
         {
@@ -480,6 +495,9 @@ Describe 'Sequenza Bootstrap Modalita 1 e 2' {
             Connect-AutoWiFi -TargetDir $PSScriptRoot
             Open-PannelloOperatore -NomeCliente "Mario Rossi"
         } | Should -Not -Throw
+        # In test il server locale non parte: il pannello non risulta disponibile
+        # (nel run reale si ripiegherebbe sulla console).
+        $Global:PannelloDisponibile | Should -BeFalse
         $Global:Test = $false
     }
 }
@@ -492,22 +510,6 @@ Describe 'Invoke-PcFacileDiagnostics' {
         $diag.Disco | Should -Not -BeNullOrEmpty
         $diag.Batteria | Should -Not -BeNullOrEmpty
         $diag.Windows | Should -Not -BeNullOrEmpty
-    }
-}
-
-Describe 'Invoke-BrowserAutoSignup' {
-    It 'completa con successo in modalita test' {
-        $res = Invoke-BrowserAutoSignup -NomeCliente 'Mario Rossi' -Test
-        $res | Should -Not -BeNullOrEmpty
-        $res.Stato | Should -BeExactly 'Completato'
-        $res.ServiziTestati | Should -Contain 'Proton'
-    }
-}
-
-Describe 'Wait-CredenzialiPannello' {
-    It 'completa immediatamente in modalita test' {
-        $res = Wait-CredenzialiPannello -Test
-        $res | Should -BeTrue
     }
 }
 
@@ -585,37 +587,18 @@ Describe 'Rimozione Bloatware, Booking, Dropbox e Unpin Taskbar' {
     }
 }
 
-Describe 'Sincronizzazione Credenziali Multi-Canale & Salvataggio Report Desktop' {
-    It 'Get-CredenzialiSalvatePannello rileva pcfacile-cred (1).json con dati cliente e credenziali' {
-        $tempDir = [System.IO.Path]::GetTempPath()
-        $sampleCred = @{
-            Email = "peppenappa@proton.me"
-            Password = "PeppePassword123!"
-            Provider = "Proton"
-            Cliente = "peppe nappa"
-            Nome = "nappa"
-            Cognome = "peppe"
-        } | ConvertTo-Json
-        
-        $testFile = Join-Path $tempDir "pcfacile-cred (1).json"
-        try {
-            $sampleCred | Set-Content -Path $testFile -Encoding UTF8
-            $found = Get-CredenzialiSalvatePannello
-            $found | Should -BeTrue
-            $Global:nomeCliente | Should -Be "peppe nappa"
-            $Global:credMsAccount | Should -Be "peppenappa@proton.me"
-            $Global:credMsPassword | Should -Be "PeppePassword123!"
-            $Global:credProvider | Should -Be "Proton"
-        } finally {
-            if (Test-Path $testFile) { Remove-Item $testFile -Force -ErrorAction SilentlyContinue }
-        }
-    }
-
-    It 'setup-pc.ps1 contiene il salvataggio sul Desktop di Riepilogo-Configurazione-PC.txt e Scheda-Consegna-Cliente.pdf' {
+Describe 'Salvataggio Report Desktop' {
+    It 'setup-pc.ps1 salva sul Desktop solo la Scheda-Consegna-Cliente.pdf (TXT nel log, HTML in ProgramData)' {
         $content = Get-Content $script:SetupPath -Raw
-        $content | Should -Match 'Riepilogo-Configurazione-PC\.txt'
-        $content | Should -Match 'Scheda-Consegna-Cliente\.pdf'
+        $content | Should -Match 'Scheda-Consegna-Cliente'
+        $content | Should -Match '\.pdf'
         $content | Should -Match '--print-to-pdf='
+        $content | Should -Match 'Save-SchedaConsegna -HtmlDoc'
+        $content | Should -Match 'PCFacile\\consegna'
+        $content | Should -Match 'riepilogo-tecnico\.txt'
+        # Il riepilogo TXT non si scrive piu' sul Desktop (solo rimosso se lasciato da versioni vecchie)
+        $content | Should -Not -Match 'Set-Content -Path \$txtDesktop'
+        $content | Should -Not -Match 'Join-Path \(Get-DesktopDir\) \(?"Scheda-Consegna-Cliente\.html'
         $content | Should -Match 'Start-LocalCredServer'
         $content | Should -Match 'Stop-LocalCredServer'
     }
@@ -625,6 +608,98 @@ Describe 'Sincronizzazione Credenziali Multi-Canale & Salvataggio Report Desktop
         $content | Should -Not -Match 'Punto di Ripristino di Sicurezza \(5% SSD\)'
         $content | Should -Match 'stato === ''done'' \|\| stato === ''skipped'''
         $content | Should -Match 'Ottimizzato SSD'
+    }
+}
+
+# Scheda di consegna: sul Desktop resta SOLO il PDF (o l'HTML se il PDF fallisce).
+Describe 'Save-SchedaConsegna' {
+    BeforeEach {
+        $script:Base    = Join-Path ([System.IO.Path]::GetTempPath()) ("pcf-scheda-" + [guid]::NewGuid().ToString('N'))
+        $script:Desk    = Join-Path $script:Base 'Desktop'
+        $script:Lavoro  = Join-Path $script:Base 'ProgramData/PCFacile/consegna'
+        New-Item -ItemType Directory -Path $script:Desk -Force | Out-Null
+        $script:Html    = '<!DOCTYPE html><html><body>Scheda</body></html>'
+        $script:PdfBuono = { param($h, $p) Test-Path -LiteralPath $h | Should -BeTrue; [System.IO.File]::WriteAllText($p, '%PDF-1.4 finto') }
+    }
+    AfterEach {
+        Remove-Item -LiteralPath $script:Base -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    It 'PDF riuscito: sul Desktop resta solo il PDF, HTML di lavoro cancellato' {
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        $r.Percorso | Should -Be (Join-Path $script:Desk 'Scheda-Consegna-Cliente.pdf')
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.pdf')
+        (Get-Item -LiteralPath $r.Percorso).Length | Should -BeGreaterThan 0
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.html') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.pdf') | Should -BeFalse
+    }
+    It 'PDF riuscito: toglie dal Desktop TXT, HTML e file chiave BitLocker delle versioni precedenti (altri file intatti)' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Riepilogo-Configurazione-PC.txt') -Value 'vecchio'
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Scheda-Consegna-Cliente.html') -Value 'vecchio'
+        Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Foto cliente.txt') -Value 'mio'
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force | Sort-Object Name).Name |
+            Should -Be @('Foto cliente.txt', 'Scheda-Consegna-Cliente.pdf')
+    }
+    It 'ripiego HTML: toglie comunque il vecchio file chiave BitLocker (la chiave e'' nella scheda HTML)' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore { param($h, $p) }
+        $r.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+    }
+    It '-ConservaVecchiaChiaveBitLocker: chiave non letta in questa sessione -> il vecchio file resta' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt') -Value 'chiave'
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono -ConservaVecchiaChiaveBitLocker
+        $r.Esito | Should -Be 'PDF'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force | Sort-Object Name).Name |
+            Should -Be @('NON CANCELLARE - Chiave di Ripristino BitLocker.txt', 'Scheda-Consegna-Cliente.pdf')
+    }
+    It 'PDF vuoto (0 byte): ripiego HTML sul Desktop, niente PDF e niente TXT' {
+        Set-Content -LiteralPath (Join-Path $script:Desk 'Riepilogo-Configurazione-PC.txt') -Value 'vecchio'
+        $vuoto = { param($h, $p) [System.IO.File]::WriteAllBytes($p, [byte[]]@()) }
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $vuoto
+        $r.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+        (Get-Content -LiteralPath $r.Percorso -Raw) | Should -Match 'Scheda'
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.pdf') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $script:Lavoro 'Scheda-Consegna-Cliente.html') | Should -BeFalse
+    }
+    It 'conversione che fallisce (eccezione o nessun file): ripiego HTML sul Desktop' {
+        $rotto = { param($h, $p) throw 'Edge non trovato' }
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $rotto
+        $r.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+
+        Remove-Item -LiteralPath (Join-Path $script:Desk 'Scheda-Consegna-Cliente.html') -Force
+        $nulla = { param($h, $p) }
+        $r2 = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $nulla
+        $r2.Esito | Should -Be 'HTML'
+        @(Get-ChildItem -LiteralPath $script:Desk -Force).Name | Should -Be @('Scheda-Consegna-Cliente.html')
+    }
+    It 'crea la cartella di lavoro se manca' {
+        Test-Path -LiteralPath $script:Lavoro | Should -BeFalse
+        $r = Save-SchedaConsegna -HtmlDoc $script:Html -DesktopDir $script:Desk -CartellaLavoro $script:Lavoro -Convertitore $script:PdfBuono
+        $r.Esito | Should -Be 'PDF'
+        Test-Path -LiteralPath $script:Lavoro | Should -BeTrue
+    }
+}
+
+Describe 'Riepilogo tecnico nel log senza credenziali' {
+    It 'il riepilogo testuale non contiene piu'' il blocco credenziali ne'' la recovery key in chiaro' {
+        $content = Get-Content $script:SetupPath -Raw
+        $content | Should -Not -Match '\$f \+= \$credBlocco'
+        $content | Should -Not -Match '\$f \+= "  Recovery key  : \$\(\$bitlocker\.RecoveryKey\)"'
+    }
+    It 'nessun file "NON CANCELLARE" scritto sul Desktop; la chiave e'' nel riquadro "Conserva questa chiave" della scheda' {
+        $content = Get-Content $script:SetupPath -Raw
+        $content | Should -Not -Match '\$nonCancFile'
+        $content | Should -Not -Match 'Set-Content[^\r\n]*NON CANCELLARE'
+        $content | Should -Match 'CONSERVA QUESTA CHIAVE'
+        $content | Should -Match 'class=''bl-chiave''>\$blKey<'
+        # La chiave non finisce nel log JSON/CSV (solo esito della voce)
+        $content | Should -Not -MatchExactly 'recoveryKey\s*='
     }
 }
 
@@ -824,7 +899,7 @@ Describe 'Test-CartellaKitUSB' {
 }
 
 Describe 'Pannello operatore: copie allineate e sorgente ASCII' {
-    It 'il pannello incorporato in setup-pc.ps1 coincide con docs/index.html' {
+    It 'il pannello incorporato in setup-pc.ps1 coincide con pannello/pannello-operatore.html' {
         $tool = Join-Path (Split-Path $PSScriptRoot -Parent) 'tools/sincronizza-pannello.ps1'
         & $tool -SoloVerifica | Should -BeTrue
     }
@@ -835,11 +910,50 @@ Describe 'Pannello operatore: copie allineate e sorgente ASCII' {
     }
 
     It 'il pannello non invia piu'' dati a ogni tasto e avvia solo con Conferma' {
-        $html = Get-Content -Raw -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'docs/index.html')
+        $html = Get-Content -Raw -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'pannello/pannello-operatore.html')
         $html | Should -Not -Match 'autoSyncCred'
         $html | Should -Match 'Conferma: true'
         $html | Should -Match 'AbortController'
         $html | Should -Not -Match 'value="Mario"'
+    }
+
+    It 'un solo pannello e un solo canale: niente avvii alternativi, appunti o file di stato' {
+        $radice = Split-Path $PSScriptRoot -Parent
+        Test-Path (Join-Path $radice 'docs/index.html') | Should -BeFalse
+        $html = Get-Content -Raw -LiteralPath (Join-Path $radice 'pannello/pannello-operatore.html')
+        $html | Should -Not -Match 'Win\+R'
+        $html | Should -Not -Match 'PCFACILE_CRED'
+        $html | Should -Not -Match 'pcfacile-status'
+        $html | Should -Not -Match 'scaricaLauncher'
+        $html | Should -Match "SERVER = 'http://127\.0\.0\.1:8899'"
+        $html | Should -Match 'id="selOffice"'
+        $html | Should -Match 'id="selProfilo"'
+    }
+}
+
+Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
+    BeforeAll {
+        $script:AstP = [System.Management.Automation.Language.Parser]::ParseFile($script:SetupPath, [ref]$null, [ref]$null)
+        $script:NomiParam = @($script:AstP.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+        $script:Src = Get-Content $script:SetupPath -Raw
+    }
+    It 'accetta solo i parametri tecnici (CI, manutenzione, launcher)' {
+        foreach ($p in @('Espresso', 'Manuale', 'Menu', 'AgenteIA', 'Migrazione', 'Veloce', 'skipRestore')) { $script:NomiParam | Should -Not -Contain $p }
+        foreach ($p in @('Test', 'Diagnostica', 'PreparaUSB', 'TargetDir', 'AggiornaUSB', 'LauncherPath', 'ParametriIgnorati')) { $script:NomiParam | Should -Contain $p }
+    }
+    It 'non contiene piu'' il menu iniziale ne'' le modalita'' Espresso/Automatica/Agente IA' {
+        $script:Src | Should -Not -Match 'Seleziona Modalita'
+        $script:Src | Should -Not -Match 'ModoEspresso'
+        $script:Src | Should -Not -Match 'ModoAutomatico'
+        $script:Src | Should -Not -Match 'Invoke-BrowserAutoSignup'
+        $script:Src | Should -Not -Match 'Invoke-MigrazioneDati'
+    }
+    It 'il server locale accetta solo il pannello aperto dallo script (niente GitHub Pages)' {
+        $script:Src | Should -Not -Match 'github\.io'
+    }
+    It 'Office e i passi manuali aspettano i dati del cliente (Wait-DatiCliente), la fase 1 no' {
+        $script:Src | Should -Match "Wait-DatiCliente -Motivo `"Office dipende"
+        $script:Src | Should -Match 'if \(\$voce\.Gruppo -eq 2\) \{'
     }
 }
 
@@ -888,9 +1002,9 @@ Describe 'Server locale del pannello (runspace in background)' {
 
     It 'GET /status restituisce avanzamento reale, hardware, versione e inizio' {
         Update-PannelloStatus -TaskId 'pulizia' -Stato 'running' -Percentuale 15 -FaseCorrente 'Pulizia' -Hardware ([ordered]@{ Modello = 'Lenovo X'; Cpu = 'i5'; Ram = '8 GB RAM'; Seriale = 'SN123' })
-        $r = Invoke-RichiestaPannello 'GET' '/status' 'https://samuelenigro97-prog.github.io'
+        $r = Invoke-RichiestaPannello 'GET' '/status' 'null'
         $r.Codice | Should -Be 200
-        $r.Acao | Should -Be 'https://samuelenigro97-prog.github.io'
+        $r.Acao | Should -Be 'null'
         $j = $r.Corpo | ConvertFrom-Json
         $j.Percentuale | Should -Be 15
         $j.Tasks.pulizia.Stato | Should -Be 'running'
@@ -907,7 +1021,7 @@ Describe 'Server locale del pannello (runspace in background)' {
     }
 
     It 'risponde al preflight con Access-Control-Allow-Private-Network' {
-        $r = Invoke-RichiestaPannello 'OPTIONS' '/cred' 'https://samuelenigro97-prog.github.io' $null @{ 'Access-Control-Request-Method' = 'POST'; 'Access-Control-Request-Private-Network' = 'true' }
+        $r = Invoke-RichiestaPannello 'OPTIONS' '/cred' 'null' $null @{ 'Access-Control-Request-Method' = 'POST'; 'Access-Control-Request-Private-Network' = 'true' }
         $r.Codice | Should -Be 204
         $r.Pna | Should -Be 'true'
     }
@@ -916,6 +1030,8 @@ Describe 'Server locale del pannello (runspace in background)' {
         $r = Invoke-RichiestaPannello 'POST' '/cred' 'https://sito-qualsiasi.example' '{"Conferma":true,"Nome":"A","Cognome":"B","Servizi":{}}'
         $r.Codice | Should -Be 403
         (Invoke-RichiestaPannello 'GET' '/status' 'https://sito-qualsiasi.example').Codice | Should -Be 403
+        # Anche il vecchio pannello su GitHub Pages non e' piu' autorizzato.
+        (Invoke-RichiestaPannello 'POST' '/cred' 'https://samuelenigro97-prog.github.io' '{"Conferma":true,"Nome":"A","Cognome":"B","Servizi":{}}').Codice | Should -Be 403
     }
 
     It 'rifiuta dati senza Conferma o senza cognome, e non li mette in coda' {
@@ -928,7 +1044,7 @@ Describe 'Server locale del pannello (runspace in background)' {
 
     It 'accetta i dati confermati e Get-CredenzialiSalvatePannello li applica (anche servizi)' {
         $corpo = @{ Conferma = $true; Email = 'rossimario@outlook.it'; Password = 'Pw-123!'; Provider = 'Microsoft'; Cliente = 'Rossi Mario'; Nome = 'Mario'; Cognome = 'Rossi'; Telefono = '3331234567'; Servizi = @{ Cyber = $true; Office = $true; Proton = $false; McAfee = $false; Norton = $false } } | ConvertTo-Json -Compress
-        $r = Invoke-RichiestaPannello 'POST' '/cred' 'https://samuelenigro97-prog.github.io' $corpo
+        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' $corpo
         $r.Codice | Should -Be 200
         ($r.Corpo | ConvertFrom-Json).ok | Should -BeTrue
         Get-CredenzialiSalvatePannello | Should -BeTrue
@@ -991,7 +1107,7 @@ Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
 }
 
 # Ordine dei passi: fase 1 app e lingua, fase 2 passi manuali, fase 3 resto;
-# aggiornamenti per ULTIMI. Stesso ordine nel pannello (script e docs/index.html).
+# aggiornamenti per ULTIMI. Stesso ordine nel pannello (script e pannello/pannello-operatore.html).
 Describe 'Ordine dei passi e pannello' {
     BeforeAll {
         $script:Radice = Split-Path $PSScriptRoot -Parent
@@ -999,7 +1115,7 @@ Describe 'Ordine dei passi e pannello' {
         $ass = $astS.Find({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -eq '$Global:Passi' }, $true)
         $script:Passi = @(& ([scriptblock]::Create($ass.Right.Extent.Text)))
         $script:Ids = @($script:Passi | ForEach-Object { $_.Id })
-        $html = [System.IO.File]::ReadAllText((Join-Path $script:Radice 'docs/index.html'))
+        $html = [System.IO.File]::ReadAllText((Join-Path $script:Radice 'pannello/pannello-operatore.html'))
         $m = [regex]::Match($html, "var TASK_KEYS = \[([^\]]+)\]")
         $script:TaskKeys = @($m.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") })
         $script:LiIds = @([regex]::Matches($html, '<li id="task-([a-z]+)"') | ForEach-Object { $_.Groups[1].Value })
@@ -1020,6 +1136,12 @@ Describe 'Ordine dei passi e pannello' {
         $manuali = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
         foreach ($id in @('nome', 'account', 'officeattiva', 'antivirus', 'cyber')) { $manuali | Should -Contain $id }
         @($script:Passi | Where-Object { $_.Gruppo -eq 3 } | ForEach-Object { $_.Id }) | Should -Contain 'pulizia'
+    }
+    It 'Office e'' l''ultimo passo della fase 1 (il primo che usa i dati del cliente), dopo app e lingua' {
+        $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
+        $fase1[-1] | Should -Be 'office'
+        [array]::IndexOf($script:Ids, 'app') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
+        [array]::IndexOf($script:Ids, 'lingua') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
     }
     It 'gli antivirus di prova si tolgono prima dell''antivirus definitivo' {
         [array]::IndexOf($script:Ids, 'avprova') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'antivirus'))

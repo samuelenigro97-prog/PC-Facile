@@ -2,46 +2,35 @@
 # setup-pc.ps1 - Automazione Configurazione PC
 # =============================================================================
 
+# UN SOLO modo di avvio per l'operatore: doppio click su "PC Facile.bat" dalla
+# chiavetta. Niente menu e niente modalita' alternative: lo script parte subito
+# con la fase 1 (programmi e lingua), apre da solo il pannello operatore (file
+# locale) dove si inseriscono UNA VOLTA i dati del cliente e poi prosegue con i
+# passi manuali e con il resto. I parametri qui sotto NON sono per l'operatore.
 param(
-    # Modalita' non interattiva: risponde in automatico e NON installa/modifica nulla.
-    # Uso: powershell -ExecutionPolicy Bypass -File setup-pc.ps1 -Test
+    # Solo CI: non interattivo e non distruttivo (risposte automatiche).
     [switch]$Test,
-    # Diagnostica: controlla ambiente e valida gli ID pacchetti (winget show),
-    # senza installare nulla, e mostra cosa e' OK/KO. -File setup-pc.ps1 -Diagnostica
+    # Manutenzione (nascosto): controlla ambiente e ID pacchetti senza installare.
     [switch]$Diagnostica,
-    # Modalita' Espresso (Automatico 1-Click): fa TUTTO da solo alla massima velocita'
-    # senza interruzioni (profilo app base, pulizia bloatware/AV, ottimizzazioni, update).
-    [Alias("ZeroTouch", "Automatico", "Auto", "Silenzioso")]
-    [switch]$Espresso,
-    # Modalita' Manuale: procedura guidata passo-passo (scelta account, app personalizzate, office, AV).
-    [switch]$Manuale,
-    # Prepara USB Offline: scarica tutti i programmi di installazione (.exe/.msi)
-    # direttamente nella cartella 'installers' della chiavetta per lavorare al 100% offline.
+    # Manutenzione (nascosto): scarica gli installer offline sulla chiavetta.
+    # Uso: "PC Facile.bat" -PreparaUSB
     [Alias("USB", "Offline", "DownloadOffline")]
     [switch]$PreparaUSB,
-    # Modulo Trasferimento Dati / Migrazione: copia dati utente da vecchio PC o disco USB.
-    [Alias("Backup", "Trasferimento", "Migra")]
-    [switch]$Migrazione,
-    # Modalita' Agente IA / Automatica: automazione intelligente registrazione account con stop su codici OTP
-    [Alias("IA", "Agent", "AutoIA", "Automatica")]
-    [switch]$AgenteIA,
-    # Menu iniziale di scelta modalita'
-    [switch]$Menu,
-    # Veloce: parametro di compatibilita'
-    [switch]$Veloce,
-    # Crea il punto di ripristino (di default disabilitato per velocizzare il setup e risparmiare spazio SSD)
+    # Crea anche il punto di ripristino (di default saltato: risparmia SSD e tempo).
     [Alias("RestorePoint", "Ripristino")]
     [switch]$CreaRipristino,
-    # Salta la creazione del punto di ripristino (mantenuto per compatibilita')
-    [switch]$skipRestore,
-    # Cartella target o USB esplicita (opzionale)
+    # Cartella della chiavetta (passata da PC Facile.bat).
     [string]$TargetDir,
     # Aggiorna solo i file della chiavetta dal manifest.txt ed esce (usato da
     # PC Facile.bat ad ogni avvio). -LauncherPath = percorso del .bat in esecuzione.
     [switch]$AggiornaUSB,
     # Percorso del .bat che ha lanciato lo script (passato dal launcher recente;
     # se manca con -TargetDir, lo script e' stato avviato da un launcher vecchio).
-    [string]$LauncherPath
+    [string]$LauncherPath,
+    # Parametri delle vecchie modalita' (-Espresso, -Manuale, -Menu, -AgenteIA,
+    # -Migrazione, -Veloce...): accettati e IGNORATI, il flusso e' uno solo.
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [object[]]$ParametriIgnorati
 )
 
 if ($TargetDir) {
@@ -54,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "12.1 (2026-09-06)"
+$SCRIPT_VERSION = "13.0 (2026-09-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -485,6 +474,54 @@ function Add-Report {
     [void]$Report.Add([pscustomobject]@{ Voce = $Voce; Esito = $Esito })
 }
 
+# Token fine-grained con l'UNICO permesso "Issues: write" su questo repository
+# (niente Contents, niente Actions, niente altro repo): e' per forza visibile
+# a chiunque scarichi lo script, quindi il danno massimo possibile se abusato
+# resta creare/modificare issue qui, mai toccare codice o altri account.
+$Global:GH_REPORT_TOKEN = "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"
+$Global:GH_REPORT_REPO  = "samuelenigro97-prog/pc-facile"
+
+# Invia un report automatico (solo voci ERRORE/AVVISO + imprevisti gestiti)
+# come GitHub Issue a fine lavoro: MAI nome cliente, email o password, solo
+# dati tecnici (modello PC, versione Windows/script). Niente issue se tutto e'
+# andato liscio (eviterebbe spam). Silenzioso su qualsiasi fallimento (rete,
+# token scaduto, ecc.): non deve mai rallentare o bloccare la consegna del PC.
+function Send-ReportGitHub {
+    param($ReportVoci)
+    if (-not $RunReale -or $Test -or $Global:Test -or $env:PESTER_TEST) { return }
+    try {
+        $problemi = @($ReportVoci | Where-Object { $_.Esito -eq 'ERRORE' -or $_.Esito -eq 'AVVISO' })
+        if ($problemi.Count -eq 0) { return }
+
+        $hw      = Get-SystemHardwareDetails
+        $modello = if ($hw.Produttore -and $hw.Modello) { "$($hw.Produttore) $($hw.Modello)" } else { "PC sconosciuto" }
+        $nErrore = @($problemi | Where-Object { $_.Esito -eq 'ERRORE' }).Count
+        $nAvviso = @($problemi | Where-Object { $_.Esito -eq 'AVVISO' }).Count
+
+        $corpo = [System.Text.StringBuilder]::new()
+        [void]$corpo.AppendLine("**PC**: $modello")
+        [void]$corpo.AppendLine("**Windows**: $([System.Environment]::OSVersion.VersionString)")
+        [void]$corpo.AppendLine("**Script**: v$SCRIPT_VERSION")
+        [void]$corpo.AppendLine("**Data**: $(Get-Date -Format 'yyyy-MM-dd HH:mm')")
+        [void]$corpo.AppendLine("")
+        [void]$corpo.AppendLine("### Esiti da controllare")
+        foreach ($p in $problemi) { [void]$corpo.AppendLine("- **$($p.Esito)**: $($p.Voce)") }
+        if ($Global:ErroriImprevisti -and $Global:ErroriImprevisti.Count -gt 0) {
+            [void]$corpo.AppendLine("")
+            [void]$corpo.AppendLine("### Imprevisti gestiti (non bloccanti)")
+            foreach ($e in $Global:ErroriImprevisti) { [void]$corpo.AppendLine("- $($e.Messaggio) (riga $($e.Riga))") }
+        }
+
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $headers = @{ Authorization = "Bearer $Global:GH_REPORT_TOKEN"; Accept = "application/vnd.github+json" }
+        $payload = @{ title = "[Auto-report] $modello - $nErrore errori, $nAvviso avvisi"; body = $corpo.ToString() } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri "https://api.github.com/repos/$Global:GH_REPORT_REPO/issues" -Method Post `
+            -Headers $headers -Body $payload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 | Out-Null
+    } catch {
+        # Silenzioso: GitHub irraggiungibile, token scaduto, rete bloccata...
+    }
+}
+
 $Global:ErroriImprevisti = [System.Collections.ArrayList]::new()
 
 function Register-ErroreImprevisto {
@@ -641,7 +678,7 @@ function Attendi-Risposta {
 }
 
 function Pausa {
-    if ($Veloce -or $Test -or $Global:Test -or $Diagnostica -or $RunReale -or $env:PESTER_TEST) { return }
+    if ($Test -or $Global:Test -or $Diagnostica -or $RunReale -or $env:PESTER_TEST) { return }
     Write-Host ""
     [void](Attendi-Risposta "Premi INVIO per continuare")
 }
@@ -748,24 +785,10 @@ function Get-AntivirusInstallati {
     return $trovati | Sort-Object Nome -Unique
 }
 
-# Domanda "opzionale": nel flusso automatico (il default del banco) risponde da
-# sola col valore consigliato $Auto, SENZA fermarsi, cosi' l'operatore non deve
-# cliccare per cose che non cambiano da PC a PC. Le domande essenziali (nome,
-# account, Office, profilo app, antivirus) NON usano questa: chiedono davvero.
-function Chiedi {
-    param([string]$Prompt, [string]$Auto = "S")
-    if ($Veloce) {
-        $azione = if ($Auto -match '^[Ss]') { "si'" } else { "no" }
-        Write-Host "  - $Prompt  -> automatico: $azione" -ForegroundColor Gray
-        return $Auto
-    }
-    return Attendi-Risposta $Prompt   # bip subito + ribip ogni 2 min se non rispondi
-}
-
 # Recupera la chiave di ripristino BitLocker del volume di sistema.
 # ATTENZIONE - DATO SENSIBILE: la recovery key da' accesso COMPLETO al disco
-# cifrato. Finisce nel file riepilogo che RESTA con la macchina/cliente: e'
-# voluto e necessario (Windows 11 attiva da solo la crittografia del dispositivo;
+# cifrato. Finisce SOLO nella scheda di consegna (PDF sul Desktop) che RESTA
+# con la macchina/cliente, mai nei log: e' voluto e necessario (Windows 11 attiva da solo la crittografia del dispositivo;
 # senza questa chiave, dopo un reset o un cambio hardware il cliente resta
 # chiuso fuori dai suoi dati). Non va mai pubblicata/condivisa altrove.
 # Ritorna un oggetto: Volume, Cifrato, Stato, KeyId, RecoveryKey, Esito, Messaggio.
@@ -815,7 +838,7 @@ function Get-BitLockerRecovery {
 
     # Esito coerente con Add-Report (OK / AVVISO / SALTATO):
     if ($r.RecoveryKey) {
-        $r.Esito = "OK"; $r.Messaggio = "chiave trovata e salvata nel riepilogo"
+        $r.Esito = "OK"; $r.Messaggio = "chiave trovata: riportata nella scheda di consegna"
     } elseif (-not $r.Cifrato) {
         $r.Esito = "SALTATO"; $r.Messaggio = "volume non cifrato: nessuna chiave da salvare"
     } else {
@@ -1067,7 +1090,6 @@ function Invoke-PcFacileDiagnostics {
     Write-Host "    Processore (CPU) : $($hw.Cpu)"
     Write-Host "    Memoria RAM      : $($hw.RamGB) GB"
     Write-Host "    Scheda Video     : $($hw.Gpu)"
-    Write-Host "    Garanzia Legale  : Fino al $($hw.ScadenzaGaranzia) (2 Anni)"
     Write-Host ""
 
     Write-Host " 2. SALUTE DISCO & MEMORIA DI MASSA (SMART)" -ForegroundColor White
@@ -1301,8 +1323,8 @@ function Update-PannelloStatus {
                     "avprova"     = [ordered]@{ Nome = "Rimozione Antivirus di Prova"; Stato = "pending"; Dettaglio = "In attesa" }
                     "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "runtime"     = [ordered]@{ Nome = "Runtime Microsoft Visual C++ (x86 & x64)"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
                     "app"         = [ordered]@{ Nome = "Installazione Applicazioni Unieuro"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
                     "account"     = [ordered]@{ Nome = "Nome PC e account cliente"; Stato = "pending"; Dettaglio = "In attesa" }
                     "antivirus"   = [ordered]@{ Nome = "Sicurezza & Antivirus Definitivo (Defender / Card)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "cyber"       = [ordered]@{ Nome = "Servizio Unieuro Cyber Protection"; Stato = "pending"; Dettaglio = "In attesa" }
@@ -1343,15 +1365,10 @@ function Update-PannelloStatus {
             $host.UI.RawUI.WindowTitle = "PC Facile [$curPct%] - $curFase"
         } catch {}
 
-        $tempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { [System.IO.Path]::GetTempPath() }
-        $statusFile = Join-Path $tempDir "pcfacile-status.js"
-        
+        # Stato servito da GET /status (server locale in background): e' l'unico
+        # canale fra script e pannello.
         $json = $Global:PannelloStatus | ConvertTo-Json -Depth 5 -Compress
-        # Stesso stato servito da GET /status (server locale in background):
-        # cosi' anche il pannello su GitHub Pages vede avanzamento e hardware.
         if ($Global:PannelloSync) { $Global:PannelloSync.StatusJson = $json }
-        $js = "window.PCFacileStatus = $json; if (typeof window.onPCFacileStatusUpdate === 'function') { window.onPCFacileStatusUpdate(window.PCFacileStatus); }"
-        $js | Set-Content -Path $statusFile -Encoding UTF8
     } catch {}
 }
 
@@ -1367,19 +1384,18 @@ function Test-DatiClienteConfermati {
 }
 
 function Start-ServerPannello {
-    # Server HTTP locale (solo 127.0.0.1) in un runspace separato: risponde SEMPRE
-    # al pannello, anche mentre lo script installa programmi.
+    # Server HTTP locale (solo 127.0.0.1) in un runspace separato: UNICO canale
+    # fra script e pannello. Risponde SEMPRE, anche mentre lo script installa.
     #   GET  /status -> stato live (avanzamento, fasi, hardware, versione)
     #   POST /cred   -> dati cliente confermati (messi in coda per lo script)
     #   OPTIONS      -> preflight CORS (+ Access-Control-Allow-Private-Network)
-    # $Origini: siti autorizzati. Il pannello pubblicato su GitHub Pages e quello
-    # aperto dallo script come file locale (i browser mandano "Origin: null" per
-    # le pagine file://); in piu' http://127.0.0.1 / localhost. Le richieste da
-    # altri siti vengono rifiutate: senza questo controllo qualunque pagina
-    # aperta nel browser potrebbe avviare la configurazione.
+    # $Origini: pagine autorizzate. Solo il pannello aperto dallo script come
+    # file locale (i browser mandano "Origin: null" per le pagine file://); in
+    # piu' http://127.0.0.1 / localhost. Le richieste da qualunque sito web
+    # vengono rifiutate: nessuna pagina aperta nel browser puo' inviare dati.
     param(
         [int]$Porta = 8899,
-        [string[]]$Origini = @('https://samuelenigro97-prog.github.io', 'null')
+        [string[]]$Origini = @('null')
     )
     try {
         if ($Global:CredHttpListener -and $Global:CredHttpListener.IsListening) { return $true }
@@ -1439,7 +1455,7 @@ function Start-ServerPannello {
                             if (-not $dati) {
                                 Invia $res 400 '{"ok":false,"motivo":"dati non leggibili"}'
                             } elseif (-not ($dati.Conferma -is [bool] -and $dati.Conferma)) {
-                                Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante AVVIA CONFIGURAZIONE)"}'
+                                Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante CONFERMA DATI CLIENTE)"}'
                             } elseif ([string]::IsNullOrWhiteSpace([string]$dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$dati.Cognome)) {
                                 Invia $res 400 '{"ok":false,"motivo":"mancano cognome o nome"}'
                             } elseif (-not $dati.Servizi) {
@@ -1475,8 +1491,8 @@ function Start-ServerPannello {
 }
 
 function Start-LocalCredServer {
-    if ($Test -or $Global:Test -or $env:PESTER_TEST) { return }
-    [void](Start-ServerPannello -Porta 8899)
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) { return $false }
+    return (Start-ServerPannello -Porta 8899)
 }
 
 function Stop-LocalCredServer {
@@ -1498,7 +1514,10 @@ function Open-PannelloOperatore {
         [string]$Email = "",
         [string]$Password = ""
     )
-    Start-LocalCredServer
+    # Il pannello serve solo se il server locale risponde (unico canale):
+    # altrimenti i dati del cliente si chiedono in console (Wait-DatiCliente).
+    $serverOk = [bool](Start-LocalCredServer)
+    $Global:PannelloDisponibile = $false
     $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
     if ($NomeCliente -and ($oemNames -contains $NomeCliente.Trim().ToUpper() -or $NomeCliente.Trim().ToUpper() -eq "CLIENTE" -or $NomeCliente.Trim().ToUpper() -eq "UTENTE")) {
         $NomeCliente = ""
@@ -1948,20 +1967,16 @@ function Open-PannelloOperatore {
             <div id="badgeStato" class="badge-stato stato-off" role="status">Script non avviato</div>
         </div>
 
-        <!-- AVVISO: SCRIPT NON AVVIATO (visibile in tutte le schede) -->
+        <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE (visibile in tutte le schede) -->
         <div id="offlineNoticeBox" class="notice notice-off" style="display: block;">
-            <h2>&#9888; PC Facile non &egrave; ancora avviato su questo computer</h2>
-            <p>Avvia <strong>PC Facile.bat</strong> dalla chiavetta (o scaricalo qui sotto). Il pannello si collega da solo appena lo script parte.</p>
-            <div class="notice-azioni">
-                <a href="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC%20Facile.bat" download="PC Facile.bat" onclick="return scaricaLauncher(event)" class="btn-sec" style="flex: 1;">&#128229; Scarica &quot;PC Facile.bat&quot;</a>
-                <button type="button" class="btn-sec" onclick="copiaComandoAvvio()" style="flex: 1;">&#128203; Copia comando (Win+R)</button>
-            </div>
+            <h2>&#9888; PC Facile non risponde</h2>
+            <p>Questo pannello lo apre PC Facile da solo e parla solo con lo script avviato su questo PC. Controlla la finestra di PC Facile: se l'hai chiusa, riapri <strong>PC Facile.bat</strong> dalla chiavetta (riprende da dove era arrivato).</p>
         </div>
 
         <!-- AVVISO: IL PC ASPETTA I DATI DEL CLIENTE -->
         <div id="attesaDatiBox" class="notice notice-attesa">
             <h2>&#9998; Il PC aspetta i dati del cliente</h2>
-            <p>Compila cognome, nome e servizi nella scheda <strong>Cliente</strong> e premi <strong>AVVIA CONFIGURAZIONE</strong>.</p>
+            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila cognome, nome e servizi nella scheda <strong>Cliente</strong> e premi <strong>CONFERMA DATI CLIENTE</strong>.</p>
             <div class="notice-azioni">
                 <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">Vai alla scheda Cliente</button>
             </div>
@@ -1996,7 +2011,7 @@ function Open-PannelloOperatore {
         <div id="completionBanner" class="banner-complete" role="status">
             <h2 id="completionTitle">&#10003; Configurazione completata</h2>
             <ul id="completionAvvisi"></ul>
-            <p>La scheda di consegna (HTML e PDF) &egrave; sul Desktop di questo PC: <strong>Scheda-Consegna-Cliente</strong>.</p>
+            <p>Sul Desktop di questo PC c'&egrave; solo la scheda di consegna: <strong>Scheda-Consegna-Cliente.pdf</strong> (se il PDF non si crea, resta la versione <strong>.html</strong> da stampare). Il riepilogo tecnico &egrave; in <code>C:\ProgramData\PCFacile\log</code>.</p>
         </div>
 
         <!-- SCHEDE -->
@@ -2005,7 +2020,7 @@ function Open-PannelloOperatore {
                 <span><span class="tab-lungo">&#128100; </span>1. Cliente</span>
             </button>
             <button type="button" class="tab-btn" role="tab" id="btn-tab-live" aria-controls="view-tab-live" aria-selected="false" onclick="apriScheda('tab-live')">
-                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/10</span>
+                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/13</span>
             </button>
             <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
                 <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
@@ -2015,7 +2030,7 @@ function Open-PannelloOperatore {
         <!-- SCHEDA 1: DATI CLIENTE -->
         <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
             <div class="card">
-                <div class="card-subtitle">Inserisci cognome e nome: email e password si creano da sole (puoi modificarle).</div>
+                <div class="card-subtitle">Mentre il PC installa programmi e lingua, inserisci qui i dati del cliente <strong>una volta sola</strong>: email e password si creano da sole (puoi modificarle). Puoi correggerli e confermare di nuovo finch&eacute; il passo che li usa non &egrave; partito.</div>
 
                 <div class="cred-step-box">
                     <div class="cred-step-title"><span class="step-badge">1</span> Cliente</div>
@@ -2069,16 +2084,35 @@ function Open-PannelloOperatore {
 
                 <div class="cred-step-box">
                     <div class="cred-step-title"><span class="step-badge">4</span> Servizi sullo scontrino</div>
+                    <div class="campi-2" style="margin-bottom: 10px;">
+                        <div>
+                            <label class="cred-label" for="selOffice">Office</label>
+                            <select id="selOffice" class="cred-input">
+                                <option value="no" selected>Nessuna card Office</option>
+                                <option value="m365">Card Microsoft 365 (abbonamento)</option>
+                                <option value="perpetuo">Card Office 2024/2021 (perpetuo)</option>
+                                <option value="libreoffice">LibreOffice (gratuito)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="cred-label" for="selProfilo">Programmi</label>
+                            <select id="selProfilo" class="cred-input">
+                                <option value="BASE" selected>Base (Chrome, VLC, Reader, 7-Zip...)</option>
+                                <option value="UFFICIO">Ufficio (Base + GIMP, Sumatra PDF)</option>
+                                <option value="GAMING">Gaming (Opera GX + Base + Steam, Epic, Discord)</option>
+                                <option value="COMPLETO">Completo (tutte le app)</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="services-grid">
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
-                        <label class="svc-item"><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
                         <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
                     </div>
                 </div>
 
-                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#128640; AVVIA CONFIGURAZIONE</button>
+                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top: 10px;">
                     <button type="button" class="btn-sec" style="width: 100%;" onclick="copiaRiepilogoCred()">&#128203; Copia dati per il ticket</button>
@@ -2096,8 +2130,8 @@ function Open-PannelloOperatore {
                     <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Programmi base</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 2 &middot; Passi manuali (operatore) &ndash; intanto la pulizia va in background</li>
                     <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
@@ -2148,9 +2182,8 @@ function Open-PannelloOperatore {
         var inizioLavori = 0;
         var isScriptConnected = false;
         var lastStatusPing = 0;
-        var lastFilePing = 0;
         var schedaScelta = false;
-        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'office', 'app', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
+        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
@@ -2356,9 +2389,11 @@ function Open-PannelloOperatore {
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
+                ProfiloApp: el('selProfilo').value,
                 Servizi: {
                     Proton: el('chkSvcProton').checked,
-                    Office: el('chkSvcOffice').checked,
+                    Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
+                    OfficeTipo: el('selOffice').value,
                     McAfee: el('chkSvcMcAfee').checked,
                     Norton: el('chkSvcNorton').checked,
                     Cyber: cyber
@@ -2383,7 +2418,7 @@ function Open-PannelloOperatore {
             }).then(function(res) {
                 btn.disabled = false;
                 if (res.ok && res.j && res.j.ok !== false) {
-                    mostraEsito('\u2713 Dati ricevuti dal PC: la configurazione parte (o prosegue) con questi dati.', 'ok');
+                    mostraEsito('\u2713 Dati ricevuti dal PC: i passi che li usano partono con questi dati.', 'ok');
                     showToast('Dati ricevuti dal PC');
                     apriScheda('tab-live');
                 } else {
@@ -2391,51 +2426,10 @@ function Open-PannelloOperatore {
                 }
             }).catch(function() {
                 btn.disabled = false;
-                // Ripiego: lo script legge anche gli appunti (prefisso PCFACILE_CRED:)
-                // appena e' in ascolto, poi li svuota.
-                var copiato = false;
-                try {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText('PCFACILE_CRED:' + JSON.stringify(payload)).catch(function() {});
-                        copiato = true;
-                    }
-                } catch (e) {}
-                mostraEsito('PC non raggiunto: dati NON ricevuti. ' + (copiato ? 'Li ho messi negli appunti: PC Facile li legge appena \u00e8 avviato su questo PC. ' : '') + 'Avvia PC Facile.bat e riprova.', 'errore');
+                // Un solo canale: il server locale di PC Facile (127.0.0.1:8899).
+                mostraEsito('PC Facile non risponde: dati NON ricevuti. Controlla che la finestra di PC Facile sia aperta e riprova.', 'errore');
                 showToast('PC non raggiunto', 'errore');
             });
-        }
-
-        // Download del launcher: GitHub raw serve il .bat come text/plain da un altro
-        // dominio, quindi l'attributo download verrebbe ignorato (il file si aprirebbe
-        // come testo). raw consente CORS: lo scarico con fetch e lo salvo come Blob
-        // con il nome giusto. Se fetch non e' disponibile o fallisce, apro il link.
-        var LAUNCHER_URL = 'https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC%20Facile.bat';
-        function scaricaLauncher(ev) {
-            if (!window.fetch || !window.Blob || !window.URL || !URL.createObjectURL) return true;
-            if (ev && ev.preventDefault) ev.preventDefault();
-            fetch(LAUNCHER_URL, { cache: 'no-store' })
-                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
-                .then(function(b) {
-                    var url = URL.createObjectURL(new Blob([b], { type: 'application/octet-stream' }));
-                    var a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'PC Facile.bat';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
-                    showToast('Download di "PC Facile.bat" avviato');
-                })
-                .catch(function() { window.open(LAUNCHER_URL, '_blank'); });
-            return false;
-        }
-
-        function copiaComandoAvvio() {
-            // Deve stare sotto i ~259 caratteri della finestra Esegui (Win+R) e non
-            // passa da cmd: `$env:TEMP viene espanso da PowerShell, lo spazio nell'URL
-            // tra apici singoli viene codificato da .NET.
-            var cmd = 'powershell -nop -c "[Net.ServicePointManager]::SecurityProtocol=3072;iwr \'https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC Facile.bat\' -UseBasicParsing -OutFile `$env:TEMP\\pcf.bat;start `$env:TEMP\\pcf.bat"';
-            scriviAppunti(cmd, 'Comando copiato: premi Win+R, incolla e premi Invio');
         }
 
         // STATO DELLA CONNESSIONE E INDICATORE IN ALTO
@@ -2445,15 +2439,14 @@ function Open-PannelloOperatore {
             var off = el('offlineNoticeBox');
             var attesa = el('attesaDatiBox');
             var s = ultimoStato || {};
-            // Collegato = risponde il server locale, oppure (pannello aperto dallo
-            // script) il file di stato e' stato aggiornato da poco.
-            var collegato = isScriptConnected || (Date.now() - lastFilePing < 5000);
+            // Collegato = risponde il server locale di PC Facile (unico canale).
+            var collegato = isScriptConnected;
             if (off) off.style.display = collegato ? 'none' : 'block';
             if (attesa) attesa.style.display = (collegato && s.InAttesaDati) ? 'block' : 'none';
             if (!b) return;
             if (!collegato) {
                 b.className = 'badge-stato stato-off';
-                b.innerText = (s.Completato ? 'Script chiuso' : 'Script non avviato');
+                b.innerText = (s.Completato ? 'Script chiuso' : 'PC Facile non risponde');
             } else if (s.Completato) {
                 var n = contaErrori(s);
                 b.className = 'badge-stato ' + (n > 0 ? 'stato-avvisi' : 'stato-ok');
@@ -2502,9 +2495,10 @@ function Open-PannelloOperatore {
         checkConnection();
 
         var NOMI_TASK = {};
-        function applyStatus(data, daFile) {
+        function applyStatus(data) {
             if (!data) return;
-            if (daFile) { lastFilePing = Date.now(); } else { lastStatusPing = Date.now(); isScriptConnected = true; }
+            lastStatusPing = Date.now();
+            isScriptConnected = true;
             ultimoStato = data;
 
             var pct = parseInt(data.Percentuale !== undefined ? data.Percentuale : (data.percentuale || 0), 10) || 0;
@@ -2591,85 +2585,83 @@ function Open-PannelloOperatore {
             aggiornaIndicatore();
         }
 
-        window.onPCFacileStatusUpdate = function(d) { applyStatus(d, true); };
-
-        // Ripiego per il pannello aperto dallo script (file locale): se il server
-        // locale non risponde, lo stato arriva dal file pcfacile-status.js scritto
-        // accanto alla pagina nella cartella TEMP. Dal sito GitHub non serve.
-        if (location.protocol === 'file:') {
-            setInterval(function() {
-                if (Date.now() - lastStatusPing < 3000) return;
-                aggiornaIndicatore();
-                var s = document.createElement('script');
-                s.src = 'pcfacile-status.js?t=' + Date.now();
-                s.onload = s.onerror = function() { if (this.parentNode) this.parentNode.removeChild(this); };
-                document.head.appendChild(s);
-            }, 1500);
-        }
     </script>
 </body>
 </html>
 "@
         $html | Set-Content -Path $pannelloFile -Encoding UTF8
-        if (-not $Global:Test -and -not $env:PESTER_TEST) {
-            try { Set-SplitScreenLayout -HtmlPath $pannelloFile } catch {
-                try { Start-Process $pannelloFile } catch {}
+        $Global:PannelloFile = $pannelloFile
+        if (-not $serverOk) {
+            if (-not $Global:Test -and -not $env:PESTER_TEST) {
+                Write-Info "Server locale del pannello non avviato (porta 8899 occupata?): i dati del cliente li chiedo in console."
             }
+            return
         }
-        Write-OK "Pannello Operatore aperto nel browser: sincronizzazione live dei lavori attiva."
+        $aperto = $false
+        try { Set-SplitScreenLayout -HtmlPath $pannelloFile; $aperto = $true } catch {
+            try { Start-Process $pannelloFile -ErrorAction Stop; $aperto = $true } catch {}
+        }
+        $Global:PannelloDisponibile = $aperto
+        if ($aperto) { Write-OK "Pannello Operatore aperto nel browser: inserisci li' i dati del cliente." }
+        else { Write-Info "Browser non disponibile: i dati del cliente li chiedo in console." }
     } catch {
         Write-Info "Creazione pannello operatore non riuscita: $_"
     }
 }
 
 
-function Get-CredenzialiSalvatePannello {
-    $apply = {
-        param($content)
-        if (-not $content) { return $false }
-        try {
-            if ($content.Email) {
-                $Global:credMsAccount = $content.Email
-                $Global:credGenerataEmail = $content.Email
-                $script:credMsAccount = $content.Email
-                if ($content.Email -like "*@*") {
-                    $Global:credDominio = ($content.Email -split "@")[-1]
-                }
-            }
-            if ($content.Password) {
-                $Global:credMsPassword = $content.Password
-                $Global:credGenerataPass = $content.Password
-                $script:credMsPassword = $content.Password
-            }
-            if ($content.Provider) {
-                $Global:credProvider = $content.Provider
-                $Global:provNome = $content.Provider
-                $script:credProvider = $content.Provider
-            }
-            if ($content.Cliente) {
-                $Global:nomeCliente = $content.Cliente
-                $script:nomeCliente = $content.Cliente
-            }
-            if ($content.Nome) {
-                $Global:nomeProprioCliente = $content.Nome
-            }
-            if ($content.Cognome) {
-                $Global:cognomeCliente = $content.Cognome
-            }
-            if ($content.Telefono) {
-                $Global:telefonoCliente = $content.Telefono
-            }
-            if ($content.Servizi) {
-                $Global:serviziSelezionati = $content.Servizi
-            }
-            return $true
-        } catch {
-            return $false
+# Applica i dati del cliente confermati nel pannello (o letti dal checkpoint
+# di ripresa, o inseriti in console se il pannello non si apre). UNICA
+# funzione che li mette nelle variabili usate dai passi.
+function Set-DatiCliente {
+    param($Dati)
+    if (-not $Dati) { return $false }
+    try {
+        if ($Dati.Email) {
+            $Global:credMsAccount = [string]$Dati.Email
+            $script:credMsAccount = [string]$Dati.Email
+            if ([string]$Dati.Email -like "*@*") { $Global:credDominio = ([string]$Dati.Email -split "@")[-1] }
         }
+        if ($Dati.Password) {
+            $Global:credMsPassword = [string]$Dati.Password
+            $script:credMsPassword = [string]$Dati.Password
+        }
+        if ($Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
+        if ($Dati.Cliente) {
+            $Global:nomeCliente = [string]$Dati.Cliente
+            $script:nomeCliente = [string]$Dati.Cliente
+        }
+        if ($Dati.Nome)     { $Global:nomeProprioCliente = [string]$Dati.Nome }
+        if ($Dati.Cognome)  { $Global:cognomeCliente = [string]$Dati.Cognome }
+        if ($Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
+        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
+        if ($Dati.Servizi) {
+            $Global:serviziSelezionati = $Dati.Servizi
+            # Suite Office da installare/attivare (1 = Microsoft 365, 2 = perpetuo,
+            # 4 = LibreOffice, 5 = nessuna). Senza OfficeTipo (pannelli vecchi)
+            # la spunta "card Office" vale Microsoft 365.
+            $tipo = [string]$Dati.Servizi.OfficeTipo
+            $Global:SceltaOffice = switch ($tipo) {
+                'm365'        { '1' }
+                'perpetuo'    { '2' }
+                'libreoffice' { '4' }
+                'no'          { '5' }
+                default       { if ($Dati.Servizi.Office) { '1' } else { '5' } }
+            }
+        }
+        $Global:DatiCliente = $Dati
+        $Global:DatiClienteRicevuti = $true
+        return $true
+    } catch {
+        return $false
     }
+}
 
-    # 1. Canale HTTP locale (http://127.0.0.1:8899/cred): il server in background
-    #    mette in coda i dati confermati; qui prendo il piu' recente.
+# Legge i dati del cliente arrivati dal pannello. UN SOLO canale: il server
+# locale http://127.0.0.1:8899 (POST /cred), che li mette in coda; qui prendo
+# il piu' recente. Non blocca: si chiama a ogni passo, cosi' i dati (anche
+# corretti e riconfermati) valgono dal passo successivo.
+function Get-CredenzialiSalvatePannello {
     if ($Global:PannelloSync -and $Global:PannelloSync.CodaCred) {
         $ultimo = $null
         $voce = $null
@@ -2677,148 +2669,98 @@ function Get-CredenzialiSalvatePannello {
         if ($ultimo) {
             try {
                 $parsed = $ultimo | ConvertFrom-Json
-                if ((Test-DatiClienteConfermati $parsed) -and (& $apply $parsed)) { return $true }
+                if ((Test-DatiClienteConfermati $parsed) -and (Set-DatiCliente $parsed)) {
+                    Write-OK "Dati cliente ricevuti dal pannello: $($Global:nomeCliente) ($($Global:credMsAccount))."
+                    Update-PannelloStatus -AttesaDati 'no'
+                    return $true
+                }
             } catch {}
         }
     }
-
-    # 2. Canale Clipboard
-    try {
-        Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-        if ([System.Windows.Forms.Clipboard]::ContainsText()) {
-            $clip = [System.Windows.Forms.Clipboard]::GetText()
-            if ($clip -and $clip.StartsWith("PCFACILE_CRED:")) {
-                $rawJson = $clip.Substring(14)
-                try { [System.Windows.Forms.Clipboard]::Clear() } catch {}
-                $parsed = $rawJson | ConvertFrom-Json
-                # Negli appunti il pannello mette i dati solo dopo "AVVIA CONFIGURAZIONE".
-                if ((Test-DatiClienteConfermati $parsed) -and (& $apply $parsed)) { return $true }
-            }
-        }
-    } catch {}
-
-    # 3. Canale File System (pcfacile-cred*.json piu' recente)
-    $candidateDirs = [System.Collections.Generic.List[string]]::new()
-    $userProf = [Environment]::GetFolderPath('UserProfile')
-    if ($userProf) {
-        $candidateDirs.Add((Join-Path $userProf "Downloads"))
-        $candidateDirs.Add((Join-Path $userProf "Desktop"))
-    }
-    if ($env:USERPROFILE) {
-        $candidateDirs.Add((Join-Path $env:USERPROFILE "Downloads"))
-        $candidateDirs.Add((Join-Path $env:USERPROFILE "Desktop"))
-    }
-    $tempDir = if ($env:TEMP) { $env:TEMP } elseif ($env:TMPDIR) { $env:TMPDIR } else { [System.IO.Path]::GetTempPath() }
-    if ($tempDir) { $candidateDirs.Add($tempDir) }
-    if (Test-Path "C:\Users") {
-        $userDirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @('Public', 'Default', 'Default User', 'All Users') }
-        foreach ($ud in $userDirs) {
-            $candidateDirs.Add((Join-Path $ud.FullName "Downloads"))
-            $candidateDirs.Add((Join-Path $ud.FullName "Desktop"))
-        }
-    }
-
-    $allFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
-    foreach ($cd in $candidateDirs) {
-        if ($cd -and (Test-Path -LiteralPath $cd)) {
-            try {
-                $found = Get-ChildItem -LiteralPath $cd -Filter "pcfacile-cred*.json" -File -ErrorAction SilentlyContinue
-                foreach ($f in $found) { $allFiles.Add($f) }
-            } catch {}
-        }
-    }
-
-    if ($allFiles.Count -gt 0) {
-        $newest = $allFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        try {
-            $raw = Get-Content -LiteralPath $newest.FullName -Raw -Encoding UTF8
-            $parsed = $raw | ConvertFrom-Json
-            if (& $apply $parsed) {
-                # Letto e applicato: il file contiene la password in chiaro, lo
-                # cancello (insieme ad eventuali copie vecchie di clienti precedenti).
-                foreach ($vecchio in $allFiles) { Remove-Item -LiteralPath $vecchio.FullName -Force -ErrorAction SilentlyContinue }
-                return $true
-            }
-        } catch {}
-    }
-
     return $false
 }
 
-function Wait-CredenzialiPannello {
-    [CmdletBinding()]
-    param(
-        [int]$TimeoutSecondi = 120,
-        [switch]$Test
-    )
-    if ($Test -or $Global:Test -or $env:PESTER_TEST) {
-        return $true
-    }
-    if (Get-CredenzialiSalvatePannello) {
-        return $true
-    }
-    # Il pannello mostra "Il PC aspetta i dati del cliente" finche' siamo qui.
-    Update-PannelloStatus -AttesaDati 'si' -FaseCorrente "In attesa dei dati cliente" -Dettaglio "Compila la scheda Cliente e premi AVVIA CONFIGURAZIONE"
-    try {
-        return (Wait-CredenzialiPannelloCiclo -TimeoutSecondi $TimeoutSecondi)
-    } finally {
-        Update-PannelloStatus -AttesaDati 'no' -FaseCorrente "Dati cliente acquisiti" -Dettaglio "Avvio configurazione..."
+# Dati del cliente per la modalita' -Test (CI): esercitano tutti i passi.
+function Get-DatiClienteTest {
+    return [pscustomobject]@{
+        Conferma = $true; Cliente = 'Rossi Mario'; Nome = 'Mario'; Cognome = 'Rossi'
+        Email = 'rossimario@outlook.it'; Password = 'Mario123!'; Provider = 'Microsoft'
+        Telefono = '3331234567'; ProfiloApp = 'BASE'
+        Servizi = [pscustomobject]@{ Proton = $false; Office = $true; OfficeTipo = 'm365'; McAfee = $false; Norton = $false; Cyber = $true }
     }
 }
 
-function Wait-CredenzialiPannelloCiclo {
-    param([int]$TimeoutSecondi = 120)
-    Write-Host ""
-    Write-Titolo "IN ATTESA DATI DAL PANNELLO OPERATORE (A SINISTRA)"
-    Write-Host "  -> Compila Cognome, Nome e servizi nel Pannello a SINISTRA (scheda Cliente)." -ForegroundColor Cyan
-    Write-Host "  -> Premi il pulsante verde 'AVVIA CONFIGURAZIONE' per partire." -ForegroundColor Green
-    Write-Host "     (Oppure inserisci il nome del cliente direttamente in questa console)" -ForegroundColor Gray
-    Write-Host ""
-
-    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSecondi) {
-        if (Get-CredenzialiSalvatePannello) {
-            Write-OK "Dati cliente e servizi ricevuti con successo dal Pannello Web!"
-            if ($Global:nomeCliente) {
-                Write-Host "  - Cliente : $Global:nomeCliente" -ForegroundColor Cyan
-            }
-            if ($Global:credMsAccount) {
-                Write-Host "  - Email   : $Global:credMsAccount" -ForegroundColor Cyan
-            }
-            return $true
+# Ripiego MINIMO in console: SOLO se il pannello non si e' potuto aprire
+# (server locale non avviato o browser non disponibile).
+function Read-DatiClienteConsole {
+    Write-Titolo "DATI CLIENTE (pannello non disponibile)"
+    Write-Host "  Il pannello operatore non si e' aperto: inserisci qui i dati essenziali." -ForegroundColor Yellow
+    $cognome = ""; $nome = ""
+    while (-not $cognome) { $cognome = ([string](Attendi-Risposta "Cognome del cliente")).Trim(); if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $cognome) { $cognome = 'Rossi' } } }
+    while (-not $nome)    { $nome    = ([string](Attendi-Risposta "Nome del cliente")).Trim();    if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $nome) { $nome = 'Mario' } } }
+    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna")).Trim()
+    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (Defender)")).Trim().ToUpper()
+    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N)")).Trim()
+    $tel = ""
+    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection)")).Trim() }
+    $cliente = "$cognome $nome"
+    $dati = [pscustomobject]@{
+        Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
+        # New-EmailCliente si aspetta "Nome Cognome" (prende l'ultima parola come
+        # cognome): passare $cliente ("Cognome Nome") invertirebbe l'email.
+        Email = (New-EmailCliente -Base "$nome $cognome" -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base $nome); Provider = 'Microsoft'
+        Telefono = $tel; ProfiloApp = 'BASE'
+        Servizi = [pscustomobject]@{
+            Proton = $false
+            Office = ($off -match '^[12]$')
+            OfficeTipo = switch ($off) { '1' { 'm365' } '2' { 'perpetuo' } '3' { 'libreoffice' } default { 'no' } }
+            McAfee = ($av -eq 'M'); Norton = ($av -eq 'N'); Cyber = ($cy -match '^[Ss]')
         }
-        try {
-            if ([System.Console]::KeyAvailable) {
-                $key = [System.Console]::ReadKey($true)
-                if ($key.Key -eq [System.ConsoleKey]::Enter) {
-                    break
-                }
-            }
-        } catch {}
-        Start-Sleep -Milliseconds 400
     }
+    [void](Set-DatiCliente $dati)
+    Write-OK "Dati cliente impostati da console: $cliente ($($dati.Email))."
+    return $true
+}
 
-    # Se ancora non sono arrivati dati dal web, avvisa acusticamente e chiedi in console (NON saltare la decisione!)
-    try { [Console]::Beep(1000, 300) } catch {}
+# Aspetta i dati del cliente: si chiama SOLO quando un passo ne ha bisogno
+# (Office e passi manuali). Se sono gia' arrivati durante la fase 1 non si
+# ferma nulla. Nessun timeout: senza dati il passo non puo' partire; bip di
+# richiamo dopo 2 minuti. "P" riapre il pannello se e' stato chiuso.
+function Wait-DatiCliente {
+    [CmdletBinding()]
+    param([string]$Motivo = "")
+    if ($Global:DatiClienteRicevuti) { return $true }
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) { return (Set-DatiCliente (Get-DatiClienteTest)) }
+    if (Get-CredenzialiSalvatePannello) { return $true }
+    if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
+
+    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Compila la scheda Cliente e premi CONFERMA DATI CLIENTE"
     Write-Host ""
-    Write-Host "  [!] In attesa dei dati cliente:" -ForegroundColor Yellow
-    $manualCliente = (Attendi-Risposta "Cognome e Nome del Cliente (es. Peppe Nappa, oppure INVIO per 'Utente')").Trim()
-    if ($manualCliente -and $manualCliente -ne "" -and $manualCliente.ToUpper() -ne "UTENTE") {
-        $Global:nomeCliente = $manualCliente
-        $dom = if ($Global:credDominio) { $Global:credDominio } else { "proton.me" }
-        $Global:credMsAccount = New-EmailCliente -Base $manualCliente -Dominio $dom
-        $Global:credMsPassword = New-PasswordCliente -Base $manualCliente
-        $Global:credProvider = "Proton"
-        Write-OK "Cliente impostato da console: $Global:nomeCliente ($Global:credMsAccount)"
-        return $true
-    } else {
-        $Global:nomeCliente = "Utente"
-        $Global:credMsAccount = "utente@outlook.it"
-        $Global:credMsPassword = "Utente123!"
-        $Global:credProvider = "Microsoft"
-        Write-Info "Cliente impostato come standard: Utente"
-        return $true
+    Write-Titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
+    if ($Motivo) { Write-Host "  $Motivo" -ForegroundColor White }
+    Write-Host "  -> Compila cognome, nome e servizi nel pannello (scheda Cliente)." -ForegroundColor Cyan
+    Write-Host "  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo." -ForegroundColor Green
+    Write-Host "     (P = riapri il pannello se l'hai chiuso)" -ForegroundColor Gray
+    Beep-Attesa
+    Start-BipRipetuto
+    try {
+        while (-not (Get-CredenzialiSalvatePannello)) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $k = [Console]::ReadKey($true)
+                    if ($k.Key -eq [ConsoleKey]::P -and $Global:PannelloFile) {
+                        try { Set-SplitScreenLayout -HtmlPath $Global:PannelloFile } catch { try { Start-Process $Global:PannelloFile } catch {} }
+                        Write-Info "Pannello riaperto."
+                    }
+                }
+            } catch {}
+            Start-Sleep -Milliseconds 400
+        }
+    } finally {
+        Stop-BipRipetuto
+        Update-PannelloStatus -AttesaDati 'no'
     }
+    return $true
 }
 
 # =============================================================================
@@ -3893,369 +3835,6 @@ function Invoke-PreparaUSBOffline {
     Beep-Completato
 }
 
-function Invoke-MigrazioneDati {
-    param(
-        [switch]$Test
-    )
-
-    try { Clear-Host } catch {}
-    Write-Titolo "MODULO TRASFERIMENTO DATI (MIGRAZIONE VECCHIO PC)"
-    Write-Host "Questo strumento ti permette di copiare rapidamente i dati personali" -ForegroundColor White
-    Write-Host "da un hard disk esterno o chiavetta USB del cliente nel nuovo profilo utente." -ForegroundColor White
-    Write-Host "Cartella di destinazione: $env:USERPROFILE" -ForegroundColor Cyan
-    Write-Host ""
-
-    if ($Test) {
-        Write-OK "TEST: simulazione modulo migrazione dati completata."
-        return
-    }
-
-    # Trova le unita' disco collegate (esclusa C:)
-    $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Root -ne "$env:SystemDrive\" -and (Test-Path $_.Root) }
-    if (-not $drives -or @($drives).Count -eq 0) {
-        Write-Errore "Nessuna unita' disco o USB secondaria rilevata."
-        Write-Host "Collega la chiavetta o l'hard disk esterno con i dati del cliente e riprova." -ForegroundColor Yellow
-        Write-Host ""
-        Attendi-Risposta "Premi INVIO per tornare indietro" | Out-Null
-        return
-    }
-
-    Write-Host "Unita' esterne rilevate:" -ForegroundColor White
-    $dList = @($drives)
-    for ($i = 0; $i -lt $dList.Count; $i++) {
-        $d = $dList[$i]
-        $freeGB = [Math]::Round($d.Free / 1GB, 1)
-        Write-Host "  $($i + 1)) [$($d.Name):] $freeGB GB liberi - $($d.Description)" -ForegroundColor Green
-    }
-    Write-Host "  M) Inserisci percorso personalizzato a mano" -ForegroundColor White
-    Write-Host "  Q) Annulla e torna al menu" -ForegroundColor DarkGray
-    Write-Host ""
-
-    $sceltaD = (Attendi-Risposta "Seleziona unita' sorgente (1-$($dList.Count), default = 1)").Trim()
-    if ($sceltaD -match "^[Qq]") { return }
-
-    $sorgente = ""
-    if ($sceltaD -match "^[Mm]") {
-        $sorgente = (Attendi-Risposta "Inserisci percorso sorgente completo (es. E:\BackupMario)").Trim()
-    } elseif ([string]::IsNullOrWhiteSpace($sceltaD) -or $sceltaD -eq "1") {
-        $sorgente = $dList[0].Root
-    } elseif ($sceltaD -match '^\d+$' -and [int]$sceltaD -le $dList.Count -and [int]$sceltaD -ge 1) {
-        $sorgente = $dList[[int]$sceltaD - 1].Root
-    }
-
-    if (-not $sorgente -or -not (Test-Path $sorgente)) {
-        Write-Errore "Percorso non valido o inesistente: $sorgente"
-        Attendi-Risposta "Premi INVIO per continuare" | Out-Null
-        return
-    }
-
-    $subUsers = Get-ChildItem -Path $sorgente -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'Users|Utenti' } | Select-Object -First 1
-    if ($subUsers) {
-        $profiliTrovati = Get-ChildItem -Path $subUsers.FullName -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'Public|Default|All Users' }
-        if ($profiliTrovati -and @($profiliTrovati).Count -eq 1) {
-            $sorgente = $profiliTrovati[0].FullName
-            Write-Info "Rilevato profilo utente: $sorgente"
-        }
-    }
-
-    Write-Host ""
-    Write-Info "Scansione cartelle in: $sorgente"
-
-    $mappaCartelle = @(
-        @{ Nome = "Desktop";    Src = @("Desktop");              Dst = [Environment]::GetFolderPath("Desktop") },
-        @{ Nome = "Documenti";  Src = @("Documents","Documenti"); Dst = [Environment]::GetFolderPath("MyDocuments") },
-        @{ Nome = "Immagini";   Src = @("Pictures","Immagini");   Dst = [Environment]::GetFolderPath("MyPictures") },
-        @{ Nome = "Download";   Src = @("Downloads","Download");  Dst = (Join-Path $env:USERPROFILE "Downloads") },
-        @{ Nome = "Video";      Src = @("Videos","Video");        Dst = [Environment]::GetFolderPath("MyVideos") },
-        @{ Nome = "Musica";     Src = @("Music","Musica");        Dst = [Environment]::GetFolderPath("MyMusic") },
-        @{ Nome = "Preferiti";  Src = @("Favorites","Preferiti"); Dst = [Environment]::GetFolderPath("Favorites") }
-    )
-
-    $trovate = @()
-    foreach ($m in $mappaCartelle) {
-        foreach ($s in $m.Src) {
-            $p = Join-Path $sorgente $s
-            if (Test-Path $p) {
-                $trovate += [pscustomobject]@{ Nome = $m.Nome; SrcPath = $p; DstPath = $m.Dst }
-                break
-            }
-        }
-    }
-
-    if ($trovate.Count -eq 0) {
-        Write-Info "Nessuna sottocartella standard trovata. Copio l'intera cartella sorgente in 'Dati Vecchio PC' sul Desktop."
-        $trovate += [pscustomobject]@{ Nome = "Tutti i dati"; SrcPath = $sorgente; DstPath = (Join-Path ([Environment]::GetFolderPath("Desktop")) "Dati Vecchio PC") }
-    } else {
-        Write-Host "Cartelle rilevate da trasferire:" -ForegroundColor Green
-        foreach ($t in $trovate) {
-            Write-Host "  - $($t.Nome) ($($t.SrcPath) -> $($t.DstPath))" -ForegroundColor Gray
-        }
-    }
-
-    Write-Host ""
-    $conferma = Attendi-Risposta "Avviare la copia dei dati? (S/N, default = S)"
-    if ($conferma -notmatch "^[Ss]" -and -not [string]::IsNullOrWhiteSpace($conferma)) {
-        Write-Info "Operazione annullata."
-        return
-    }
-
-    Write-Titolo "COPIA DATI IN CORSO"
-    $totCopiate = 0
-    foreach ($item in $trovate) {
-        Write-Host ""
-        Write-Info "Copia in corso: $($item.Nome)..."
-        if (-not (Test-Path $item.DstPath)) { New-Item -Path $item.DstPath -ItemType Directory -Force | Out-Null }
-        Start-BarraAnimata "Copia $($item.Nome)..."
-        try {
-            $rc = & robocopy.exe "$($item.SrcPath)" "$($item.DstPath)" /E /R:1 /W:1 /MT:8 /XJ /NFL /NDL /NP /NJH /NJS 2>&1
-            Write-OK "Copia completata: $($item.Nome)"
-            $totCopiate++
-        } catch {
-            Write-Errore "Errore durante la copia di $($item.Nome): $_"
-        } finally {
-            Stop-BarraAnimata
-        }
-    }
-
-    Write-Host ""
-    Write-Titolo "MIGRAZIONE DATI COMPLETATA"
-    Write-OK "Trasferite $totCopiate cartelle nel profilo di $env:USERNAME."
-    Beep-Completato
-    Attendi-Risposta "Premi INVIO per tornare al menu" | Out-Null
-}
-
-# =============================================================================
-# MODULO AUTOMAZIONE BROWSER (PROTON MAIL RAPIDO & SERVIZI)
-# =============================================================================
-function Invoke-BrowserAutoSignup {
-    [CmdletBinding()]
-    [Alias("Invoke-AiAgentAutoSignup")]
-    param(
-        [string]$NomeCliente = "Utente",
-        [string]$Servizio = "Proton",
-        [switch]$Test
-    )
-
-    Write-Titolo "AUTOMAZIONE BROWSER - REGISTRAZIONE PROTON MAIL & ATTIVAZIONI"
-    Write-Host "Automazione nativa ultra-rapida per la creazione account e attivazione servizi." -ForegroundColor White
-    Write-Host "Compilazione automatica e avviso acustico su codici di verifica OTP/SMS/PIN." -ForegroundColor Yellow
-    Write-Host ""
-
-    if ($Test) {
-        Write-OK "TEST: Automazione Browser simulata con successo su Proton Mail e servizi."
-        Add-Report "Automazione Proton Mail" "OK"
-        $Global:AutoSignupCompletato = $true
-        return [PSCustomObject]@{
-            Stato = "Completato"
-            ServiziTestati = @("Proton", "Microsoft", "Google", "Office365", "Antivirus", "McAfee", "Norton", "CyberProtection")
-        }
-    }
-
-    Get-CredenzialiSalvatePannello | Out-Null
-
-    if (-not $NomeCliente -or $NomeCliente -eq "Utente") {
-        if ($Global:nomeCliente -and $Global:nomeCliente -ne "Utente") {
-            $NomeCliente = $Global:nomeCliente
-        } elseif (-not $Global:ModoAutomatico) {
-            $nInput = (Attendi-Risposta "Nome e Cognome del Cliente (es. Mario Rossi)").Trim()
-            if ($nInput) {
-                $NomeCliente = $nInput
-                $Global:nomeCliente = $nInput
-            }
-        }
-    }
-
-    $emailProton  = if ($Global:credMsAccount) { $Global:credMsAccount } else { New-EmailCliente -Base $NomeCliente -Dominio "proton.me" }
-    $passGenerata = if ($Global:credMsPassword) { $Global:credMsPassword } else { New-PasswordCliente -Base $NomeCliente }
-
-    # Servizi da attivare (da JSON pannello o default)
-    $svcs = $Global:serviziSelezionati
-    $isProtonSelected = ($null -ne $svcs -and $null -ne $svcs.Proton -and [bool]$svcs.Proton)
-    $isProtonDomain   = ($Global:credDominio -eq "proton.me" -or $Global:credProvider -eq "Proton")
-    $doProton = ($isProtonSelected -or ($isProtonDomain -and $null -eq $svcs))
-    $doOffice = if ($null -ne $svcs -and $null -ne $svcs.Office) { [bool]$svcs.Office } else { $false }
-    $doMcAfee = if ($null -ne $svcs -and $null -ne $svcs.McAfee) { [bool]$svcs.McAfee } else { $false }
-    $doNorton = if ($null -ne $svcs -and $null -ne $svcs.Norton) { [bool]$svcs.Norton } else { $false }
-    $doCyber  = if ($null -ne $svcs -and $null -ne $svcs.Cyber)  { [bool]$svcs.Cyber }  else { $true }
-
-    # 1. CREAZIONE ACCOUNT PROTON MAIL (SE SELEZIONATO)
-    if ($doProton) {
-        Write-Host ""
-        Write-Titolo "1. CREAZIONE ACCOUNT PROTON MAIL (RAPIDO)"
-        Write-Host "Credenziali generate per il cliente ($NomeCliente):" -ForegroundColor White
-        Write-Host "  - Email/Account : $emailProton" -ForegroundColor Cyan
-        Write-Host "  - Password      : $passGenerata" -ForegroundColor Yellow
-        Write-Host ""
-
-        try { Set-Clipboard -Value "$emailProton" -ErrorAction SilentlyContinue } catch {}
-        Write-Info "Email $emailProton copiata negli appunti (Ctrl+V per incollare)."
-        Write-Info "Apertura modulo diretto Proton Mail Free in Microsoft Edge a sinistra..."
-        Set-SplitScreenLayout -HtmlPath "https://account.proton.me/signup?plan=free"
-
-        Beep-Attesa
-        Write-Host ""
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host " [AUTOMAZIONE BROWSER PROTON MAIL FREE - GUIDA RAPIDA]" -ForegroundColor Green
-        Write-Host " 1. Form Gratuito: Incolla Username e Password generata." -ForegroundColor White
-        Write-Host " 2. Verifica Umana: Risolvi il puzzle/CAPTCHA visivo." -ForegroundColor White
-        Write-Host " 3. Recupero / Upsell: Clicca sempre 'Salta' o 'Forse piu tardi'." -ForegroundColor Yellow
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host ""
-
-        $resp = Attendi-Risposta "Premi INVIO appena sei nella casella di posta (o 'S' per saltare)"
-        if ($resp -match "^[Ss]") {
-            Write-Info "Creazione account Proton Mail saltata dall'operatore."
-            Add-Report "Account Proton Mail" "SALTATO"
-        } else {
-            Write-OK "Account Proton Mail configurato con successo per: $emailProton"
-            Add-Report "Account Proton Mail ($emailProton)" "OK"
-            $Global:credMsAccount = $emailProton
-            $Global:credMsPassword = $passGenerata
-        }
-    }
-
-    # 2. RISCATTO CARD OFFICE 365 / MICROSOFT 365 (SE SELEZIONATO)
-    if ($doOffice) {
-        Write-Host ""
-        Write-Titolo "2. ATTIVAZIONE CARD MICROSOFT 365 / OFFICE"
-        Write-Host "Dati per il riscatto del codice Office 365 a 25 caratteri:" -ForegroundColor White
-        Write-Host "  - Email Cliente  : $emailProton" -ForegroundColor Cyan
-        Write-Host "  - Password       : $passGenerata" -ForegroundColor Yellow
-        Write-Host ""
-
-        try { Set-Clipboard -Value "$emailProton" -ErrorAction SilentlyContinue } catch {}
-        Write-Info "Apertura portale Riscatto Office (microsoft365.com/setup) a sinistra..."
-        Set-SplitScreenLayout -HtmlPath "https://microsoft365.com/setup"
-
-        Beep-Attesa
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host " [ATTIVAZIONE CARD OFFICE 365 - GUIDA RAPIDA]" -ForegroundColor Green
-        Write-Host " Accedi con l'email cliente e digita la chiave da 25 caratteri." -ForegroundColor White
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host ""
-
-        $respOff = Attendi-Risposta "Premi INVIO appena associata la chiave Office (o 'S' per saltare)"
-        if ($respOff -match "^[Ss]") {
-            Write-Info "Attivazione Office 365 saltata dall'operatore."
-            Add-Report "Card Office 365" "SALTATO"
-        } else {
-            Write-OK "Card Office 365 attivata con successo su $emailProton!"
-            Add-Report "Card Office 365 ($emailProton)" "OK"
-        }
-    }
-
-    # 3. ATTIVAZIONE CARD MCAFEE ANTIVIRUS (SE SELEZIONATO)
-    if ($doMcAfee) {
-        Write-Host ""
-        Write-Titolo "3. ATTIVAZIONE CARD MCAFEE ANTIVIRUS"
-        Write-Host "Dati per l'attivazione della licenza McAfee:" -ForegroundColor White
-        Write-Host "  - Email Cliente  : $emailProton" -ForegroundColor Cyan
-        Write-Host "  - Password       : $passGenerata" -ForegroundColor Yellow
-        Write-Host ""
-
-        try { Set-Clipboard -Value "$emailProton" -ErrorAction SilentlyContinue } catch {}
-        Write-Info "Apertura portale McAfee Activate (mcafee.com/activate) a sinistra..."
-        Set-SplitScreenLayout -HtmlPath "https://www.mcafee.com/activate"
-
-        Beep-Attesa
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host " [ATTIVAZIONE CARD MCAFEE - GUIDA RAPIDA]" -ForegroundColor Green
-        Write-Host " Inserisci il codice Product Key / PIN della card McAfee e l'email." -ForegroundColor White
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host ""
-
-        $respMc = Attendi-Risposta "Premi INVIO appena attivato McAfee (o 'S' per saltare)"
-        if ($respMc -match "^[Ss]") {
-            Write-Info "Attivazione McAfee saltata dall'operatore."
-            Add-Report "Card McAfee" "SALTATO"
-        } else {
-            Write-OK "Card McAfee attivata con successo su $emailProton!"
-            Add-Report "Card McAfee ($emailProton)" "OK"
-        }
-    }
-
-    # 4. ATTIVAZIONE CARD NORTON ANTIVIRUS (SE SELEZIONATO)
-    if ($doNorton) {
-        Write-Host ""
-        Write-Titolo "4. ATTIVAZIONE CARD NORTON ANTIVIRUS"
-        Write-Host "Dati per l'attivazione della licenza Norton:" -ForegroundColor White
-        Write-Host "  - Email Cliente  : $emailProton" -ForegroundColor Cyan
-        Write-Host "  - Password       : $passGenerata" -ForegroundColor Yellow
-        Write-Host ""
-
-        try { Set-Clipboard -Value "$emailProton" -ErrorAction SilentlyContinue } catch {}
-        Write-Info "Apertura portale Norton Setup (norton.com/setup) a sinistra..."
-        Set-SplitScreenLayout -HtmlPath "https://www.norton.com/setup"
-
-        Beep-Attesa
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host " [ATTIVAZIONE CARD NORTON - GUIDA RAPIDA]" -ForegroundColor Green
-        Write-Host " Inserisci il codice Product Key della card Norton e l'email." -ForegroundColor White
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host ""
-
-        $respNo = Attendi-Risposta "Premi INVIO appena attivato Norton (o 'S' per saltare)"
-        if ($respNo -match "^[Ss]") {
-            Write-Info "Attivazione Norton saltata dall'operatore."
-            Add-Report "Card Norton" "SALTATO"
-        } else {
-            Write-OK "Card Norton attivata con successo su $emailProton!"
-            Add-Report "Card Norton ($emailProton)" "OK"
-        }
-    }
-
-    # 5. CATENA REGISTRAZIONE SERVIZIO UNIEURO CYBER PROTECTION (COVERCARE) (SE SELEZIONATO)
-    if ($doCyber) {
-        $tel = if ($Global:telefonoCliente) { $Global:telefonoCliente } else { "" }
-        while (-not $tel) {
-            $tIn = (Attendi-Risposta "Numero di Cellulare Cliente per Cyber Protection (OBBLIGATORIO, es. 3331234567 - 'S' per saltare)").Trim()
-            if ($tIn -match "^[Ss]$") {
-                Write-Info "Cellulare saltato dall'operatore (la registrazione su Covercare potrebbe richiedere l'inserimento manuale)."
-                break
-            }
-            if ($tIn) {
-                $tel = $tIn
-                $Global:telefonoCliente = $tIn
-                break
-            }
-            Write-Errore "ATTENZIONE: Il cellulare e' obbligatorio per Cyber Protection! Inserisci il numero di telefono."
-        }
-
-        Write-Host ""
-        Write-Titolo "5. REGISTRAZIONE UNIEURO CYBER PROTECTION (COVERCARE)"
-        Write-Host "Dati pronti per la registrazione del servizio con l'email appena creata:" -ForegroundColor White
-        Write-Host "  - Nome / Cognome : $NomeCliente" -ForegroundColor Cyan
-        Write-Host "  - Email Cliente  : $emailProton" -ForegroundColor Cyan
-        Write-Host "  - Cellulare      : $(if ($tel) { $tel } else { 'NON SPECIFICATO' })" -ForegroundColor $(if ($tel) { 'Cyan' } else { 'Yellow' })
-        Write-Host "  - Password       : $passGenerata" -ForegroundColor Yellow
-        Write-Host ""
-
-        try { Set-Clipboard -Value "$emailProton" -ErrorAction SilentlyContinue } catch {}
-        Write-Info "Apertura portale Unieuro Cyber Protection a sinistra..."
-        Set-SplitScreenLayout -HtmlPath "https://unieuro-cyber-protection.covercare.it"
-
-        Beep-Attesa
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host " [REGISTRAZIONE CYBER PROTECTION - DATI PRONTI]" -ForegroundColor Green
-        Write-Host " Inserisci i dati anagrafici e il codice PIN/Card grattato." -ForegroundColor White
-        Write-Host "============================================================" -ForegroundColor DarkYellow
-        Write-Host ""
-
-        $respCyber = Attendi-Risposta "Premi INVIO appena registrato Cyber Protection (o 'S' per saltare)"
-        if ($respCyber -match "^[Ss]") {
-            Write-Info "Cyber Protection saltato dall'operatore."
-            Add-Report "Unieuro Cyber Protection" "SALTATO"
-        } else {
-            Write-OK "Unieuro Cyber Protection registrato con successo per $NomeCliente!"
-            Add-Report "Unieuro Cyber Protection ($emailProton)" "OK"
-        }
-    }
-
-    Beep-Completato
-    Write-OK "Tutti gli account e le protezioni selezionate sono pronti: il setup prosegue in parallelo a piena velocita'!"
-    $Global:AutoSignupCompletato = $true
-}
-
 # =============================================================================
 # CONNETTIVITA' E RETE (VERIFICA ENDPOINT E TEST-RETE)
 # =============================================================================
@@ -4479,6 +4058,97 @@ function Get-DesktopDir {
     return $env:TEMP
 }
 
+# SCHEDA DI CONSEGNA: sul Desktop del cliente deve restare UN solo file, il PDF
+# (contiene anche la chiave BitLocker: niente piu' file "NON CANCELLARE").
+# L'HTML si scrive in una cartella di lavoro (ProgramData\PCFacile\consegna) e
+# Edge headless lo converte in PDF. Solo se il PDF esiste ed e' > 0 byte lo
+# sposto sul Desktop e cancello l'HTML. Se la conversione fallisce l'HTML va
+# sul Desktop come ripiego (si stampa / salva in PDF dal browser). In ogni caso
+# tolgo dal Desktop il vecchio riepilogo TXT e, se c'e' il PDF, il vecchio HTML
+# (lasciati da versioni precedenti o da una sessione ripresa); con la scheda
+# sul Desktop tolgo anche il vecchio "NON CANCELLARE - Chiave ... .txt", salvo
+# -ConservaVecchiaChiaveBitLocker (chiave non letta in questa sessione).
+# -Convertitore: scriptblock (percorsoHtml, percorsoPdf) usato dai test; di
+# default Edge headless con un profilo temporaneo (non disturba il pannello
+# gia' aperto in Edge). Restituisce Esito PDF / HTML / ERRORE e il percorso.
+function Save-SchedaConsegna {
+    param(
+        [Parameter(Mandatory = $true)][string]$HtmlDoc,
+        [Parameter(Mandatory = $true)][string]$DesktopDir,
+        [Parameter(Mandatory = $true)][string]$CartellaLavoro,
+        [scriptblock]$Convertitore,
+        [switch]$ConservaVecchiaChiaveBitLocker
+    )
+    $nomeBase    = 'Scheda-Consegna-Cliente'
+    $htmlLavoro  = Join-Path $CartellaLavoro "$nomeBase.html"
+    $pdfLavoro   = Join-Path $CartellaLavoro "$nomeBase.pdf"
+    $pdfDesktop  = Join-Path $DesktopDir "$nomeBase.pdf"
+    $htmlDesktop = Join-Path $DesktopDir "$nomeBase.html"
+    $txtDesktop  = Join-Path $DesktopDir 'Riepilogo-Configurazione-PC.txt'
+    $chiaveVecchia = Join-Path $DesktopDir 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt'
+    # Il vecchio file della chiave BitLocker (versioni precedenti) si toglie solo
+    # quando la scheda (che contiene la chiave) e' davvero sul Desktop.
+    $togliChiaveVecchia = { if (-not $ConservaVecchiaChiaveBitLocker) { Remove-Item -LiteralPath $chiaveVecchia -Force -ErrorAction SilentlyContinue } }
+    $fileOk = { param($p) (Test-Path -LiteralPath $p -PathType Leaf) -and ((Get-Item -LiteralPath $p -ErrorAction SilentlyContinue).Length -gt 0) }
+
+    # Il riepilogo TXT non va mai sul Desktop (sta nel log tecnico).
+    Remove-Item -LiteralPath $txtDesktop -Force -ErrorAction SilentlyContinue
+
+    try {
+        if (-not (Test-Path -LiteralPath $CartellaLavoro)) { New-Item -Path $CartellaLavoro -ItemType Directory -Force -ErrorAction Stop | Out-Null }
+        Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        Set-Content -LiteralPath $htmlLavoro -Value $HtmlDoc -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $null; Messaggio = "scheda HTML non scritta: $($_.Exception.Message)" }
+    }
+
+    if (-not $Convertitore) {
+        $Convertitore = {
+            param($PercorsoHtml, $PercorsoPdf)
+            $edge = Get-EdgePath
+            if (-not $edge) { return }
+            $profilo = Join-Path (Split-Path -Parent $PercorsoPdf) 'edge-profilo'
+            $uri = ([System.Uri]$PercorsoHtml).AbsoluteUri
+            $argEdge = @('--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+                         '--run-all-compositor-stages-before-draw', '--no-pdf-header-footer', '--print-to-pdf-no-header',
+                         "--user-data-dir=`"$profilo`"", "--print-to-pdf=`"$PercorsoPdf`"", "`"$uri`"") -join ' '
+            $proc = Start-Process -FilePath $edge -ArgumentList $argEdge -WindowStyle Hidden -PassThru -ErrorAction Stop
+            if ($proc -and -not $proc.WaitForExit(90000)) { try { $proc.Kill() } catch {} }
+            # Edge puo' finire di scrivere il file un attimo dopo l'uscita: attendo max 10 s.
+            for ($i = 0; $i -lt 20 -and -not (Test-Path -LiteralPath $PercorsoPdf); $i++) { Start-Sleep -Milliseconds 500 }
+            Start-Sleep -Milliseconds 500
+            Remove-Item -LiteralPath $profilo -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    try { & $Convertitore $htmlLavoro $pdfLavoro } catch {}
+
+    $pdfOk = [bool](& $fileOk $pdfLavoro)
+    if ($pdfOk) {
+        # Copia (non Move): il file prende i permessi del Desktop, non quelli di
+        # ProgramData, cosi' il cliente puo' gestirlo senza richieste UAC.
+        try { Copy-Item -LiteralPath $pdfLavoro -Destination $pdfDesktop -Force -ErrorAction Stop } catch { $pdfOk = $false }
+        $pdfOk = $pdfOk -and [bool](& $fileOk $pdfDesktop)
+    }
+    if ($pdfOk) {
+        Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $htmlDesktop -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+        & $togliChiaveVecchia
+        return [pscustomobject]@{ Esito = 'PDF'; Percorso = $pdfDesktop; Messaggio = 'PDF creato sul Desktop' }
+    }
+
+    # Ripiego: PDF non creato (o vuoto) -> l'HTML stampabile va sul Desktop.
+    Remove-Item -LiteralPath $pdfLavoro -Force -ErrorAction SilentlyContinue
+    try {
+        Copy-Item -LiteralPath $htmlLavoro -Destination $htmlDesktop -Force -ErrorAction Stop
+        Remove-Item -LiteralPath $htmlLavoro -Force -ErrorAction SilentlyContinue
+        & $togliChiaveVecchia
+        return [pscustomobject]@{ Esito = 'HTML'; Percorso = $htmlDesktop; Messaggio = 'PDF non creato: sul Desktop resta la scheda HTML' }
+    } catch {
+        return [pscustomobject]@{ Esito = 'ERRORE'; Percorso = $htmlLavoro; Messaggio = "PDF non creato e HTML non copiato sul Desktop: $($_.Exception.Message)" }
+    }
+}
+
 # Disattiva schermate iniziali di benvenuto e tour di Edge per un avvio immediato
 function Set-EdgeFirstRunPolicies {
     if (-not $RunReale) { return }
@@ -4495,6 +4165,13 @@ function Set-EdgeFirstRunPolicies {
         Set-ItemProperty -Path $edgePol -Name 'HubsSidebarEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $edgePol -Name 'ShowMicrosoftRewards'          -Value 0 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $edgePol -Name 'EdgeShoppingAssistantEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        # Schermata "dati di esplorazione" (Consenti / Non consentire), schede promozionali e inviti all'accesso.
+        Set-ItemProperty -Path $edgePol -Name 'PersonalizationReportingEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $edgePol -Name 'PromotionalTabsEnabled'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $edgePol -Name 'SpotlightExperiencesAndRecommendationsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $edgePol -Name 'ShowRecommendationsEnabled'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $edgePol -Name 'SignInCtaOnNtpEnabled'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $edgePol -Name 'UserFeedbackAllowed'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
 
         $userProfileKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
         if (-not (Test-Path $userProfileKey)) { New-Item -Path $userProfileKey -Force | Out-Null }
@@ -4537,6 +4214,12 @@ $Global:AppProfiloRipresa = ""
 $Global:AppListaRipresa   = @()
 $Global:AppFatteRipresa   = @()
 
+# Dati del cliente (dal pannello operatore, un'unica volta): vedi Set-DatiCliente.
+$Global:DatiCliente = $null
+$Global:DatiClienteRicevuti = $false
+$Global:ProfiloAppCliente = ""
+$Global:PannelloDisponibile = $false
+$Global:PannelloFile = ""
 $Global:StatoFile   = Join-Path $(if ($env:ProgramData) { $env:ProgramData } else { [System.IO.Path]::GetTempPath() }) "PCFacile\stato.json"
 $Global:FaseRipresa = 0
 
@@ -4555,15 +4238,17 @@ function Save-Fase {
         $cpr = if ($Global:credProvider) { $Global:credProvider } elseif ($prev -and $prev.PSObject.Properties.Name -contains 'CredProvider') { $prev.CredProvider } else { "" }
         $cdo = if ($Global:credDominio)  { $Global:credDominio }  elseif ($prev -and $prev.PSObject.Properties.Name -contains 'CredDominio')  { $prev.CredDominio } else { "" }
         $sco = if ($Global:SceltaOffice) { $Global:SceltaOffice } elseif ($prev -and $prev.PSObject.Properties.Name -contains 'SceltaOffice') { $prev.SceltaOffice } else { "" }
+        $dcl = if ($Global:DatiCliente) { $Global:DatiCliente } elseif ($prev -and $prev.PSObject.Properties.Name -contains 'DatiCliente') { $prev.DatiCliente } else { $null }
         [pscustomobject]@{
-            Schema = 2
+            Schema = 3
             Fase = $Fase; FaseNome = $Nome
             SceltaOffice = $sco
+            DatiCliente = $dcl
             Data = (Get-Date -Format 'dd/MM/yyyy HH:mm')
             NomeCliente = $nc
             CredAccount = $ca; CredPassword = $cp
             CredProvider = $cpr; CredDominio = $cdo
-        } | ConvertTo-Json | Set-Content -Path $Global:StatoFile -Encoding UTF8
+        } | ConvertTo-Json -Depth 5 | Set-Content -Path $Global:StatoFile -Encoding UTF8
     } catch {}
 }
 
@@ -4581,9 +4266,10 @@ function Save-AppProgresso {
         $dir = Split-Path $Global:StatoFile
         if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force | Out-Null }
         [pscustomobject]@{
-            Schema = 2
+            Schema = 3
             Fase = [Math]::Max(0, [array]::IndexOf(@($Global:Passi | ForEach-Object { $_.Id }), 'app')); FaseNome = "Applicazioni (installazione in corso)"
             SceltaOffice = $Global:SceltaOffice
+            DatiCliente = $Global:DatiCliente
             Data = (Get-Date -Format 'dd/MM/yyyy HH:mm')
             NomeCliente = $nomeCliente
             CredAccount = $credMsAccount; CredPassword = $credMsPassword
@@ -4591,7 +4277,7 @@ function Save-AppProgresso {
             AppProfilo = $Profilo
             AppLista   = @($Lista)
             AppFatte   = @($Fatte)
-        } | ConvertTo-Json -Depth 4 | Set-Content -Path $Global:StatoFile -Encoding UTF8
+        } | ConvertTo-Json -Depth 5 | Set-Content -Path $Global:StatoFile -Encoding UTF8
     } catch {}
 }
 
@@ -4690,7 +4376,7 @@ if (-not $Test -and -not $Diagnostica) {
 }
 
 # =============================================================================
-# MODALITA' DI AVVIO E MENU INIZIALE
+# AVVIO UNICO (nessun menu): -Test solo CI, -PreparaUSB/-Diagnostica manutenzione
 # =============================================================================
 
 # Modalita' TEST (-Test): rende lo script non interattivo e non distruttivo.
@@ -4704,34 +4390,19 @@ if ($Test -or $Diagnostica) {
     }
 }
 
-if (-not $Test -and -not $Diagnostica -and -not $PreparaUSB -and -not $Migrazione -and -not $Manuale -and -not $AgenteIA -and -not $Espresso -and -not $Veloce) {
-    Write-Titolo "PC FACILE   -   UNIEURO"
-    Write-Host "Versione $SCRIPT_VERSION - Assistenza & Configurazione Professionale PC" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Seleziona Modalita' Operativa:" -ForegroundColor White
-    Write-Host ""
-    Write-Host "  [1] CONFIGURAZIONE AUTOMATICA ZERO-TOUCH (Standard Unieuro - Consigliata)" -ForegroundColor Green
-    Write-Host "      -> Inserisci nome e cognome nel Pannello Web e il PC fa TUTTO da solo fino alla consegna." -ForegroundColor DarkGray
-    Write-Host "  [2] REGISTRAZIONE GUIDATA ACCOUNT & SERVIZI (Passo-passo nel browser)" -ForegroundColor Cyan
-    Write-Host "      -> Apertura guidata dei portali web per registrazione email e riscatto card" -ForegroundColor DarkGray
-    Write-Host "  [3] PREPARA USB OFFLINE (Scarica tutti i programmi sulla chiavetta)" -ForegroundColor Yellow
-    Write-Host "  [4] CHECK SALUTE & DIAGNOSTICA HARDWARE (Report SSD SMART, Batteria, Driver)" -ForegroundColor Blue
-    Write-Host "  [Q] Esci" -ForegroundColor DarkGray
-    $sceltaMenu = (Attendi-Risposta "Scegli opzione [1-4 / Q]").Trim().ToUpper()
-    switch ($sceltaMenu) {
-        "2" {
-            $Global:ModoAutomatico = $true
-            $Espresso = $true
-            $Global:ModoEspresso = $true
-        }
-        "3" { $PreparaUSB = $true; $Global:ModoEspresso = $false }
-        "P" { $PreparaUSB = $true; $Global:ModoEspresso = $false }
-        "4" { Invoke-PcFacileDiagnostics -MostraDettagli; return }
-        "D" { Invoke-PcFacileDiagnostics -MostraDettagli; return }
-        "Q" { Write-Host "Uscita."; return }
-        default { $Espresso = $true; $Global:ModoEspresso = $true }
-    }
-} else {
+# Parametri di vecchie modalita' (menu, Espresso, Manuale, Agente IA, ...):
+# ignorati, il flusso e' uno solo.
+if ($ParametriIgnorati) {
+    Write-Info "Parametri ignorati (il flusso di PC Facile e' uno solo): $($ParametriIgnorati -join ' ')"
+}
+
+# Manutenzione nascosta: preparazione della chiavetta offline, poi esce.
+if ($PreparaUSB) {
+    Invoke-PreparaUSBOffline -TargetDir $TargetDir
+    return
+}
+
+if (-not $Diagnostica) {
     try { Clear-Host } catch {}
     $larg = 64
     $titoloB = "PC FACILE   -   versione $SCRIPT_VERSION"
@@ -4745,41 +4416,20 @@ if (-not $Test -and -not $Diagnostica -and -not $PreparaUSB -and -not $Migrazion
         Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH - Setup Tecnico Dedicato v$SCRIPT_VERSION      $U_ORANGE$([char]0x2551)$U_RESET"
         Write-Host "  $U_ORANGE$([char]0x255A)$boxLine$([char]0x255D)$U_RESET"
         Write-Host ""
-        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AUTOMATICA AVVIATA A MASSIMA VELOCITA'!$U_RESET"
-        Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Tutte le ottimizzazioni, pulizie e aggiornamenti sono in esecuzione.$U_RESET"
-        Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Pannello Operatore aperto su Microsoft Edge per gestire credenziali e portali.$U_RESET"
+        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (PROGRAMMI E LINGUA) IN CORSO$U_RESET"
+        Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Intanto inserisci i dati del cliente nel pannello operatore (una volta sola).$U_RESET"
+        Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Poi i passi manuali, poi pulizia e driver; aggiornamenti per ultimi.$U_RESET"
         Write-Host ""
     } else {
         Write-Host "  $([char]0x2554)$boxLine$([char]0x2557)" -ForegroundColor DarkYellow
         Write-Host "  $([char]0x2551)$(" " * $padSx)$titoloB$(" " * $padDx)$([char]0x2551)" -ForegroundColor White
         Write-Host "  $([char]0x255A)$boxLine$([char]0x255D)" -ForegroundColor DarkYellow
         Write-Host ""
-        Write-Host "  CONFIGURAZIONE AUTOMATICA AVVIATA A MASSIMA VELOCITA'!" -ForegroundColor Green
-        Write-Host "  Tutte le ottimizzazioni, pulizie e installazioni sono partite in tempo reale." -ForegroundColor White
-        Write-Host "  Pannello Operatore aperto nel browser per gestire account, Office e antivirus." -ForegroundColor Cyan
+        Write-Host "  CONFIGURAZIONE AVVIATA: FASE 1 (PROGRAMMI E LINGUA) IN CORSO" -ForegroundColor Green
+        Write-Host "  Intanto inserisci i dati del cliente nel pannello operatore (una volta sola)." -ForegroundColor White
+        Write-Host "  Poi i passi manuali, poi pulizia e driver; aggiornamenti per ultimi." -ForegroundColor Cyan
         Write-Host ""
     }
-}
-
-if ($Espresso) {
-    $Global:ModoEspresso = $true
-}
-
-# Se e' richiesta la migrazione dei dati:
-if ($Migrazione) {
-    Invoke-MigrazioneDati -Test:$Test
-    return
-}
-
-# Se e' richiesta la preparazione della USB Offline:
-if ($PreparaUSB) {
-    Invoke-PreparaUSBOffline -TargetDir $TargetDir
-    return
-}
-
-# Modalita' configurazione reale:
-if (-not $Test -and -not $Diagnostica) {
-    $Veloce = $true
 }
 
 $RunReale = (-not $Test -and -not $Diagnostica)
@@ -4788,19 +4438,10 @@ if ($RunReale) {
     try { Set-PreventSleep $true } catch {}
     try { Set-EdgeFirstRunPolicies } catch {}
     try { Connect-AutoWiFi -TargetDir $TargetDir } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
-    try { Open-PannelloOperatore -NomeCliente $NomeCliente } catch { Write-Info "Pannello Operatore: $_" }
-    if ($Global:ModoEspresso -or $Global:ModoAutomatico) {
-        try { [void](Wait-CredenzialiPannello -Test:$Test) } catch {}
-        if ($Global:ModoAutomatico) {
-            try { [void](Invoke-BrowserAutoSignup -NomeCliente $Global:nomeCliente -Test:$Test) } catch {}
-        }
-    }
-} elseif ($Test -and ($Global:ModoEspresso -or $Global:ModoAutomatico)) {
-    Open-PannelloOperatore -NomeCliente $NomeCliente
-    [void](Wait-CredenzialiPannello -Test:$Test)
-    if ($Global:ModoAutomatico) {
-        [void](Invoke-BrowserAutoSignup -NomeCliente $Global:nomeCliente -Test:$Test)
-    }
+    # Il pannello NON blocca: la fase 1 parte subito. I dati del cliente
+    # arrivano dal pannello mentre la fase 1 lavora (Get-CredenzialiSalvatePannello
+    # a ogni passo); servono davvero solo da Office in poi (Wait-DatiCliente).
+    try { Open-PannelloOperatore } catch { Write-Info "Pannello Operatore: $_" }
 }
 
 # =============================================================================
@@ -5858,15 +5499,15 @@ if ($Diagnostica) {
         Write-Errore "winget NON disponibile: impossibile validare i pacchetti."
     }
 
-    # Test scrittura sul Desktop (il report/riepilogo finale si salva qui)
+    # Test scrittura sul Desktop (la scheda di consegna PDF si salva qui)
     Write-Host ""
     try {
         $tf = Join-Path (Get-DesktopDir) "pcfacile_test.tmp"
         "test" | Set-Content -Path $tf -ErrorAction Stop
         Remove-Item $tf -Force -ErrorAction SilentlyContinue
-        Write-OK "Desktop scrivibile (report/riepilogo OK): $(Get-DesktopDir)"
+        Write-OK "Desktop scrivibile (scheda di consegna PDF OK): $(Get-DesktopDir)"
     } catch {
-        Write-Errore "Desktop NON scrivibile: il file riepilogo potrebbe non salvarsi."
+        Write-Errore "Desktop NON scrivibile: la scheda di consegna potrebbe non salvarsi."
     }
 
     # Office installato? (per attivazione perpetuo serve ospp.vbs)
@@ -5889,8 +5530,8 @@ if ($Diagnostica) {
 
 # Clear-Host fallisce senza una console vera (esecuzione headless/redirect): protetto
 try { Clear-Host } catch {}
-# La scelta [C] Configura nel menu iniziale e' gia' la conferma: si parte
-# diretti. Ogni singolo passo chiede comunque S/N, niente modifiche a sorpresa.
+# Nessun menu: il doppio click su PC Facile.bat e' gia' la conferma, si parte
+# diretti con la fase 1.
 
 # =============================================================================
 # SESSIONE PRECEDENTE INTERROTTA? Se c'e' un checkpoint, proponi di riprendere
@@ -5921,14 +5562,10 @@ if ($RunReale) {
                     if ($st.NomeCliente) { Write-Host "  Cliente                 : $($st.NomeCliente)" -ForegroundColor White }
                     Write-Host ""
 
-                    $vuoiRiprendere = $false
-                    if ($Global:ModoEspresso) {
-                        $rRip = Attendi-Risposta "Riprendere dal passo '$($st.FaseNome)'? (S = riprendi / INVIO = ricomincia da zero)"
-                        $vuoiRiprendere = ($rRip -match '^[Ss]')
-                    } else {
-                        $rRip = Attendi-Risposta "Riprendere da dove eri arrivato? (S = riprendi / N = ricomincia da capo)"
-                        $vuoiRiprendere = ($rRip -match '^[Ss]')
-                    }
+                    # Automatico: riprende da solo (i passi gia' fatti si saltano
+                    # comunque); N entro 15 secondi = ricomincia da capo.
+                    $rRip = Attendi-Risposta -Prompt "Riprendo tra 15 secondi (N = ricomincia da capo)" -TimeoutSec 15 -Default "S"
+                    $vuoiRiprendere = ($rRip -notmatch '^[Nn]')
 
                     if ($vuoiRiprendere) {
                         $Global:FaseRipresa = [int]$st.Fase
@@ -5943,10 +5580,14 @@ if ($RunReale) {
                             $Global:AppFatteRipresa   = @($st.AppFatte)
                         }
                         if ($st.PSObject.Properties.Name -contains 'SceltaOffice' -and $st.SceltaOffice) { $Global:SceltaOffice = [string]$st.SceltaOffice }
+                        # Dati del cliente gia' confermati nel pannello: non li richiedo.
+                        if ($st.PSObject.Properties.Name -contains 'DatiCliente' -and $st.DatiCliente) {
+                            if (Set-DatiCliente $st.DatiCliente) { Write-OK "Dati cliente ripresi: $($Global:nomeCliente)." }
+                        }
                         # Checkpoint di una versione con un ordine dei passi diverso:
                         # tengo i dati del cliente ma riparto dal primo passo (i
                         # passi gia' fatti vengono riconosciuti e saltati da soli).
-                        if (-not ($st.PSObject.Properties.Name -contains 'Schema') -or [int]$st.Schema -ne 2) {
+                        if (-not ($st.PSObject.Properties.Name -contains 'Schema') -or [int]$st.Schema -ne 3) {
                             $Global:FaseRipresa = 0
                             $Global:AppProfiloRipresa = ""; $Global:AppListaRipresa = @(); $Global:AppFatteRipresa = @()
                             Write-Info "Sessione salvata da una versione precedente: riparto dal primo passo (quelli gia' fatti si saltano da soli)."
@@ -5973,14 +5614,6 @@ if ($RunReale) {
         Write-Host "I pacchetti offline presenti su chiavetta verranno installati comunque." -ForegroundColor Yellow
         Write-Host "Per lingua e aggiornamenti online, connetti il Wi-Fi appena possibile." -ForegroundColor White
         Write-Host ""
-        if (-not $Global:ModoEspresso) {
-            $tentativiRete = 0
-            do {
-                $tentativiRete++
-                $rNet = Attendi-Risposta -Prompt "Collega Internet e premi INVIO per riprovare (oppure S = prosegui senza)" -TimeoutSec 30 -Default "S"
-                if ($rNet -match '^[Ss]' -or $tentativiRete -ge 3) { break }
-            } while (-not (Test-Rete))
-        }
         if (Test-Rete) { Write-OK "Connessione a Internet OK." }
         else { Write-Info "Proseguo in modalita' autonoma (priorita' pacchetti offline USB)." }
     } else {
@@ -6000,9 +5633,6 @@ if ($RunReale) {
         Write-Errore "Presente: $(($avAttivi.Nome | Select-Object -Unique) -join ', ')."
         Write-Host "Un antivirus attivo puo' bloccare lo script: se compare un avviso, seleziona 'Consenti'." -ForegroundColor Yellow
         Write-Host ""
-        if (-not $Global:ModoEspresso) {
-            [void](Attendi-Risposta -Prompt "Quando sei pronto premi INVIO per continuare" -TimeoutSec 15 -Default "")
-        }
     }
 }
 
@@ -6013,7 +5643,6 @@ if ($RunReale) {
 # Torna al passo precedente quando l'utente digita B al prompt principale di un
 # passo. Uso 'continue wizard' (loop etichettato) per rifare il giro del while
 # anche da dentro lo switch, saltando il $passo++ di fine passo.
-function Test-Indietro { param([string]$v) return ($v -match '^\s*[Bb]\s*$') }
 
 # Funzioni dei passi Antivirus/Unieuro: definite QUI (prima del wizard) perche'
 # ora l'Antivirus e' l'ultimo passo mentre Unieuro gira prima e usa
@@ -6027,6 +5656,14 @@ function Test-Indietro { param([string]$v) return ($v -match '^\s*[Bb]\s*$') }
 # quante volte vuoi e in QUALSIASI ordine (comodo per il campo "conferma
 # password" o se sbagli campo), INVIO quando hai finito. Le credenziali restano
 # scritte a schermo per averle sott'occhio.
+# Apre una pagina web per un passo manuale (in -Test non apre nulla).
+function Open-PaginaWeb {
+    param([string]$Url)
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) { Write-Info "(test) aprirei: $Url"; return }
+    try { Start-Process $Url -ErrorAction Stop; Write-OK "Browser aperto su: $Url" }
+    catch { Write-Info "Apri a mano nel browser: $Url" }
+}
+
 function Mostra-CredenzialiPagina {
     param([string]$Utente, [string]$Password)
     if (-not ($Utente -or $Password)) { return }
@@ -6085,20 +5722,20 @@ function Installa-Antivirus {
     )
 
     Write-Info "Apertura pagina registrazione/riscatto $Nome..."
-    Start-Process $UrlRiscatto
-    Write-OK "Browser aperto su: $UrlRiscatto"
+    Open-PaginaWeb $UrlRiscatto
     Write-Host ""
     Write-Host "Completa registrazione/download nel browser." -ForegroundColor White
     Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
+    if (-not $RunReale) { Add-Report "$Nome (antivirus)" "OK (test)"; return }
 
     # Sorveglio Download e Desktop: appena compare un .exe NUOVO (creato dopo
     # ORA) e il download e' finito (dimensione stabile), lo avvio da solo.
     $cartelle = @((Join-Path $env:USERPROFILE "Downloads"), (Get-DesktopDir)) | Select-Object -Unique
     $inizio = Get-Date
-    $timeoutMin = if ($Global:ModoAutomatico) { 3 } elseif ($Global:ModoEspresso) { 5 } else { 8 }
+    $timeoutMin = 8
     Write-Info "In attesa dell'installer di $Nome (max $timeoutMin min). Premi 'S' per saltare."
     $installer = $null
     while (((Get-Date) - $inizio).TotalMinutes -lt $timeoutMin) {
@@ -6145,8 +5782,7 @@ function Attiva-ServizioWeb {
     )
 
     Write-Info "Apertura pagina attivazione $Nome..."
-    Start-Process $UrlAttivazione
-    Write-OK "Browser aperto su: $UrlAttivazione"
+    Open-PaginaWeb $UrlAttivazione
     Write-Host ""
     Write-Host "Sul sito: inserisci il codice/PIN e completa i dati richiesti." -ForegroundColor White
     Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
@@ -6526,7 +6162,7 @@ trap {
     # non dipende da winget: intercetta Dropbox, Booking, Acer Care Center, trial, ecc.)
     $bloatwareWin32Patterns = @(
         '*Dropbox*', '*Booking*', '*Evernote*', '*WildTangent*',
-        '*ExpressVPN*', '*CyberLink*',
+        '*ExpressVPN*', '*CyberLink*', '*Google Play Games*',
         '*Acer Care Center*', '*Acer Collection*', '*Acer Registration*', '*Acer Jumpstart*',
         '*Planet9*', '*Acer User Experience*', '*Care Center Service*',
         '*HP Support Assistant*', '*HP Documentation*', '*HP Sure Recover*', '*HP JumpStart*',
@@ -6603,6 +6239,11 @@ trap {
             winget uninstall --name $nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): $nome"; $rimosse++ }
         }
+        # Google Play Games (bloatware Acer): l'EULA interattiva fa fallire
+        # sempre "winget upgrade --all" in silenzioso, quindi lo tolgo qui
+        # per ID esatto invece di lasciarlo installato e provare ad aggiornarlo.
+        winget uninstall --id Google.PlayGames --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+        if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): Google Play Games"; $rimosse++ }
     }
 
     # 4) Pulizia COLLEGAMENTI (.lnk e .url) dal Menu Start, Desktop (Utente, Pubblico e OneDrive)
@@ -6613,7 +6254,7 @@ trap {
         '*Acer Collection*', '*Acer Care Center*', '*Acer Jumpstart*', '*Acer Registration*',
         '*Planet9*', '*HP Support Assistant*', '*HP Documentation*', '*Lenovo Welcome*',
         '*Lenovo Vantage*', '*Dell SupportAssist*', '*Dell Digital Delivery*',
-        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*'
+        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*', '*Google Play Games*'
     )
 
     $shortcutDirs = @(
@@ -6695,7 +6336,7 @@ trap {
         'HP*', '*Lenovo*', 'Dell*', '*ASUS*', 'Acer*', '*SupportAssist*', '*Vantage*',
         'Adobe*', 'SunJavaUpdate*', 'iTunesHelper', 'QuickTime*', 'CCleaner*',
         'WildTangent*', 'ExpressVPN*', '*Booking*', '*Dropbox*', '*Evernote*',
-        '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*'
+        '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*', '*Google Play Games*'
     )
     $avvioTolti = 0
     # a) Voci di registro "Run" (utente + macchina + 32-bit): tolgo per nome-voce
@@ -6888,21 +6529,23 @@ trap {
 # =============================================================================
 # ORDINE DEI PASSI (unica fonte: console, checkpoint di ripresa e pannello)
 #   1) APP E LINGUA (automatici): ripristino, antivirus di prova, lingua,
-#      Office (installazione), applicazioni.
+#      applicazioni, Office (installazione). Intanto l'operatore inserisce i
+#      dati del cliente nel pannello; Office e' l'ultimo passo della fase 1
+#      perche' e' il primo che ne ha bisogno (quale card?).
 #   2) PASSI MANUALI dell'operatore: nome, account, attivazione Office,
 #      antivirus, Cyber Protection. Intanto la pulizia gira in BACKGROUND.
 #   3) RESTO (automatici): pulizia (attesa/fine), driver e, per ULTIMI, gli
 #      aggiornamenti (app, Store, Windows).
 # Ogni passo prima controlla se il suo lavoro c'e' gia' (Test-PassoGiaFatto)
 # e in quel caso lo salta ("gia' fatto" in console, pannello e riepilogo).
-# Checkpoint: Fase = numero di passi completati (Schema 2 = quest'ordine).
+# Checkpoint: Fase = numero di passi completati (Schema 3 = quest'ordine).
 # =============================================================================
 $Global:Passi = @(
     @{ Id = 'ripristino';   Nome = 'Punto di ripristino';           Gruppo = 1; Task = 'ripristino' }
     @{ Id = 'avprova';      Nome = 'Rimozione antivirus di prova';  Gruppo = 1; Task = 'avprova' }
     @{ Id = 'lingua';       Nome = 'Lingua e regione';              Gruppo = 1; Task = 'lingua' }
-    @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
     @{ Id = 'app';          Nome = 'Applicazioni + browser';        Gruppo = 1; Task = 'app' }
+    @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
     @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 2; Task = 'account' }
     @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 2; Task = 'account' }
     @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 2; Task = 'office' }
@@ -6942,8 +6585,15 @@ if ($voce.Gruppo -ne $gruppoMostrato) {
     Write-Host ""
     Write-Host ("$AON  " + $gruppiNomi[$voce.Gruppo] + "$AOFF") -ForegroundColor $THEME_COL
 }
-# Passi manuali: la pulizia (niente domande, niente browser) parte in background.
-if ($voce.Gruppo -eq 2 -and -not $Global:LavoriBg -and -not $Global:PuliziaFatta) { Start-LavoriInBackground }
+# Dati del cliente dal pannello: arrivano quando l'operatore conferma (anche
+# durante la fase 1) e valgono dal passo successivo. Non blocca.
+[void](Get-CredenzialiSalvatePannello)
+# Passi manuali: la pulizia (niente domande, niente browser) parte in background
+# e, se non sono ancora arrivati, si aspettano i dati del cliente.
+if ($voce.Gruppo -eq 2) {
+    if (-not $Global:LavoriBg -and -not $Global:PuliziaFatta) { Start-LavoriInBackground }
+    [void](Wait-DatiCliente -Motivo "I passi manuali (nome, account, attivazioni) usano i dati del cliente.")
+}
 
 Write-Host ""
 $barLen = 20
@@ -6979,7 +6629,7 @@ trap {
 # PUNTO DI RIPRISTINO (rete di sicurezza prima delle modifiche)
 # =============================================================================
 
-if ($skipRestore -or -not $CreaRipristino) {
+if (-not $CreaRipristino) {
     # Richiesta esplicita operatore: "questo puoi saltarlo, e' super opzionale".
     # Su macchine nuove in negozio risparmia fino a 25 GB su SSD ed evita attese VSS inutili.
     Write-Info "Punto di ripristino: saltato (super opzionale, ottimizzazione spazio SSD)."
@@ -7293,7 +6943,8 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
     # --- 3) Lingua UI (utente + sistema), formati, regione, locale, fuso ---
     try { Set-WinUILanguageOverride -Language it-IT } catch {}
     if (Get-Command Set-SystemPreferredUILanguage -ErrorAction SilentlyContinue) {
-        try { Set-SystemPreferredUILanguage it-IT } catch {}
+        # Errore non terminante (RPC_E_CHANGED_MODE se il thread ha gia' usato COM): il catch non lo ferma.
+        try { Set-SystemPreferredUILanguage it-IT -ErrorAction SilentlyContinue } catch {}
     }
     try { Set-Culture it-IT } catch {}
     try { Set-WinHomeLocation -GeoId 118 } catch {}      # Italia
@@ -7349,64 +7000,35 @@ trap {
 Write-Titolo "Installazione App Office"
 Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Configurazione Office & Runtime" -Dettaglio "Configurazione icone Office e runtime..."
 
-# 0) Installazione Runtime Essenziali (Microsoft Visual C++ 2015-2022 x86 & x64)
-Update-PannelloStatus -TaskId "runtime" -Stato "running" -FaseCorrente "Runtime Essenziali" -Dettaglio "Installazione Microsoft Visual C++ (x86 & x64)..."
-[void](Install-VisualCRuntime)
-Update-PannelloStatus -TaskId "runtime" -Stato "done" -Dettaglio "Completato"
-
-if ($Global:ModoEspresso) {
-    if (Test-OfficeInstallato) {
-        Write-OK "Office gia' installato su questo PC. Creo i collegamenti sul Desktop."
+# Quale suite dipende dalla card del cliente: la scelta arriva dal pannello
+# (se non e' ancora arrivata, qui la si aspetta: e' il primo passo che serve).
+[void](Wait-DatiCliente -Motivo "Office dipende dalla card del cliente: scegli la suite nel pannello.")
+$nomiOffice = @{ '1' = 'Microsoft 365 (card)'; '2' = 'Office perpetuo (card)'; '4' = 'LibreOffice'; '5' = 'nessuna' }
+$sceltaAtt = if ($Global:SceltaOffice) { [string]$Global:SceltaOffice } else { '5' }
+Write-Info "Suite Office scelta nel pannello: $($nomiOffice[$sceltaAtt])."
+switch ($sceltaAtt) {
+    { $_ -eq '1' -or $_ -eq '2' } {
+        # Stessa app per le due card (Microsoft 365 / Office perpetuo): cambia
+        # solo la pagina di riscatto nel passo manuale di attivazione.
+        if (Test-OfficeInstallato) {
+            Write-OK "Office gia' installato su questo PC."
+            Add-Report "Microsoft Office (installazione)" "OK (gia' presente)"
+        } else {
+            Installa-Pacchetto -Nome "Microsoft 365" -WingetId "Microsoft.Office"
+        }
         Add-CollegamentiOffice
-        Add-Report "Microsoft Office (collegamenti)" "OK (gia' presente)"
-    } else {
-        Write-Info "Modalita' Espresso: attivazione Office saltata (il cliente puo' attivarla successivamente)."
-        Add-Report "Installazione app Office" "SALTATO (Espresso)"
     }
-} else {
-    Write-Host "Scegli la suite Office da installare (se manca). L'attivazione si fa dopo, nei passi manuali:" -ForegroundColor White
-    Write-Host "  1) Microsoft 365 (abbonamento, card PIN) - installa, poi riscatto su microsoft365.com/setup" -ForegroundColor White
-    Write-Host "  2) Office perpetuo (Home 2024/2021, card PIN) - installa, poi riscatto su office.com/setup" -ForegroundColor White
-    Write-Host "  3) OpenOffice (suite gratuita)" -ForegroundColor White
-    Write-Host "  4) LibreOffice (suite gratuita)" -ForegroundColor White
-    Write-Host "  5) Salta" -ForegroundColor White
-    Write-Host ""
-
-    # Domanda ESSENZIALE: dipende dalla card che ha in mano l'operatore, la chiedo
-    # SEMPRE. INVIO = Microsoft 365. Metti 5 se il cliente non ha Office da attivare.
-    $sceltaAtt = Attendi-Risposta "Scelta (1-5, INVIO = Microsoft 365, 5 = salta)"
-    if ($RunReale -and [string]::IsNullOrWhiteSpace($sceltaAtt)) { $sceltaAtt = "1" }
-    # Ricordata (anche nel checkpoint) per il passo manuale di attivazione.
-    $Global:SceltaOffice = [string]$sceltaAtt
-    switch ($sceltaAtt) {
-        "1" {
-            # 1/2: INSTALLAZIONE (se manca).
-            if (Test-OfficeInstallato) {
-                Write-OK "Office gia' installato su questo PC."
-                Add-Report "Microsoft Office (installazione)" "OK"
-            } else {
-                Installa-Pacchetto -Nome "Microsoft 365" -WingetId "Microsoft.Office"
-            }
+    '4' {
+        Installa-Pacchetto -Nome "LibreOffice" -WingetId "TheDocumentFoundation.LibreOffice"
+    }
+    default {
+        if (Test-OfficeInstallato) {
+            Write-OK "Nessuna card Office, ma Office e' gia' installato: creo i collegamenti sul Desktop."
             Add-CollegamentiOffice
-        }
-        "3" {
-            Installa-Pacchetto -Nome "OpenOffice" -WingetId "Apache.OpenOffice"
-        }
-        "4" {
-            Installa-Pacchetto -Nome "LibreOffice" -WingetId "TheDocumentFoundation.LibreOffice"
-        }
-        "2" {
-            if (Test-OfficeInstallato) {
-                Write-OK "Office gia' installato su questo PC."
-                Add-Report "Microsoft Office (installazione)" "OK"
-            } else {
-                Installa-Pacchetto -Nome "Microsoft 365" -WingetId "Microsoft.Office"
-            }
-            Add-CollegamentiOffice
-        }
-        default {
-            Write-Info "Installazione app Office saltata."
-            Add-Report "Installazione app Office" "SALTATO"
+            Add-Report "Microsoft Office (collegamenti)" "OK (gia' presente)"
+        } else {
+            Write-Info "Nessuna suite Office da installare."
+            Add-Report "Installazione app Office" "SALTATO (nessuna card)"
         }
     }
 }
@@ -7427,6 +7049,11 @@ trap {
 # =============================================================================
 
 Write-Titolo "Applicazioni"
+# 0) Installazione Runtime Essenziali (Microsoft Visual C++ 2015-2022 x86 & x64)
+Update-PannelloStatus -TaskId "runtime" -Stato "running" -FaseCorrente "Runtime Essenziali" -Dettaglio "Installazione Microsoft Visual C++ (x86 & x64)..."
+[void](Install-VisualCRuntime)
+Update-PannelloStatus -TaskId "runtime" -Stato "done" -Dettaglio "Completato"
+
 Update-PannelloStatus -TaskId "app" -Stato "running" -FaseCorrente "Installazione Applicazioni" -Dettaglio "Avvio installazione app..."
 
 $appsDisponibili = $CatalogoApp
@@ -7455,6 +7082,7 @@ function Costruisci-PianoApp {
 }
 
 $Global:AppFallite = 0
+$codiciProfilo = @{ "BASE" = "1"; "UFFICIO" = "2"; "GAMING" = "3"; "COMPLETO" = "4" }
 
 $pianoApp  = @()
 $appFatte  = @()
@@ -7468,62 +7096,15 @@ if ($Global:AppProfiloRipresa) {
     $rimaste = @($pianoApp | Where-Object { $appFatte -notcontains $_.Id }).Count
     Write-OK "Riprendo l'installazione app (profilo $etichetta): $rimaste da completare."
     Write-Info "Le app gia' installate le salto: riparto dall'esatta app rimasta."
-} elseif ($Global:ModoEspresso) {
-    Write-Host "Modalita' Espresso: installazione automatica del PROFILO BASE..." -ForegroundColor Green
-    Write-Host "  (Google Chrome, VLC, Adobe Acrobat Reader, 7-Zip, AnyDesk, WhatsApp, Spotify, AIMP, Zoom)" -ForegroundColor Gray
-    $etichetta = "BASE"
-    $pianoApp  = @(Costruisci-PianoApp -Scelta "1")
 } else {
-    Write-Host "Scegli come installare le applicazioni (browser incluso in automatico):" -ForegroundColor White
-    Write-Host "  1) PROFILO BASE     (Chrome + VLC, Adobe Reader, 7-Zip, WhatsApp, Spotify, AIMP, Zoom, AnyDesk)"
-    Write-Host "  2) PROFILO UFFICIO  (Chrome + BASE + GIMP, Sumatra PDF)"
-    Write-Host "  3) PROFILO GAMING   (Opera GX + BASE + Steam, Epic, Discord)"
-    Write-Host "  4) COMPLETO         (Chrome + tutte le app in lista)"
-    Write-Host "  5) MANUALE          (Chrome + scelgo io i singoli numeri)"
-    Write-Host "  S) Salta"
-    Write-Host ""
-
-    $sceltaApps = Attendi-Risposta "Scelta (1-5 - S salta - B indietro)"
-    if (Test-Indietro $sceltaApps) { $passo = [Math]::Max(0, $passo - 1); continue wizard }
-
-    switch -Regex ($sceltaApps) {
-        "^[1-4]$" {
-            $etichetta = @{ "1" = "BASE"; "2" = "UFFICIO"; "3" = "GAMING"; "4" = "COMPLETO" }[$sceltaApps]
-            $pianoApp  = @(Costruisci-PianoApp -Scelta $sceltaApps)
-        }
-        "^5$" {
-            $etichetta = "MANUALE"
-            $pianoApp += @{ Nome = "Google Chrome"; Id = "Google.Chrome" }
-            Write-Host ""
-            Write-Host "App disponibili:" -ForegroundColor White
-            for ($i = 0; $i -lt $appsDisponibili.Count; $i++) {
-                Write-Host "  $($i + 1)) $($appsDisponibili[$i].Nome)"
-            }
-            $sceltaManuale = Attendi-Risposta "Numeri separati da virgola (es: 1,3,5)"
-            $indici = $sceltaManuale -split "," | ForEach-Object { $_.Trim() }
-            foreach ($indice in $indici) {
-                $num = 0
-                if ($indice -match "^\d+$" -and [int]::TryParse($indice, [ref]$num)) {
-                    $idx = $num - 1
-                    if ($idx -ge 0 -and $idx -lt $appsDisponibili.Count) {
-                        $pianoApp += @{ Nome = $appsDisponibili[$idx].Nome; Id = $appsDisponibili[$idx].Id }
-                    } else {
-                        Write-Errore "Numero non valido: $indice"
-                    }
-                } elseif ($indice -ne "") {
-                    Write-Errore "Valore non riconosciuto: $indice"
-                }
-            }
-        }
-        default {
-            if ($sceltaApps -match "^[Ss]$") {
-                Write-Info "Applicazioni saltate."
-            } else {
-                Write-Info "Scelta non valida: applicazioni saltate."
-            }
-        }
-    }
+    # Profilo scelto nel pannello; se i dati non sono ancora arrivati parto
+    # col profilo BASE (nessuna attesa: la fase 1 non si ferma) e alla fine
+    # aggiungo le app mancanti se nel frattempo arriva un profilo piu' ampio.
+    $etichetta = if ($Global:ProfiloAppCliente) { $Global:ProfiloAppCliente } else { "BASE" }
+    if (-not $Global:ProfiloAppCliente) { Write-Info "Dati del cliente non ancora arrivati: parto col profilo BASE." }
+    $pianoApp  = @(Costruisci-PianoApp -Scelta $codiciProfilo[$etichetta])
 }
+Write-Host "Profilo app: $etichetta" -ForegroundColor Green
 
 if ($pianoApp.Count -gt 0) {
     if ($pianoApp | Where-Object { $_.Id -eq "Google.Chrome" -or $_.Id -eq "Opera.OperaGX" }) {
@@ -7541,6 +7122,23 @@ if ($pianoApp.Count -gt 0) {
         if ($Global:UltimaInstallOk) {
             $appFatte += $app.Id
             Save-AppProgresso -Profilo $etichetta -Lista $pianoApp -Fatte $appFatte
+        }
+    }
+    # Profilo confermato nel pannello DURANTE l'installazione: aggiungo le app
+    # che mancano (quelle gia' installate si saltano da sole).
+    [void](Get-CredenzialiSalvatePannello)
+    if ($Global:ProfiloAppCliente -and $Global:ProfiloAppCliente -ne $etichetta) {
+        $etichetta = $Global:ProfiloAppCliente
+        $extra = @(Costruisci-PianoApp -Scelta $codiciProfilo[$etichetta] | Where-Object { $id = $_.Id; -not ($pianoApp | Where-Object { $_.Id -eq $id }) })
+        if ($extra.Count -gt 0) { Write-Info "Profilo $etichetta scelto nel pannello: aggiungo $($extra.Count) app." }
+        foreach ($app in $extra) {
+            $pianoApp += $app
+            Update-PannelloStatus -TaskId "app" -Stato "running" -Dettaglio "Installazione $($app.Nome) in corso..."
+            Installa-Pacchetto -Nome $app.Nome -WingetId $app.Id
+            if ($Global:UltimaInstallOk) {
+                $appFatte += $app.Id
+                Save-AppProgresso -Profilo $etichetta -Lista $pianoApp -Fatte $appFatte
+            }
         }
     }
     Update-PannelloStatus -TaskId "app" -Stato "done" -Percentuale 88 -Dettaglio "Tutte le app installate"
@@ -7591,18 +7189,9 @@ $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 
 $isOemUser = ($oemNames -contains $env:USERNAME.ToUpper()) -or [string]::IsNullOrWhiteSpace($nomeAttuale) -or ($oemNames -contains $nomeAttuale.ToUpper())
 $isOemComputer = ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$') -or ($oemNames -contains $env:COMPUTERNAME.ToUpper())
 
-# Se siamo in modalita' Espresso o Automatica, controlla se il pannello operatore ha gia' salvato credenziali
-if (-not $nomeCliente -or $nomeCliente -match '^(Cliente|OEM|Utente)$') {
-    Get-CredenzialiSalvatePannello | Out-Null
-    if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(Cliente|OEM|Utente)$') {
-        $nomeCliente = $Global:nomeCliente
-    }
-}
-
-if (-not $nomeCliente -and -not $Global:ModoEspresso -and -not $Global:ModoAutomatico) {
-    $defaultSuggerito = if ($isOemUser) { "Utente" } else { $env:USERNAME }
-    $nomeCliente = (Attendi-Risposta "Nome del cliente (account E nome PC) [default: $defaultSuggerito]").Trim()
-    if (-not $nomeCliente) { $nomeCliente = $defaultSuggerito }
+# Il nome arriva dai dati del cliente (pannello, una volta sola).
+if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(Cliente|OEM|Utente)$') {
+    $nomeCliente = $Global:nomeCliente
 }
 
 if (-not $nomeCliente) {
@@ -7618,7 +7207,10 @@ Write-Info "Nome cliente / account: $(if ($nomeCliente) { $nomeCliente } elseif 
 Write-Info "Nome PC attuale: $env:COMPUTERNAME"
 Write-Host ""
 
-if ($nomeCliente -and $nomeCliente -ne "") {
+if (-not $RunReale) {
+    Write-Info "(test) nome account e nome PC non modificati (cliente: $nomeCliente)."
+    Add-Report "Nome cliente ($nomeCliente)" "OK (test)"
+} elseif ($nomeCliente -and $nomeCliente -ne "") {
     $nomeOk = $false
     # 1) Metodo moderno (modulo LocalAccounts)
     if ($nomeAttuale -and $nomeAttuale -eq $nomeCliente) {
@@ -7684,84 +7276,44 @@ trap {
 
 Write-Titolo "Account / Email cliente"
 
-if ($Global:ModoEspresso -or $Global:ModoAutomatico) {
-    if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
-    if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
-    if ($Global:credProvider) { $provNome = $Global:credProvider }
-
-    $basePerNome = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser) { "utente" } else { $env:USERNAME }
-    if (-not $credMsAccount) {
-        $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
-        $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
-    }
-    if (-not $credMsPassword) { $credMsPassword = New-PasswordCliente -Base $basePerNome }
-    Write-Host "  Account cliente gestito in parallelo dal Pannello Operatore aperto nel browser." -ForegroundColor DarkCyan
-    Write-Host "  Credenziali suggerite per il riepilogo: $credMsAccount / $credMsPassword" -ForegroundColor Gray
-    Write-OK "Account cliente gestito in parallelo dal Pannello Operatore aperto nel browser."
-    Write-Info "Credenziali suggerite per il riepilogo: $credMsAccount / $credMsPassword"
-    Add-Report "Account cliente" "Pannello Operatore (browser)"
-} else {
-    Write-Host "Crea/accedi ORA all'account del cliente. Scegli quale aprire:" -ForegroundColor White
-    Write-Host "  1) Microsoft   (consigliato: serve per Office e antivirus)" -ForegroundColor White
-    Write-Host "  2) Google / Gmail" -ForegroundColor White
-    Write-Host "  3) Proton Mail" -ForegroundColor White
-    Write-Host "  4) Outlook.com (nuova email Microsoft)" -ForegroundColor White
-    Write-Host "  S) Salta" -ForegroundColor White
-    Write-Host ""
-
-    # Domanda ESSENZIALE: cambia da cliente a cliente, quindi la chiedo SEMPRE.
-    # INVIO = Microsoft (il caso piu' comune).
-    $sceltaAcc = Attendi-Risposta "Scelta (1-4, INVIO = Microsoft, S = salta)"
-    if ($RunReale -and [string]::IsNullOrWhiteSpace($sceltaAcc)) { $sceltaAcc = "1" }
-
-    # Mappa scelta -> nome provider, pagina da aprire e dominio email suggerito.
-    $prov = switch -Regex ($sceltaAcc) {
-        '^1' { @{ Nome = "Microsoft"; Url = "https://account.microsoft.com";                 Dominio = "outlook.it" } }
-        '^2' { @{ Nome = "Google";    Url = "https://accounts.google.com/signup";             Dominio = "gmail.com" } }
-        '^3' { @{ Nome = "Proton";    Url = "https://account.proton.me/signup";               Dominio = "proton.me" } }
-        '^4' { @{ Nome = "Outlook";   Url = "https://signup.live.com";                        Dominio = "outlook.it" } }
-        default { $null }
-    }
-
-    if ($prov) {
-        # Ricordo il provider scelto (nome + dominio) per il riepilogo e la ripresa.
-        $Global:credProvider = $prov.Nome
-        $Global:credDominio  = $prov.Dominio
-        Start-Process $prov.Url
-        Write-OK "Aperto $($prov.Url) nel browser ($($prov.Nome))."
-        if ($prov.Nome -ne "Microsoft") {
-            Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
-            Write-Info "    con $($prov.Nome) crei solo l'email del cliente."
-        }
-
-        # Credenziali per il riepilogo.
-        if ($RunReale) {
-            $haAccount = Attendi-Risposta "Il cliente ha GIA' una sua email/password che usa? (S = le inserisco io / N = ne genero una nuova)"
-            if ($haAccount -match "^[Ss]") {
-                $credMsAccount  = (Attendi-Risposta "  Email del cliente").Trim()
-                $credMsPassword = (Attendi-Risposta "  Password del cliente").Trim()
-                Write-OK "Uso le credenziali del cliente (finiscono nel riepilogo)."
-            } else {
-                $credMsAccount  = New-EmailCliente -Base $nomeCliente -Dominio $prov.Dominio
-                $credMsPassword = New-PasswordCliente -Base $nomeCliente
-                Write-Host ""
-                Write-Host "  Credenziali SUGGERITE per il nuovo account (gia' nel riepilogo):" -ForegroundColor White
-                Write-Info  "Email suggerita : $credMsAccount"
-                Write-Info  "Password        : $credMsPassword"
-                Write-Host "  Se in registrazione ne usi altre, correggi il file." -ForegroundColor Gray
-            }
-            if ($credMsPassword) { try { Set-Clipboard -Value $credMsPassword; Write-Info "Password copiata negli appunti." } catch {} }
-            Write-Host ""
-        }
-
-        Write-Info "Accedi o crea l'account, poi torna qui. Usa lo stesso browser per i login dopo."
-        Add-Report "Account $($prov.Nome)" "OK"
-        Pausa
-    } else {
-        Write-Info "Account/email saltato."
-        Add-Report "Account cliente" "SALTATO"
-    }
+if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
+if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
+# $nomeCliente e' "Cognome Nome" (da $Dati.Cliente, costruito dal pannello come
+# "cognome + nome"): NON va usato per la password, altrimenti prende il cognome
+# come base (New-PasswordCliente usa sempre la PRIMA parola). Uso i campi
+# separati Nome/Cognome quando disponibili (niente ambiguita' di ordine);
+# New-EmailCliente si aspetta "Nome Cognome", quindi li ricompongo in quell'ordine.
+$nomeProprio = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+$cognomeCli  = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+$basePerNome = if ($nomeProprio -and $cognomeCli) { "$nomeProprio $cognomeCli" }
+               elseif ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente }
+               else { "utente" }
+if (-not $credMsAccount) {
+    $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
+    $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
 }
+if (-not $credMsPassword) {
+    $basePerPassword = if ($nomeProprio -and $nomeProprio.ToUpper() -ne "OEM") { $nomeProprio } else { $basePerNome }
+    $credMsPassword = New-PasswordCliente -Base $basePerPassword
+}
+$provNome = if ($Global:credProvider) { [string]$Global:credProvider } else { "Microsoft" }
+$Global:credProvider = $provNome
+# Pagina di registrazione del provider scelto nel pannello (tipo di email).
+$urlAccount = switch -Regex ($provNome) {
+    '^Google'  { "https://accounts.google.com/signup" }
+    '^Proton'  { "https://account.proton.me/signup?plan=free" }
+    '^Libero'  { "https://registrazione.libero.it" }
+    '^iCloud'  { "https://account.apple.com" }
+    default    { "https://signup.live.com" }
+}
+Write-Host "Crea (o apri) ORA l'account $provNome del cliente, col cliente davanti." -ForegroundColor White
+if ($provNome -notmatch '^(Microsoft|Hotmail|Outlook)') {
+    Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
+    Write-Info "    con $provNome crei l'email del cliente."
+}
+Open-PaginaWeb $urlAccount
+Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
+Add-Report "Account $provNome ($credMsAccount)" "OK"
 }
 'officeattiva' {
 trap {
@@ -7779,24 +7331,23 @@ Write-Titolo "Attivazione Office"
 Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Attivazione Office" -Dettaglio "Riscatto card PIN..."
 switch ([string]$Global:SceltaOffice) {
     "1" {
-        Start-Process "https://microsoft365.com/setup"
-        Write-OK "Browser aperto su microsoft365.com/setup"
+        Open-PaginaWeb "https://microsoft365.com/setup"
         Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
+        Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
-        Pausa
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
     "2" {
-        Start-Process "https://office.com/setup"
-        Write-OK "Browser aperto su office.com/setup (l'indirizzo stampato sulla card)."
+        Open-PaginaWeb "https://office.com/setup"
         Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
         Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
+        Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Office perpetuo (riscatto card PIN)" "OK"
-        Pausa
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
     default {
         Write-Info "Nessuna card Office da attivare: passo saltato."
+        Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Nessuna card da attivare"
     }
 }
 }
@@ -7815,47 +7366,19 @@ trap {
 Write-Titolo "Antivirus"
 Update-PannelloStatus -TaskId "antivirus" -Stato "running" -Percentuale 90 -FaseCorrente "Configurazione Antivirus" -Dettaglio "Verifica Windows Defender e card cliente..."
 
-if ($Global:ModoEspresso) {
-    if ($Global:serviziSelezionati -and ($Global:serviziSelezionati.McAfee -or $Global:serviziSelezionati.Norton)) {
-        if ($Global:serviziSelezionati.McAfee) {
-            Write-OK "Antivirus McAfee selezionato nel pannello e attivato."
-            Add-Report "Antivirus" "OK (Card McAfee)"
-            Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "Card McAfee attivata"
-        } else {
-            Write-OK "Antivirus Norton selezionato nel pannello e attivato."
-            Add-Report "Antivirus" "OK (Card Norton)"
-            Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "Card Norton attivata"
-        }
-    } else {
-        Write-OK "Modalita' Espresso: Windows Defender / Sicurezza di Windows configurato e attivo."
-        Add-Report "Antivirus" "OK (Windows Defender)"
-        Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "Windows Defender attivo"
-    }
+# Dalla card indicata nel pannello (nessuna domanda). Se un antivirus e' gia'
+# installato il passo e' gia' stato saltato da Test-PassoGiaFatto.
+$sv = $Global:serviziSelezionati
+if ($sv -and $sv.McAfee) {
+    Installa-Antivirus -Nome "McAfee" -UrlRiscatto "https://www.mcafee.com/activate" -Utente $credMsAccount -Password $credMsPassword
+    Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "McAfee configurato"
+} elseif ($sv -and $sv.Norton) {
+    Installa-Antivirus -Nome "Norton" -UrlRiscatto "https://www.norton.com/setup" -Utente $credMsAccount -Password $credMsPassword
+    Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Norton configurato"
 } else {
-    Write-Host "Scegli l'antivirus da installare:" -ForegroundColor White
-    Write-Host "  1) McAfee"
-    Write-Host "  2) Norton"
-    Write-Host "  3) Salta (Windows Defender attivo)"
-    Write-Host ""
-
-    $sceltaAV = Attendi-Risposta "Scelta (1-3, B=indietro)"
-    if (Test-Indietro $sceltaAV) { $passo = [Math]::Max(0, $passo - 1); continue wizard }
-
-    switch ($sceltaAV) {
-        "1" {
-            Installa-Antivirus -Nome "McAfee" -UrlRiscatto "https://www.mcafee.com/activate" -Utente $credMsAccount -Password $credMsPassword
-            Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "McAfee configurato"
-        }
-        "2" {
-            Installa-Antivirus -Nome "Norton" -UrlRiscatto "https://www.norton.com/setup" -Utente $credMsAccount -Password $credMsPassword
-            Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "Norton configurato"
-        }
-        default {
-            Write-Info "Antivirus dedicato saltato: Windows Defender e' attivo e aggiornato."
-            Add-Report "Antivirus" "OK (Windows Defender)"
-            Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Percentuale 92 -Dettaglio "Windows Defender attivo"
-        }
-    }
+    Write-Info "Nessuna card antivirus: Windows Defender e' attivo e aggiornato."
+    Add-Report "Antivirus" "OK (Windows Defender)"
+    Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Windows Defender attivo"
 }
 }
 'cyber' {
@@ -7873,30 +7396,15 @@ trap {
 Write-Titolo "Unieuro Cyber Protection"
 Update-PannelloStatus -TaskId "cyber" -Stato "running" -Percentuale 94 -FaseCorrente "Unieuro Cyber Protection" -Dettaglio "Configurazione servizio web..."
 
-if ($Global:ModoEspresso) {
-    if ($Global:serviziSelezionati -and $Global:serviziSelezionati.Cyber) {
-        Write-OK "Unieuro Cyber Protection registrato con successo."
-        Add-Report "Unieuro Cyber Protection" "OK (Registrato)"
-        Update-PannelloStatus -TaskId "cyber" -Stato "done" -Percentuale 96 -Dettaglio "Registrato con successo"
-    } else {
-        Write-Info "Modalita' Espresso: Cyber Protection disponibile 1-Click dal Pannello Operatore."
-        Add-Report "Unieuro Cyber Protection" "Disponibile (Pannello Operatore)"
-        Update-PannelloStatus -TaskId "cyber" -Stato "done" -Percentuale 96 -Dettaglio "Disponibile 1-Click nel pannello"
-    }
+# Opzionale: solo se indicato nel pannello (servizio venduto su richiesta).
+if ($Global:serviziSelezionati -and $Global:serviziSelezionati.Cyber) {
+    if ($Global:telefonoCliente) { Write-Info "Cellulare del cliente: $($Global:telefonoCliente)" }
+    Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $credMsAccount
+    Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Configurato"
 } else {
-    Write-Host "Servizio venduto solo su richiesta: INVIO per saltare se non l'ha comprato." -ForegroundColor White
-    Write-Host ""
-
-    $vuoiUnieuro = Attendi-Risposta "Attivare Unieuro Cyber Protection? (S = si / INVIO = no, B=indietro)"
-    if (Test-Indietro $vuoiUnieuro) { $passo = [Math]::Max(0, $passo - 1); continue wizard }
-    if ($vuoiUnieuro -match "^[Ss]") {
-        Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $credMsAccount
-        Update-PannelloStatus -TaskId "cyber" -Stato "done" -Percentuale 96 -Dettaglio "Configurato"
-    } else {
-        Write-Info "Unieuro Cyber Protection saltato."
-        Add-Report "Unieuro Cyber Protection" "SALTATO"
-        Update-PannelloStatus -TaskId "cyber" -Stato "skipped" -Percentuale 96 -Dettaglio "Non acquistato (saltato)"
-    }
+    Write-Info "Unieuro Cyber Protection non acquistato: saltato."
+    Add-Report "Unieuro Cyber Protection" "SALTATO (non acquistato)"
+    Update-PannelloStatus -TaskId "cyber" -Stato "skipped" -Dettaglio "Non acquistato (saltato)"
 }
 }
 'pulizia' {
@@ -8173,49 +7681,18 @@ if ($RunReale) {
     # CHIAVE DI RIPRISTINO BITLOCKER (il piu' TARDI possibile: se la device
     # encryption di Windows 11 si e' attivata durante il setup, ora la chiave
     # esiste). Usa la funzione di log Add-Report come gli altri passi.
-    # DATO SENSIBILE: la chiave finisce nel riepilogo che resta col PC (voluto).
+    # DATO SENSIBILE: la chiave va SOLO nella scheda di consegna PDF (riquadro
+    # "Conserva questa chiave"), che resta col PC. Niente file separato sul
+    # Desktop e niente chiave nei log.
     # -------------------------------------------------------------------------
-    Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Salvataggio BitLocker e scheda cliente..."
+    Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Lettura chiave BitLocker e scheda cliente..."
     Write-Titolo "Chiave di Ripristino BitLocker"
-    Write-Host "Salvo la chiave di ripristino nel riepilogo: senza, se Windows attiva la" -ForegroundColor White
-    Write-Host "crittografia da solo, dopo un reset o un cambio hardware si perde l'accesso." -ForegroundColor White
+    Write-Host "Riporto la chiave di ripristino nella scheda di consegna: senza, se Windows" -ForegroundColor White
+    Write-Host "attiva la crittografia da solo, dopo un reset o un cambio hardware si perde l'accesso." -ForegroundColor White
     Write-Host ""
     $bitlocker = Get-BitLockerRecovery -Volume $env:SystemDrive
     switch ($bitlocker.Esito) {
-        "OK"      {
-            Write-OK "Chiave di ripristino BitLocker salvata (volume $($bitlocker.Volume))."
-            try {
-                $nonCancFile = Join-Path (Get-DesktopDir) "NON CANCELLARE - Chiave di Ripristino BitLocker.txt"
-                $nonCancText = @"
-================================================================================
-   CHIAVE DI RIPRISTINO BITLOCKER - NON CANCELLARE QUESTO FILE
-================================================================================
-
-Questo computer ha la crittografia di sicurezza BitLocker attiva.
-Se dopo un aggiornamento di Windows, un cambio di password o un intervento tecnico
-il sistema dovesse richiedere la 'Chiave di ripristino di BitLocker', inserisci
-il codice numerico di 48 cifre riportato qui sotto:
-
-ID CHIAVE (Identificatore):
-$($bitlocker.KeyId)
-
-CHIAVE DI RIPRISTINO (48 cifre):
-$($bitlocker.RecoveryKey)
-
-Volume protetto : $($bitlocker.Volume)
-Data salvataggio: $(Get-Date -Format 'dd/MM/yyyy HH:mm')
-
-================================================================================
-IMPORTANTE:
-Non eliminare questo file. Ti consigliamo di scattare una foto con lo smartphone
-a questo promemoria o di salvarne una copia su una chiavetta USB personale
-per averlo sempre a disposizione in caso di necessita'.
-================================================================================
-"@
-                $nonCancText | Set-Content -Path $nonCancFile -Encoding UTF8
-                Write-OK "Creato file di sicurezza sul Desktop: $nonCancFile"
-            } catch {}
-        }
+        "OK"      { Write-OK "Chiave di ripristino BitLocker trovata (volume $($bitlocker.Volume)): va nella scheda di consegna PDF." }
         "SALTATO" { Write-Info $bitlocker.Messaggio }
         default   { Write-Info $bitlocker.Messaggio }   # AVVISO
     }
@@ -8253,18 +7730,28 @@ per averlo sempre a disposizione in caso di necessita'.
         }
     }
 
+    # $nomeCliente e' "Cognome Nome" (da $Dati.Cliente): per email/password uso
+    # i campi separati Nome/Cognome quando disponibili, altrimenti $nomeCliente
+    # resta l'unico dato che ho (sessioni riprese da un vecchio checkpoint).
+    # New-PasswordCliente prende sempre la PRIMA parola: con "Cognome Nome"
+    # genererebbe la password dal cognome, non dal nome.
+    $nomeProprioRete = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+    $cognomeRete     = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+    $baseEmailRete = if ($nomeProprioRete -and $cognomeRete) { "$nomeProprioRete $cognomeRete" } else { $nomeCliente }
+    $basePassRete  = if ($nomeProprioRete) { $nomeProprioRete } else { $nomeCliente }
+
     # Se dal pannello sono arrivate credenziali, hanno la precedenza assoluta
     if ($Global:credMsAccount) {
         $credMsAccount = $Global:credMsAccount
     } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsAccount -match 'telef|oem|admin|user|utente' -or -not $credMsAccount)) {
         $domRete = if ($Global:credDominio) { $Global:credDominio } else { "proton.me" }
-        $credMsAccount = New-EmailCliente -Base $nomeCliente -Dominio $domRete
+        $credMsAccount = New-EmailCliente -Base $baseEmailRete -Dominio $domRete
     }
 
     if ($Global:credMsPassword) {
         $credMsPassword = $Global:credMsPassword
     } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsPassword -match 'Telef|OEM|Admin|Utente' -or -not $credMsPassword)) {
-        $credMsPassword = New-PasswordCliente -Base $nomeCliente
+        $credMsPassword = New-PasswordCliente -Base $basePassRete
     }
 
     if ($Global:credProvider) {
@@ -8273,11 +7760,11 @@ per averlo sempre a disposizione in caso di necessita'.
 
     # RETE DI SICUREZZA sulla PASSWORD: nel file non deve MAI mancare.
     if (-not $credMsPassword) {
-        $basePass = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "Utente" }
+        $basePass = if ($basePassRete -and $basePassRete.ToUpper() -ne "OEM") { $basePassRete } else { "Utente" }
         $credMsPassword = New-PasswordCliente -Base $basePass
     }
     if (-not $credMsAccount) {
-        $baseAcc = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } else { "utente" }
+        $baseAcc = if ($baseEmailRete -and $baseEmailRete.ToUpper() -ne "OEM") { $baseEmailRete } else { "utente" }
         $domRete = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
         $credMsAccount = New-EmailCliente -Base $baseAcc -Dominio $domRete
     }
@@ -8331,54 +7818,25 @@ per averlo sempre a disposizione in caso di necessita'.
 
         $sep = "------------------------------------------------------------"
 
-        # === CREDENZIALI: raccolgo TUTTO in un unico posto. Vanno IN CIMA al
-        #     riepilogo (le prime cose che deve vedere l'operatore) e in un file
-        #     dedicato. Ordine: account principale, poi Cyber Protection /
-        #     antivirus attivati in questa sessione. ===
-        $blank = "______________________________"
+        # Le CREDENZIALI del cliente vanno SOLO nella scheda di consegna (PDF sul
+        # Desktop): il riepilogo testuale qui sotto finisce nel log tecnico in
+        # ProgramData\PCFacile\log e NON contiene password ne' recovery key.
         $provNome = if ($Global:credProvider) { $Global:credProvider } elseif ($prov) { $prov.Nome } else { "Microsoft" }
-        $credList = @()
-        $credList += [pscustomobject]@{
-            Servizio = "ACCOUNT PRINCIPALE ($provNome)"
-            Utente   = $credMsAccount; Password = $credMsPassword
-            Extra    = "Serve per Windows, Office e antivirus"
-        }
-        foreach ($a in $av) {
-            $svc = ($a.Voce -replace ' \(antivirus\)', '' -replace ' \(protezione\)', '').Trim()
-            if ($a.Voce -like '*protezione*') {
-                $credList += [pscustomobject]@{ Servizio = "$svc (Cyber Protection)"; Utente = $credMsAccount; Password = "(creata dal sito: arriva via email al cliente)"; Extra = "PIN card grattata: __________" }
-            } else {
-                $credList += [pscustomobject]@{ Servizio = "$svc (Antivirus)"; Utente = $credMsAccount; Password = $credMsPassword; Extra = "Attivato con l'account principale - PIN card: __________" }
-            }
-        }
-        # Blocco testo delle credenziali (riusato in cima al riepilogo e nel file).
-        $credBlocco = @()
-        $credBlocco += "############################################################"
-        $credBlocco += "#   CREDENZIALI E ACCOUNT DEL CLIENTE                       #"
-        $credBlocco += "#   Dati in chiaro: consegnali al cliente, non diffonderli  #"
-        $credBlocco += "############################################################"
-        foreach ($c in $credList) {
-            $credBlocco += ""
-            $credBlocco += ">>> $($c.Servizio)"
-            $credBlocco += "      Email / utente : $(if ($c.Utente)   { $c.Utente }   else { $blank })"
-            $credBlocco += "      Password       : $(if ($c.Password) { $c.Password } else { $blank })"
-            if ($c.Extra) { $credBlocco += "      Nota           : $($c.Extra)" }
-        }
 
         $clienteDisplay = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser -or $env:USERNAME.ToUpper() -eq "OEM") { "Utente" } else { $env:USERNAME }
         $pcDisplay = if ($pcNuovo) { $pcNuovo } elseif ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$' -or $env:COMPUTERNAME.ToUpper() -eq "OEM") { "PC-$clienteDisplay" } else { $env:COMPUTERNAME }
 
         $f = @()
         $f += "============================================================"
-        $f += "   IL TUO NUOVO PC E' PRONTO"
+        $f += "   RIEPILOGO TECNICO CONFIGURAZIONE PC (log assistenza)"
         $f += "============================================================"
         $f += ""
         $f += "Data     : $(Get-Date -Format 'dd/MM/yyyy HH:mm')"
         $f += "Cliente  : $clienteDisplay"
         $f += "Nome PC  : $pcDisplay"
         $f += "Utente   : $clienteDisplay"
-        $f += ""
-        $f += $credBlocco
+        $f += "Account  : $credMsAccount ($provNome)"
+        $f += "           (password e credenziali: solo nella scheda di consegna PDF sul Desktop)"
         $f += ""
         $f += $sep
         $f += "HARDWARE, SERIALE & GARANZIA LEGALE"
@@ -8389,7 +7847,6 @@ per averlo sempre a disposizione in caso di necessita'.
         $f += "  Processore (CPU)     : $($hwInfo.Cpu)"
         $f += "  Memoria RAM          : $($hwInfo.RamGB) GB"
         $f += "  Scheda Video (GPU)   : $($hwInfo.Gpu)"
-        $f += "  Garanzia Legale (2a) : Valida fino al $($hwInfo.ScadenzaGaranzia)"
         $f += ""
         $f += $sep
         $f += "STATO SISTEMA & DIAGNOSTICA"
@@ -8415,17 +7872,16 @@ per averlo sempre a disposizione in caso di necessita'.
         if ($av.Count -gt 0) { foreach ($a in $av) { $f += "  - $($a.Voce)" } } else { $f += "  (da verificare)" }
         $f += ""
         $f += $sep
-        # DATO SENSIBILE: la recovery key da' accesso completo al disco. Sta qui
-        # apposta, cosi' resta col PC del cliente e non si perde.
-        $f += "CHIAVE DI RIPRISTINO BITLOCKER  (DATO SENSIBILE: accesso al disco)"
+        # La recovery key da' accesso completo al disco: NON va nel log (resta
+        # solo nella scheda di consegna PDF sul Desktop).
+        $f += "CHIAVE DI RIPRISTINO BITLOCKER"
         $f += $sep
         if ($bitlocker) {
             $f += "  Volume        : $($bitlocker.Volume)"
             $f += "  Cifratura     : $($bitlocker.Stato)"
             if ($bitlocker.RecoveryKey) {
                 $f += "  ID chiave     : $($bitlocker.KeyId)"
-                $f += "  Recovery key  : $($bitlocker.RecoveryKey)"
-                $f += "  >> NOTA: Salvata anche nel file 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt' sul Desktop."
+                $f += "  Recovery key  : (non riportata nel log: e' solo nella scheda di consegna PDF sul Desktop)"
             } else {
                 $f += "  $($bitlocker.Messaggio)"
             }
@@ -8460,27 +7916,34 @@ per averlo sempre a disposizione in caso di necessita'.
         $f += "  Unieuro - Assistenza Tecnica & Installazioni PC"
         $f += "============================================================"
 
-        # Il riepilogo tecnico testuale viene archiviato nei log di sistema E salvato sul Desktop
-        $txtDesktop = Join-Path (Get-DesktopDir) "Riepilogo-Configurazione-PC.txt"
+        # Il riepilogo tecnico testuale va SOLO nel log tecnico (ProgramData\PCFacile\log),
+        # mai sul Desktop: al cliente resta soltanto la scheda di consegna PDF.
+        $baseDati = if ($env:ProgramData) { $env:ProgramData } else { [System.IO.Path]::GetTempPath() }
         try {
-            $f | Set-Content -Path $txtDesktop -Encoding UTF8
-            Write-OK "Riepilogo configurazione PC (.txt) salvato sul Desktop: $txtDesktop"
-        } catch {}
-
-        try {
-            $logDir = Join-Path $env:ProgramData "PCFacile\log"
+            $logDir = Join-Path $baseDati "PCFacile\log"
             if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
-            $f | Set-Content -Path (Join-Path $logDir "riepilogo-tecnico.txt") -Encoding UTF8
+            $txtLog = Join-Path $logDir "riepilogo-tecnico.txt"
+            $f | Set-Content -Path $txtLog -Encoding UTF8
+            Write-OK "Riepilogo tecnico salvato nel log (non sul Desktop): $txtLog"
         } catch {}
 
-        # Scheda di Consegna Cliente HTML stampabile con grafica moderna Unieuro (unico documento di consegna)
+        # Scheda di Consegna Cliente con grafica Unieuro: UNICO documento per il
+        # cliente. HTML generato in ProgramData\PCFacile\consegna, convertito in
+        # PDF sul Desktop e poi cancellato (Save-SchedaConsegna).
         try {
-            $htmlFile = Join-Path (Get-DesktopDir) ("Scheda-Consegna-Cliente.html")
             $appInstallate = @($Report | Where-Object { $_.Voce -like '*installazione*' -and $_.Esito -eq 'OK' } | ForEach-Object { ($_.Voce -replace ' \(installazione\)', '' -replace ' \(installazione offline\)', '').Trim() })
             $appItems = ""
             foreach ($app in $appInstallate) { $appItems += "<div class='app-badge'>&#10003; <strong>$app</strong></div>" }
             if (-not $appItems) { $appItems = "<div class='app-badge'>&#10003; <strong>Applicazioni base configurate</strong></div>" }
 
+            # Antivirus / Cyber Protection attivati in questa sessione: prima stavano
+            # solo nel riepilogo TXT sul Desktop, ora nella scheda (unico documento).
+            $avRighe = ""
+            foreach ($a in $av) {
+                $svcAv = [System.Net.WebUtility]::HtmlEncode(($a.Voce -replace ' \(antivirus\)', '' -replace ' \(protezione\)', '').Trim())
+                $notaAv = if ($a.Voce -like '*protezione*') { "Cyber Protection: password creata dal sito, arriva via email al cliente &bull; PIN card: __________" } else { "Attivato con l'account principale &bull; PIN card: __________" }
+                $avRighe += "<tr><td style='font-weight: 600;'>$($svcAv):</td><td>$notaAv</td></tr>"
+            }
             $credBox = ""
             if ($credMsAccount -or $credMsPassword) {
                 $credBox = @"
@@ -8491,21 +7954,29 @@ per averlo sempre a disposizione in caso di necessita'.
                     <tr><td style='font-weight: 600;'>Password iniziale:</td><td><code style='font-size: 14px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px;'>$credMsPassword</code> <em style='color: #64748b; font-size: 11px; margin-left: 8px;'>(da personalizzare al primo accesso)</em></td></tr>
                     <tr><td style='font-weight: 600;'>Account Windows:</td><td><code>$clienteDisplay</code></td></tr>
                     <tr><td style='font-weight: 600;'>Servizi inclusi:</td><td>Windows 11, Office / Microsoft 365, Antivirus &bull; Card PIN annotato</td></tr>
+                    $avRighe
                 </table>
             </div>
 "@
             }
 
+            # Chiave BitLocker: unica copia per il cliente (niente file separato sul
+            # Desktop), quindi riquadro ben visibile subito sotto le credenziali.
             $bitlockerBox = ""
             if ($bitlocker -and $bitlocker.RecoveryKey) {
+                $blKeyId = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.KeyId)")
+                $blKey   = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.RecoveryKey)")
+                $blVol   = [System.Net.WebUtility]::HtmlEncode("$($bitlocker.Volume)")
                 $bitlockerBox = @"
             <div class='card card-bitlocker'>
-                <h3>&#128274; Chiave di Ripristino BitLocker (Protezione Disco)</h3>
+                <div class='bl-titolo'>&#9888; CONSERVA QUESTA CHIAVE &bull; Chiave di ripristino BitLocker</div>
+                <p class='bl-testo'>Il disco di questo PC &egrave; protetto con BitLocker. Se Windows chiede la <strong>chiave di ripristino</strong> (dopo un aggiornamento, un reset o una riparazione), inserisci il codice qui sotto. <strong>Senza questa chiave i dati del PC non sono pi&ugrave; accessibili.</strong></p>
+                <div class='bl-chiave'>$blKey</div>
                 <table class='info-table'>
-                    <tr><td style='width: 32%; font-weight: 600;'>Identificatore (ID):</td><td><code>$($bitlocker.KeyId)</code></td></tr>
-                    <tr><td style='font-weight: 600;'>Chiave di Ripristino:</td><td><code style='font-size: 13px; font-weight: bold; background: #dcfce7; color: #14532d; padding: 4px 8px; border-radius: 4px; letter-spacing: 1px;'>$($bitlocker.RecoveryKey)</code></td></tr>
-                    <tr><td colspan='2' style='font-size: 11px; color: #475569; padding-top: 4px;'><em>Conservare questo codice o scattare una foto con lo smartphone. Serve per sbloccare l'accesso al disco in caso di reset o manutenzione straordinaria.</em></td></tr>
+                    <tr><td>ID chiave:</td><td><code>$blKeyId</code></td></tr>
+                    <tr><td>Volume protetto:</td><td>$blVol</td></tr>
                 </table>
+                <p class='bl-testo' style='margin-top: 8px;'><strong>Stampa questa scheda o fotografala con lo smartphone</strong> e conservala in un posto sicuro, lontano dal PC. Non condividere la chiave con nessuno.</p>
             </div>
 "@
             }
@@ -8531,8 +8002,10 @@ per averlo sempre a disposizione in caso di necessita'.
         .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
         .card-cred { background: #fffaf5; border: 1.5px solid #EE7203; }
         .card-cred h3 { color: #EE7203; border-bottom: 1px solid #fed7aa; }
-        .card-bitlocker { background: #f0fdf4; border: 1.5px solid #22c55e; }
-        .card-bitlocker h3 { color: #166534; border-bottom: 1px solid #bbf7d0; }
+        .card-bitlocker { background: #fff7ed; border: 3px solid #dc2626; page-break-inside: avoid; break-inside: avoid; }
+        .bl-titolo { font-size: 16px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .bl-testo { font-size: 12px; color: #1e293b; }
+        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 10px 12px; margin: 10px 0; text-align: center; word-break: break-all; }
         .card h3 { font-size: 14px; color: #00122B; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
         .info-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
         .info-table td { padding: 3px 0; }
@@ -8569,15 +8042,15 @@ per averlo sempre a disposizione in caso di necessita'.
         </div>
         <div class="body">
             $credBox
+            $bitlockerBox
             <div class="grid">
                 <div class="card">
-                    <h3>&#128100; Dati Cliente &amp; Garanzia</h3>
+                    <h3>&#128100; Dati Cliente</h3>
                     <table class="info-table">
                         <tr><td>Cliente:</td><td><strong>$clienteDisplay</strong></td></tr>
                         $(if ($Global:telefonoCliente) { "<tr><td>Cellulare / Tel:</td><td><strong>$([System.Net.WebUtility]::HtmlEncode($Global:telefonoCliente))</strong></td></tr>" })
                         <tr><td>Nome Computer:</td><td><code>$pcDisplay</code></td></tr>
                         <tr><td>Seriale / S/N:</td><td><strong>$($hwInfo.Seriale)</strong></td></tr>
-                        <tr><td>Garanzia Legale:</td><td><strong style="color:#0284c7;">2 Anni (fino al $($hwInfo.ScadenzaGaranzia))</strong></td></tr>
                         <tr><td>Data Setup:</td><td>$(Get-Date -Format 'dd/MM/yyyy HH:mm')</td></tr>
                         <tr><td>Licenza Windows:</td><td><strong style="color:$(if ($winActInfo.Attivo) { '#16a34a' } else { '#e11d48' });">&#10003; $($winActInfo.StatoBreve)</strong></td></tr>
                         <tr><td>Stato Setup:</td><td><strong style="color:#16a34a;">&#10003; Pronto e Collaudato</strong></td></tr>
@@ -8596,7 +8069,6 @@ per averlo sempre a disposizione in caso di necessita'.
                     </table>
                 </div>
             </div>
-            $bitlockerBox
             <div class="card">
                 <h3>&#128230; Programmi e Utility Installate</h3>
                 <div class="app-grid">$appItems</div>
@@ -8606,7 +8078,7 @@ per averlo sempre a disposizione in caso di necessita'.
                 <ul class="tips-list">
                     <li><strong>Connessione Wi-Fi:</strong> All'accensione a casa, seleziona la tua rete Wi-Fi in basso a destra ed inserisci la password di casa.</li>
                     <li><strong>Sicurezza Credenziali:</strong> Se &egrave; stata creata una password provvisoria, modificala al primo accesso in <em>Impostazioni &gt; Account</em>.</li>
-                    $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di sicurezza del disco &egrave; stata registrata in questa scheda e sul Desktop.</li>" })
+                    $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di ripristino del disco &egrave; <strong>solo in questa scheda</strong> (riquadro rosso in alto): conservala.</li>" })
                     <li><strong>Teleassistenza:</strong> AnyDesk e TeamViewer sono configurati e pronti sul desktop in caso di necessit&agrave; di supporto da remoto.</li>
                 </ul>
             </div>
@@ -8619,33 +8091,44 @@ per averlo sempre a disposizione in caso di necessita'.
 </body>
 </html>
 "@
-            $htmlDoc | Set-Content -Path $htmlFile -Encoding UTF8
-            Write-OK "Scheda di consegna HTML salvata sul Desktop: $htmlFile"
-
-            # Generazione automatica PDF della Scheda di Consegna direttamente sul Desktop via Edge headless
-            try {
-                $pdfDesktop = Join-Path (Get-DesktopDir) "Scheda-Consegna-Cliente.pdf"
-                $edgeExe = Get-EdgePath
-                if ($edgeExe -and (Test-Path $htmlFile)) {
-                    Start-Process -FilePath $edgeExe -ArgumentList "--headless --disable-gpu --run-all-compositor-stages-before-draw --print-to-pdf=`"$pdfDesktop`" `"$htmlFile`"" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
-                    if (Test-Path $pdfDesktop) {
-                        Write-OK "Scheda di Consegna PDF salvata sul Desktop: $pdfDesktop"
-                    }
+            # Volume cifrato ma chiave NON letta in questa sessione: il vecchio file
+            # "NON CANCELLARE" sul Desktop (se c'e') potrebbe essere l'unica copia -> lo tengo.
+            $tieniChiaveVecchia = ($bitlocker -and $bitlocker.Esito -eq 'AVVISO')
+            $scheda = Save-SchedaConsegna -HtmlDoc $htmlDoc -DesktopDir (Get-DesktopDir) -CartellaLavoro (Join-Path $baseDati "PCFacile\consegna") -ConservaVecchiaChiaveBitLocker:$tieniChiaveVecchia
+            if ($tieniChiaveVecchia -and (Test-Path -LiteralPath (Join-Path (Get-DesktopDir) "NON CANCELLARE - Chiave di Ripristino BitLocker.txt"))) {
+                Write-Errore "Chiave BitLocker non letta: lascio sul Desktop il vecchio file 'NON CANCELLARE - Chiave di Ripristino BitLocker.txt'. Verifica a mano."
+            }
+            switch ($scheda.Esito) {
+                'PDF'  {
+                    Write-OK "Scheda di consegna PDF salvata sul Desktop (unico file per il cliente): $($scheda.Percorso)"
+                    Add-Report "Scheda di consegna PDF sul Desktop" "OK"
                 }
-            } catch {}
-
-            try { Start-Process $htmlFile } catch {}
-        } catch {}
+                'HTML' {
+                    Write-Errore "PDF della scheda non creato: sul Desktop resta la scheda HTML ($($scheda.Percorso))."
+                    Write-Info "Aprila e usa 'Stampa / Salva in PDF' dal browser."
+                    Add-Report "Scheda di consegna PDF (ripiego HTML sul Desktop)" "AVVISO"
+                }
+                default {
+                    Write-Errore "Scheda di consegna non salvata: $($scheda.Messaggio)"
+                    Add-Report "Scheda di consegna" "ERRORE"
+                }
+            }
+            if ($scheda.Percorso -and (Test-Path -LiteralPath $scheda.Percorso)) {
+                try { Start-Process -FilePath $scheda.Percorso } catch {}
+            }
+        } catch {
+            Write-Info "Scheda di consegna non creata: $_"
+        }
 
         # ---------------------------------------------------------------------
         # LOG STRUTTURATO (JSON + CSV) per l'assistenza/statistiche. NON sul
         # Desktop (non e' roba per il cliente): va in ProgramData\PCFacile\log.
         # Il JSON contiene tutto (sistema, esiti, verifica, errori imprevisti);
         # il CSV e' la tabella piatta degli esiti, comoda da aprire in Excel.
-        # NIENTE credenziali nel log: restano solo nel .txt del cliente.
+        # NIENTE credenziali nel log: restano solo nella scheda di consegna.
         # ---------------------------------------------------------------------
         try {
-            $logDir = Join-Path $env:ProgramData "PCFacile\log"
+            $logDir = Join-Path $baseDati "PCFacile\log"
             if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
             $stamp   = Get-Date -Format 'yyyyMMdd_HHmmss'
             $baseLog = Join-Path $logDir ("setup_{0}_{1}" -f $env:COMPUTERNAME, $stamp)
@@ -8659,7 +8142,6 @@ per averlo sempre a disposizione in caso di necessita'.
                 seriale          = "$($hwInfo.Seriale)"
                 produttore       = "$($hwInfo.Produttore)"
                 modello          = "$($hwInfo.Modello)"
-                scadenzaGaranzia = "$($hwInfo.ScadenzaGaranzia)"
                 sistema          = if ($osInfo) { "$($osInfo.Caption) build $($osInfo.BuildNumber)" } else { 'n/d' }
                 powershell       = "$($PSVersionTable.PSVersion)"
                 winget           = "$wgVer"
@@ -8678,8 +8160,10 @@ per averlo sempre a disposizione in caso di necessita'.
             Write-Info "Log strutturato non salvato: $_"
         }
     } catch {
-        Write-Info "Impossibile creare il file riepilogo: $_"
+        Write-Info "Impossibile creare riepilogo e scheda di consegna: $_"
     }
+    # Qui il report e' completo (verifica finale, BitLocker e scheda compresi).
+    Send-ReportGitHub -ReportVoci $Report
     Repair-DesktopShortcuts
     Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
 }
@@ -8688,8 +8172,8 @@ per averlo sempre a disposizione in caso di necessita'.
 # PULIZIA FINALE: PC Facile non lascia tracce di se' sul PC del cliente.
 # Cancella la copia dello script scaricata in %TEMP% dal launcher e i due valori
 # di registro dei colori (console riportata allo stato di fabbrica). Remove-Item
-# cancella in modo PERMANENTE, NON passa dal Cestino. Il REPORT sul Desktop
-# resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
+# cancella in modo PERMANENTE, NON passa dal Cestino. La SCHEDA DI CONSEGNA
+# (PDF) sul Desktop resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
 # locale NON viene toccata. Fatto PRIMA dell'eventuale riavvio, cosi' parte sempre.
 # -----------------------------------------------------------------------------
 if ($RunReale) {
@@ -8724,7 +8208,7 @@ if ($RunReale) {
         # prosegue dalla memoria. Cosi' non resta nulla sul disco del cliente.
         try { Remove-Item -LiteralPath $ioStesso -Force -ErrorAction SilentlyContinue } catch {}
     }
-    Write-OK "Pulizia finale: PC Facile rimosso dal PC (il report resta sul Desktop)."
+    Write-OK "Pulizia finale: PC Facile rimosso dal PC (la scheda di consegna resta sul Desktop)."
 }
 
 # AGGIORNAMENTI WINDOWS: erano in DOWNLOAD in background. Ora (dopo driver e
