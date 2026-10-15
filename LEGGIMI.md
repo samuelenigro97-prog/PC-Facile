@@ -6,7 +6,7 @@ con **report finale** degli esiti.
 
 ---
 
-## 0. Prima di iniziare — Lingua in Italiano
+## 0. Prima di Iniziare — Lingua in Italiano
 
 I PC installati da chiavetta USB spesso saltano la scelta lingua e partono in
 **inglese**. La **fase 1** dello script imposta tutto in `it-IT` (display, formati,
@@ -18,7 +18,7 @@ riavvio**.
 
 ---
 
-## 1. Un solo modo di avvio: doppio click su `PC Facile.bat`
+## 1. Un Solo Modo di Avvio: Doppio Click su `PC Facile.bat`
 
 C'è **un solo flusso**, sempre uguale, il più automatico possibile:
 
@@ -37,7 +37,7 @@ C'è **un solo flusso**, sempre uguale, il più automatico possibile:
 Niente altro da scegliere: non ci sono più menu, modalità alternative, pagine web
 da aprire a mano o comandi da incollare.
 
-### Il pannello operatore
+### Il Pannello Operatore
 
 - **Scheda Cliente**: cognome, nome, cellulare, tipo di email (email e password
   si propongono da sole, puoi modificarle), **Office** (nessuna card, card
@@ -63,7 +63,7 @@ Se hai chiuso il pannello, premi **P** nella console per riaprirlo.
 > assente) lo script chiede in console i dati essenziali (cognome, nome, Office,
 > antivirus, Cyber Protection).
 
-### La chiavetta
+### La Chiavetta
 
 Ti basta **UN file**: `PC Facile.bat`.
 
@@ -104,7 +104,7 @@ già presente sulla chiavetta.
 
 ---
 
-## 2. Manutenzione (non per il flusso cliente)
+## 2. Manutenzione (Non per il Flusso Cliente)
 
 Da usare solo per preparare/controllare la chiavetta, **non** sul PC del cliente.
 Da un Prompt dei comandi aperto nella cartella della chiavetta:
@@ -128,7 +128,7 @@ I parametri delle vecchie modalità (`-Menu`, `-Espresso`, `-Manuale`,
 
 ---
 
-## 3. Se lo script NON parte proprio (Smart App Control)
+## 3. Se lo Script NON Parte Proprio (Smart App Control)
 
 Su alcuni PC il **Controllo intelligente delle app** (Smart App Control) blocca il
 `.ps1` scaricato da Internet **senza** dare l'opzione "Esegui comunque".
@@ -146,7 +146,7 @@ Lo script, se riesce a partire, rileva da solo Smart App Control attivo e ti avv
 
 ---
 
-## 4. Cosa fa lo script (in ordine)
+## 4. Cosa Fa lo Script (in Ordine)
 
 All'avvio lo script esegue alcuni **controlli**: privilegi admin, blocchi Windows
 (Smart App Control/ExecutionPolicy), versione Windows/PowerShell, **riavvio in
@@ -233,7 +233,7 @@ qualcosa.
 
 ---
 
-## 4-bis. Rete aziendale / con firewall o proxy
+## 4-bis. Rete Aziendale / con Firewall o Proxy
 
 I PC nuovi **non sono nel dominio** aziendale: usano solo la connessione. Le policy
 aziendali (Group Policy, AppLocker) **non** si applicano al PC fresco. Il rischio è
@@ -251,7 +251,7 @@ blocco a metà lavoro.
 
 ---
 
-## 5. File generati (log e report)
+## 5. File Generati (Log e Report)
 
 Al termine, sul **Desktop** del cliente resta **un solo file**:
 
@@ -288,7 +288,7 @@ errori**, il resto funziona.
 
 ---
 
-## 7. Prova a vuoto
+## 7. Prova a Vuoto
 
 La simulazione completa senza modifiche (`-Test`) gira in automatico nella CI a
 ogni modifica: per l'operatore non serve.
