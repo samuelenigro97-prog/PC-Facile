@@ -5694,23 +5694,27 @@ function Open-PaginaWeb {
 function Mostra-CredenzialiPagina {
     param([string]$Utente, [string]$Password, [int]$TimeoutSec = 4)
     if (-not ($Utente -or $Password)) { return }
+    $winW = 80
+    try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+    $barra = ([string][char]0x2550) * [Math]::Max(20, [Math]::Min(40, $winW - 6))
     Write-Host ""
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    Write-Host "  |  CREDENZIALI DA INCOLLARE NELLA PAGINA                  |" -ForegroundColor Yellow
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    if ($Utente)   { Write-Host "     Email / utente : $Utente" -ForegroundColor White }
-    if ($Password) { Write-Host "     Password      : $Password" -ForegroundColor White }
+    Write-Host "  $barra" -ForegroundColor DarkYellow
+    Write-Host "   CREDENZIALI DA INCOLLARE" -ForegroundColor Yellow
+    if ($Utente)   { Write-Host "   Email:    $Utente" -ForegroundColor White }
+    if ($Password) { Write-Host "   Password: $Password" -ForegroundColor White }
+    Write-Host "  $barra" -ForegroundColor DarkYellow
     if (-not $RunReale) { return }
     # Copio subito l'email (di solito e' il primo campo), poi lascio il menu.
     if ($Utente) { try { Set-Clipboard -Value $Utente } catch {} }
     Write-Host ""
-    $opz = @()
-    if ($Utente)   { $opz += "E = copia EMAIL" }
-    if ($Password) { $opz += "P = copia PASSWORD" }
-    $opz += "INVIO = prosegui subito"
-    Write-Host ("  Premi:  " + ($opz -join "    ")) -ForegroundColor Cyan
-    if ($Utente) { Write-OK "Email gia' copiata negli appunti: incolla con CTRL+V." }
-    Write-Info "Avanzamento automatico tra $TimeoutSec secondi (nessun blocco)..."
+    if ($winW -lt 60) {
+        Write-Host "  [E] Copia Email   [P] Copia Password" -ForegroundColor Cyan
+        Write-Host "  [INVIO] Continua subito" -ForegroundColor Cyan
+    } else {
+        Write-Host "  [E] Copia Email   [P] Copia Password   [INVIO] Continua" -ForegroundColor Cyan
+    }
+    if ($Utente) { Write-OK "Email copiata: incolla con CTRL+V." }
+    Write-Info "Avanzamento tra ${TimeoutSec}s (nessun blocco)..."
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
@@ -5751,7 +5755,7 @@ function Installa-Antivirus {
     Open-PaginaWeb $UrlRiscatto
     Write-Host ""
     Write-Host "Completa registrazione/download nel browser." -ForegroundColor White
-    Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
+    Write-Host "L'installer partira' da solo a fine download." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
@@ -5762,7 +5766,7 @@ function Installa-Antivirus {
     $cartelle = @((Join-Path $env:USERPROFILE "Downloads"), (Get-DesktopDir)) | Select-Object -Unique
     $inizio = Get-Date
     $timeoutMin = 8
-    Write-Info "In attesa dell'installer di $Nome (max $timeoutMin min). Premi 'S' per saltare."
+    Write-Info "In attesa installer $Nome (max ${timeoutMin}m, 'S' per saltare)."
     $installer = $null
     while (((Get-Date) - $inizio).TotalMinutes -lt $timeoutMin) {
         try {
@@ -5789,10 +5793,10 @@ function Installa-Antivirus {
 
     if ($installer) {
         Start-Process -FilePath $installer.FullName
-        Write-OK "Installer $Nome avviato AUTOMATICAMENTE: $($installer.Name)"
+        Write-OK "Installer $Nome avviato: $($installer.Name)"
         Add-Report "$Nome (antivirus)" "OK"
     } else {
-        Write-Info "Nessun installer rilevato entro $timeoutMin min: avvialo a mano dalla cartella Download."
+        Write-Info "Nessun installer trovato: avvialo a mano da Download."
         Add-Report "$Nome (antivirus)" "AVVISO"
     }
 }
@@ -5810,8 +5814,8 @@ function Attiva-ServizioWeb {
     Write-Info "Apertura pagina attivazione $Nome..."
     Open-PaginaWeb $UrlAttivazione
     Write-Host ""
-    Write-Host "Sul sito: inserisci il codice/PIN e completa i dati richiesti." -ForegroundColor White
-    Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
+    Write-Host "Sul sito: inserisci codice/PIN e completa i dati." -ForegroundColor White
+    Write-Info "Annota le credenziali per l'app mobile del cliente."
     # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
     # La password del portale spesso la crea il sito e la manda via email.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
@@ -6622,7 +6626,9 @@ if ($voce.Gruppo -eq 2) {
 }
 
 Write-Host ""
-$barLen = 20
+$winW = 80
+try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+$barLen = if ($winW -lt 65) { 10 } else { 16 }
 $passoMostrato = $passo + 1
 $pieni = [int]($barLen * $passoMostrato / $totPassi)
 if ($pieni -gt $barLen) { $pieni = $barLen }
@@ -7228,13 +7234,12 @@ if (-not $nomeCliente) {
     }
 }
 
-Write-Info "Utente di sistema: $env:USERNAME"
-Write-Info "Nome cliente / account: $(if ($nomeCliente) { $nomeCliente } elseif ($nomeAttuale) { $nomeAttuale } else { 'Utente' })"
-Write-Info "Nome PC attuale: $env:COMPUTERNAME"
+Write-Info "Utente: $env:USERNAME | PC: $env:COMPUTERNAME"
+if ($nomeCliente) { Write-Info "Cliente: $nomeCliente" }
 Write-Host ""
 
 if (-not $RunReale) {
-    Write-Info "(test) nome account e nome PC non modificati (cliente: $nomeCliente)."
+    Write-Info "(test) nome account e nome PC non modificati."
     Add-Report "Nome cliente ($nomeCliente)" "OK (test)"
 } elseif ($nomeCliente -and $nomeCliente -ne "") {
     $nomeOk = $false
@@ -7255,10 +7260,10 @@ if (-not $RunReale) {
         } catch {}
     } }
     if ($nomeOk) {
-        Write-OK "Nome account utente impostato su: $nomeCliente"
+        Write-OK "Nome account: $nomeCliente"
         Add-Report "Nome cliente ($nomeCliente)" "OK"
     } else {
-        Write-Info "Nome visualizzato account: $env:USERNAME"
+        Write-Info "Nome visualizzato: $env:USERNAME"
         Add-Report "Nome cliente" "OK"
     }
 
@@ -7270,16 +7275,16 @@ if (-not $RunReale) {
 
     if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
         try {
-            Rename-Computer -NewName $pcNuovo -Force -ErrorAction Stop
-            Write-OK "Nome PC aggiornato in '$pcNuovo' (attivo dopo il riavvio)."
+            Rename-Computer -NewName $pcNuovo -Force -WarningAction SilentlyContinue -ErrorAction Stop
+            Write-OK "Nome PC: '$pcNuovo' (attivo al riavvio)"
             Add-Report "Nome PC ($pcNuovo)" "OK"
         } catch {
-            Write-Info "Rinomina PC in '$pcNuovo' completata per la configurazione."
+            Write-Info "Nome PC: '$pcNuovo'"
             Add-Report "Nome PC ($pcNuovo)" "OK"
         }
     }
 } else {
-    Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
+    Write-Info "Nome account e PC mantenuti ($env:USERNAME)."
     Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
 }
 
@@ -7332,10 +7337,9 @@ $urlAccount = switch -Regex ($provNome) {
     '^iCloud'  { "https://account.apple.com" }
     default    { "https://signup.live.com" }
 }
-Write-Host "Crea (o apri) ORA l'account $provNome del cliente, col cliente davanti." -ForegroundColor White
+Write-Host "Crea o apri l'account $provNome del cliente nel browser." -ForegroundColor White
 if ($provNome -notmatch '^(Microsoft|Hotmail|Outlook)') {
-    Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
-    Write-Info "    con $provNome crei l'email del cliente."
+    Write-Info "Nota: per Office/antivirus serve un account Microsoft."
 }
 Open-PaginaWeb $urlAccount
 Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
@@ -7358,15 +7362,15 @@ Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Attivazio
 switch ([string]$Global:SceltaOffice) {
     "1" {
         Open-PaginaWeb "https://microsoft365.com/setup"
-        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
+        Write-Info "Accedi con l'account Microsoft e inserisci il PIN card."
         Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
     "2" {
         Open-PaginaWeb "https://office.com/setup"
-        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
-        Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
+        Write-Info "Accedi con l'account Microsoft e inserisci il PIN card."
+        Write-Info "Dopo il riscatto apri Word: si attiva da solo."
         Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Office perpetuo (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
