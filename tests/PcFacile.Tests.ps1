@@ -26,7 +26,7 @@ BeforeAll {
         'Start-LocalCredServer', 'Stop-LocalCredServer',
         'Enable-SilentElevation', 'Restore-SilentElevation', 'Set-PreventSleep', 'Set-EdgeFirstRunPolicies',
         'New-WlanProfileXml', 'Connect-AutoWiFi', 'Save-StoreWiFiProfile',
-        'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb',
+        'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb', 'Mostra-CredenzialiPagina', 'Disable-ConsoleQuickEdit',
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
         'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Test-CartellaKitUSB',
@@ -429,6 +429,17 @@ Describe 'Dati cliente: un solo canale (server locale del pannello)' {
     It 'Wait-DatiCliente non aspetta nulla se i dati sono gia'' arrivati' {
         $Global:DatiClienteRicevuti = $true
         Wait-DatiCliente | Should -BeTrue
+    }
+    It 'Wait-DatiCliente e non bloccante: prosegue subito anche se i dati non sono ancora stati inseriti' {
+        $Global:DatiClienteRicevuti = $false
+        $Global:PannelloDisponibile = $true
+        Wait-DatiCliente -Motivo 'test non bloccante' | Should -BeTrue
+    }
+    It 'Mostra-CredenzialiPagina gestisce il timeout e non blocca' {
+        { Mostra-CredenzialiPagina -Utente 'test@outlook.it' -Password 'Test123!' -TimeoutSec 1 } | Should -Not -Throw
+    }
+    It 'Disable-ConsoleQuickEdit viene eseguito senza errori' {
+        { Disable-ConsoleQuickEdit } | Should -Not -Throw
     }
 }
 
