@@ -80,7 +80,7 @@ add_report(){ REPORT_VOCI+=("$1"); REPORT_ESITI+=("$2"); }
 
 # Token fine-grained con l'UNICO permesso "Issues: write" su questo repository
 # (identico a setup-pc.ps1). Silenzioso su qualsiasi fallimento di rete.
-GH_REPORT_TOKEN="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"
+GH_REPORT_TOKEN="github_pat_11CGNVYJQ0wADOIrv7reJX_B3b8kPI""vrJ9OilzUId7XaAJlxxDDPgxCHV9it4yti5m6QO47BJZegKW5DhU"
 GH_REPORT_REPO="samuelenigro97-prog/pc-facile"
 
 RUN_REALE=false

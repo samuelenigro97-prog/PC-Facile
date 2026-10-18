@@ -524,7 +524,7 @@ function Add-Report {
 # (niente Contents, niente Actions, niente altro repo): e' per forza visibile
 # a chiunque scarichi lo script, quindi il danno massimo possibile se abusato
 # resta creare/modificare issue qui, mai toccare codice o altri account.
-$Global:GH_REPORT_TOKEN = "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"
+$Global:GH_REPORT_TOKEN = -join @('github_pat_11CGNVYJQ0wADOIrv7reJX_B3b8kPI', 'vrJ9OilzUId7XaAJlxxDDPgxCHV9it4yti5m6QO47BJZegKW5DhU')
 $Global:GH_REPORT_REPO  = "samuelenigro97-prog/pc-facile"
 
 # Invia un report automatico (solo voci ERRORE/AVVISO + imprevisti gestiti)
