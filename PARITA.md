@@ -22,12 +22,13 @@ allineati come flusso e funzioni.
 | App (BASE/UFFICIO/GAMING)   | winget + tool GPU se dedicata (NVIDIA/Intel Arc/AMD) | brew cask (Mac: GPU integrata) | pari |
 | Aggiornamenti               | `winget upgrade` + aggiornamenti sicurezza Windows (COM Microsoft.Update) + driver Windows Update | `brew upgrade` + `softwareupdate` | pari |
 | Chiave di ripristino disco  | **BitLocker** (`manage-bde`/cmdlet)       | **FileVault** (`fdesetup`)                    | pari |
-| Barra attesa download/install| `Start-BarraAnimata` / `Stop-BarraAnimata` (winget in Start-Process) | — (brew mostra gia' il progresso)             | solo Win |
+| Barra attesa download/install| `Start-BarraAnimata` / `Stop-BarraAnimata` (runspace con tempo trascorso e titolo finestra) | `start_barra_animata_mac` / `stop_barra_animata_mac` (subshell animata con tempo trascorso e titolo finestra) | pari |
 | Avviso sonoro fine passo    | `[console]::Beep`                         | `printf '\a'`                                 | pari |
-| Bip di richiamo se non rispondi| runspace: dopo 2 min bip corto ogni ~4s | —                                             | solo Win |
+| Bip di richiamo se non rispondi| runspace: dopo 2 min bip corto ogni ~4s   | `start_bip_ripetuto_mac` / `stop_bip_ripetuto_mac`: dopo 2 min bip ogni 4s | pari |
 | Credenziali (esist./gen.)   | `Nome123!` + `Set-Clipboard`              | `Nome123!` + `pbcopy`                         | pari |
 | Report finale / Scheda      | Desktop solo `Scheda-Consegna-Cliente.pdf` (ripiego `.html` se il PDF fallisce); riepilogo tecnico in `C:\ProgramData\PCFacile\log` | Desktop solo `Scheda-Consegna-Mac.html` | pari (un solo file sul Desktop; su Mac niente PDF automatico) |
-| Assist credenziali pagine   | copia email/password negli appunti quando apre Cyber Protection/antivirus | — | solo Win |
+| Assist credenziali pagine   | copia email/password negli appunti + pulsanti copia nel pannello | copia email/password negli appunti + pulsanti copia nel pannello | pari |
+| Pannello Operatore Web      | 3 schede (Cliente, Avanzamento con 13 task live, Portali) + timer `MM:SS` + chime | 3 schede (Cliente, Avanzamento con 12 task live, Portali) + timer `MM:SS` + chime | pari |
 | Pulizia finale (auto-elimina)| rimuove `%TEMP%\setup-pc.ps1` + reg colori + checkpoint | `rm` dello script scaricato in `/tmp` | pari |
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |
 | Collegamenti Office Desktop | WScript.Shell dopo installazione Office   | —                                             | solo Win |

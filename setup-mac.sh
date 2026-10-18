@@ -73,18 +73,87 @@ test_rete(){ curl -s --head --max-time 5 https://www.apple.com >/dev/null 2>&1 |
 
 $MODO_TEST || { [[ "$MODO" == "TEST" ]] && MODO_TEST=true; }
 
+# ---- Richiamo acustico ripetuto (Start-BipRipetuto / Stop-BipRipetuto) ------
+BIP_PID=""
+start_bip_ripetuto_mac() {
+  [[ "$MODO_TEST" == true || "$RUN_REALE" != true ]] && return 0
+  stop_bip_ripetuto_mac
+  (
+    sleep 120
+    while true; do
+      printf '\a'
+      sleep 4
+    done
+  ) &
+  BIP_PID=$!
+}
+stop_bip_ripetuto_mac() {
+  if [[ -n "$BIP_PID" ]]; then
+    kill -9 "$BIP_PID" 2>/dev/null || true
+    wait "$BIP_PID" 2>/dev/null || true
+    BIP_PID=""
+  fi
+}
+
+# ---- Barra animata nel terminale (Start-BarraAnimata / Stop-BarraAnimata) -----
+BARRA_PID=""
+ULTIMA_PCT=0
+start_barra_animata_mac() {
+  local testo="$1"
+  [[ "$MODO_TEST" == true || "$RUN_REALE" != true ]] && return 0
+  stop_barra_animata_mac
+  local pct="${ULTIMA_PCT:-0}"
+  printf "\033]0;PC Facile [%s%%] - %s\007" "$pct" "$testo" 2>/dev/null || true
+  (
+    typeset -i larg=20 span=4 period=32 i=0 phase=0 pos=0 sec=0
+    typeset -i start_t=$(date +%s)
+    while true; do
+      phase=$(( i % period ))
+      if (( phase <= (larg - span) )); then
+        pos=$phase
+      else
+        pos=$(( period - phase ))
+      fi
+      local b_left="" b_span="" b_right=""
+      for ((j=0; j<pos; j++)); do b_left="${b_left}="; done
+      for ((j=0; j<span; j++)); do b_span="${b_span}#"; done
+      for ((j=0; j<(larg - span - pos); j++)); do b_right="${b_right}="; done
+      local now_t=$(date +%s)
+      sec=$(( now_t - start_t ))
+      printf "\r   %b%s%b  [%b%s%s%s%b]  %b%ss%b" "$C_CYAN" "$testo" "$C_RST" "$C_ACC" "$b_left" "$b_span" "$b_right" "$C_RST" "$C_INFO" "$sec" "$C_RST"
+      sleep 0.1
+      ((i++))
+    done
+  ) &
+  BARRA_PID=$!
+}
+
+stop_barra_animata_mac() {
+  if [[ -n "$BARRA_PID" ]]; then
+    kill -9 "$BARRA_PID" 2>/dev/null || true
+    wait "$BARRA_PID" 2>/dev/null || true
+    BARRA_PID=""
+    printf "\r%*s\r" 80 ""
+  fi
+}
+
+trap 'stop_barra_animata_mac 2>/dev/null; stop_bip_ripetuto_mac 2>/dev/null' EXIT INT TERM
+
 chiedi(){
   if $MODO_TEST; then [[ "$1" == *"S/N"* ]] && REPLY="N" || REPLY=""; dim "$1  [test => '$REPLY']"; return; fi
-  beep_attesa; print -n -- "   $1 "; read -r REPLY
+  beep_attesa; start_bip_ripetuto_mac; print -n -- "   $1 "; read -r REPLY; stop_bip_ripetuto_mac
 }
 
 chiedi_sempre(){
   if $MODO_TEST; then REPLY=""; dim "$1  [test => vuoto]"; return; fi
-  beep_attesa; print -n -- "   $1 "; read -r REPLY
+  beep_attesa; start_bip_ripetuto_mac; print -n -- "   $1 "; read -r REPLY; stop_bip_ripetuto_mac
 }
 
 pausa(){ return 0; }
-pausa_web(){ [[ "$MODO" == "TEST" || "$MODO" == "DIAGNOSTICA" ]] && return; beep_attesa; print -n -- "   Premi INVIO per continuare "; read -r _; }
+pausa_web(){
+  [[ "$MODO" == "TEST" || "$MODO" == "DIAGNOSTICA" ]] && return
+  beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO per continuare "; read -r _; stop_bip_ripetuto_mac
+}
 
 password_cliente(){
   local b="${1//[^A-Za-z]/}"; [[ -z "$b" ]] && b="Cliente"
@@ -275,6 +344,7 @@ diagnostica_salute_mac() {
     info "Esecuzione test completi su disco APFS, batteria, FileVault e specifiche..."
     print -r -- ""
 
+    start_barra_animata_mac "Analisi diagnostica hardware e salute Mac"
     local hw="$(get_hw_info_mac)"
     local model="${${(s:|:)hw}[1]}"
     local chip="${${(s:|:)hw}[2]}"
@@ -295,6 +365,7 @@ diagnostica_salute_mac() {
     local fv_info="${${(s:|:)storage}[4]}"
 
     local sip_status="$(csrutil status 2>/dev/null | head -1)"
+    stop_barra_animata_mac
 
     print -r -- "${C_ACC}------------------------------------------------------------${C_RST}"
     print -r -- "${C_TXT} 1. DISPOSITIVO & SPECIFICHE APPLE${C_RST}"
@@ -399,25 +470,53 @@ EOF
 # =============================================================================
 # AGGIORNAMENTO STATO LIVE DEL PANNELLO MAC
 # =============================================================================
+typeset -gA MAC_TASKS_STATO
+typeset -gA MAC_TASKS_DETT
+MAC_TASK_KEYS=(lingua orario ripristino ottimizza gestore app account servizi cyber aggiorna sicurezza diagnostica)
+for k in "${MAC_TASK_KEYS[@]}"; do
+    MAC_TASKS_STATO[$k]="pending"
+    MAC_TASKS_DETT[$k]=""
+done
+
+typeset -gi START_TIME_MS=$(($(date +%s) * 1000))
+
 update_pannello_mac_status() {
     local pct="${1:-5}"
     local fase="${2:-Inizializzazione}"
     local dett="${3:-Configurazione in corso...}"
     local comp="${4:-false}"
-    local status_file="/tmp/pcfacile-mac-status.js"
+    local task_id="$5"
+    local task_stato="$6"
+    local task_dett="$7"
 
-    cat <<EOF > "$status_file"
-window.PCFacileMacStatus = {
-    percentuale: $pct,
-    faseCorrente: "$fase",
-    dettaglio: "$dett",
-    completato: $comp
-};
-if (typeof window.onPCFacileMacStatusUpdate === 'function') {
-    window.onPCFacileMacStatusUpdate(window.PCFacileMacStatus);
+    ULTIMA_PCT="$pct"
+    [[ -n "$task_id" && -n "$task_stato" ]] && MAC_TASKS_STATO[$task_id]="$task_stato"
+    [[ -n "$task_id" && -n "$task_dett" ]] && MAC_TASKS_DETT[$task_id]="$task_dett"
+
+    local status_file="/tmp/pcfacile-mac-status.js"
+    {
+        printf "window.PCFacileMacStatus = {\n"
+        printf "    percentuale: %s,\n" "$pct"
+        printf "    faseCorrente: \"%s\",\n" "${fase//\"/\\\"}"
+        printf "    dettaglio: \"%s\",\n" "${dett//\"/\\\"}"
+        printf "    completato: %s,\n" "$comp"
+        printf "    inizio: %s,\n" "${START_TIME_MS:-0}"
+        printf "    tasks: {\n"
+        local first=true
+        for k in "${MAC_TASK_KEYS[@]}"; do
+            $first || printf ",\n"
+            first=false
+            local st="${MAC_TASKS_STATO[$k]:-pending}"
+            local dt="${MAC_TASKS_DETT[$k]:-}"
+            printf "        \"%s\": { \"stato\": \"%s\", \"dettaglio\": \"%s\" }" "$k" "$st" "${dt//\"/\\\"}"
+        done
+        printf "\n    }\n};\n"
+        printf "if (typeof window.onPCFacileMacStatusUpdate === 'function') {\n"
+        printf "    window.onPCFacileMacStatusUpdate(window.PCFacileMacStatus);\n"
+        printf "}\n"
+    } > "$status_file"
 }
-EOF
-}
+
 
 # =============================================================================
 # APERTURA PANNELLO OPERATORE MAC
@@ -457,16 +556,23 @@ open_pannello_mac() {
         .brand-titles h1 { font-size: 16px; color: #fff; font-weight: 700; }
         .badge-stato { font-weight: 800; font-size: 14px; padding: 7px 14px; border-radius: 20px; border: 1.5px solid #38bdf8; background: #082f49; color: #e0f2fe; white-space: nowrap; }
         .badge-stato.ok { border-color: #22c55e; background: #14532d; color: #dcfce7; }
-        .hw-bar { background: #00142e; border: 1px solid #003366; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; gap: 6px 16px; font-size: 14px; color: #b6c3d4; flex-wrap: wrap; }
+        .hw-bar { background: #00142e; border: 1px solid #003366; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 6px 16px; font-size: 14px; color: #b6c3d4; flex-wrap: wrap; }
         .hw-val { color: #fff; font-weight: 600; }
         .progress-card { background: #001a3a; border: 1.5px solid #00458C; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .progress-meta { display: flex; align-items: center; gap: 14px; }
+        .progress-timer-box { font-size: 14px; color: #b6c3d4; }
+        .progress-timer { color: #7dd3fc; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; }
+        .progress-pct { color: #EE7203; font-weight: 900; font-size: 20px; }
         .progress-bar-bg { background: #000c1c; border: 1px solid #003B7A; height: 16px; border-radius: 8px; overflow: hidden; }
         .progress-bar-fill { background: linear-gradient(90deg, #EE7203 0%, #ff9d42 100%); height: 100%; width: 0%; transition: width 0.4s ease; }
         .banner-fine { display: none; border: 2px solid #22c55e; background: #052e16; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; font-size: 15px; }
         .banner-fine strong { color: #4ade80; }
         .tab-bar { display: flex; gap: 6px; margin-bottom: 10px; background: #00142e; padding: 5px; border-radius: 10px; border: 1px solid #003366; }
-        .tab-btn { flex: 1; min-height: 44px; background: transparent; border: none; color: #b6c3d4; font-size: 15px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+        .tab-btn { flex: 1; min-height: 44px; background: transparent; border: none; color: #b6c3d4; font-size: 15px; font-weight: 700; padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .tab-btn.active { background: #003B7A; color: #fff; }
+        .tab-badge-num { background: #001f48; color: #bfdbfe; font-size: 12px; padding: 1px 7px; border-radius: 10px; font-weight: 800; }
+        .tab-btn.active .tab-badge-num { background: #EE7203; color: #fff; }
         .section-view { display: none; }
         .section-view.active-view { display: block; }
         .card { background: #001f48; border: 1px solid #003B7A; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
@@ -475,9 +581,13 @@ open_pannello_mac() {
         .dom-btn { min-height: 44px; flex: 1 1 120px; background: #1e293b; color: #e2e8f0; border: 1.5px solid #334155; padding: 8px 10px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
         .dom-btn[aria-pressed="true"] { background: #0284c7; border-color: #0284c7; color: #fff; }
         .campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-        .portal-btn { min-height: 48px; display: flex; align-items: center; justify-content: space-between; background: #00142E; border: 1px solid #003B7A; border-radius: 8px; padding: 10px 12px; color: #f8fafc; text-decoration: none; font-size: 15px; margin-bottom: 8px; font-weight: 600; }
+        .cred-box { display: flex; gap: 6px; align-items: stretch; margin-bottom: 10px; }
+        .cred-box .cred-input { margin-bottom: 0; }
         .cred-input { width: 100%; min-height: 44px; background: #00122B; border: 1.5px solid #00458C; border-radius: 8px; padding: 8px 12px; font-size: 16px; color: #fff; margin-bottom: 10px; }
         .cred-input.errore { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.4); }
+        .cred-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: #7dd3fc; }
+        .btn-sec { min-height: 44px; background: #002b5c; border: 1.5px solid #0056B3; color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 14px; font-weight: 700; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 4px; text-decoration: none; }
+        .btn-sec:hover { background: #003B7A; border-color: #EE7203; }
         .servizi { background: #00152f; border: 1px solid #003B7A; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
         .servizi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
         .svc { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; padding: 6px 10px; border: 1px solid #003B7A; border-radius: 8px; }
@@ -487,10 +597,48 @@ open_pannello_mac() {
         .btn-svc-link { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #002b5c; border: 1px solid #0056B3; color: #7dd3fc; text-decoration: none; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; }
         .btn-svc-link:hover { background: #EE7203; border-color: #EE7203; color: #fff; }
         .btn-avvia { min-height: 52px; background: #16a34a; font-weight: 800; font-size: 17px; padding: 10px 14px; width: 100%; border: none; cursor: pointer; border-radius: 8px; color: #fff; }
+        .btn-avvia:hover { background: #15803d; }
         .esito { display: none; margin-top: 8px; padding: 10px 12px; border-radius: 8px; font-size: 15px; font-weight: 700; }
         .esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #bbf7d0; }
         .esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fecaca; }
-        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+        /* FASI LIVE */
+        .bg-tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+        .task-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; padding: 10px 12px; border-radius: 8px; border: 1.5px solid transparent; background: #00152f; }
+        .task-left { display: grid; grid-template-columns: 20px 1fr; align-items: center; column-gap: 10px; flex: 1; min-width: 0; }
+        .task-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; font-weight: 700; color: #94a3b8; }
+        .task-name { color: #e2e8f0; font-weight: 600; }
+        .task-detail { color: #fed7aa; font-size: 13.5px; grid-column: 2; }
+        .task-detail:empty { display: none; }
+        .task-badge { font-size: 13px; font-weight: 800; padding: 4px 10px; border-radius: 6px; white-space: nowrap; flex-shrink: 0; }
+        .badge-pending { background: #00122B; color: #cbd5e1; border: 1px solid #003B7A; }
+        .task-item.running { background: #2a1606; border-color: #EE7203; }
+        .task-item.running .task-name { color: #fff; font-weight: 800; }
+        .badge-running { background: #EE7203; color: #fff; }
+        .task-item.done .task-icon { color: #22c55e; }
+        .badge-done-task { background: #052e16; color: #86efac; border: 1px solid #22c55e; }
+        .task-item.error { background: #2a0a0a; border-color: #ef4444; }
+        .task-item.error .task-icon { color: #f87171; }
+        .badge-error { background: #dc2626; color: #fff; }
+        .task-item.skipped .task-icon { color: #38bdf8; }
+        .badge-skipped { background: #082f49; color: #7dd3fc; border: 1px solid #0284c7; }
+        .task-gruppo { color: #fdba74; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 8px 2px 2px; }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #EE7203; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* PORTALI */
+        .portal-divider { font-size: 13px; font-weight: 800; color: #fed7aa; text-transform: uppercase; letter-spacing: 0.4px; margin: 10px 0 4px 0; }
+        .portal-divider:first-child { margin-top: 0; }
+        .portal-btn { min-height: 48px; display: flex; align-items: center; justify-content: space-between; background: #00142E; border: 1px solid #003B7A; border-radius: 8px; padding: 10px 12px; color: #f8fafc; text-decoration: none; font-size: 15px; margin-bottom: 6px; font-weight: 600; }
+        .portal-btn:hover { background: #002554; border-color: #EE7203; }
+
+        /* TOAST */
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(120px); max-width: calc(100% - 24px); background: #15803d; color: #fff; font-size: 15px; font-weight: 800; padding: 10px 20px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: all 0.3s ease; z-index: 1000; text-align: center; }
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast.errore { background: #b91c1c; }
+        .toast.avviso { background: #b45309; }
+
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
     </style>
 </head>
 <body>
@@ -506,13 +654,16 @@ open_pannello_mac() {
         <div class="hw-bar">
             <div>Mac: <span class="hw-val">__HW_MODEL__</span></div>
             <div>Chip: <span class="hw-val">__HW_CHIP__ &middot; __HW_RAM__</span></div>
-            <div>S/N: <span class="hw-val">__HW_SN__</span></div>
+            <div>S/N: <span id="hwSerialVal" class="hw-val">__HW_SN__</span> <button type="button" class="btn-sec" style="min-height:30px; padding:2px 8px; font-size:12px; margin-left:6px;" onclick="copiaSerialeMac()">&#128203; Copia</button></div>
         </div>
 
         <div class="progress-card">
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:15px;">
+            <div class="progress-header">
                 <span style="color:#fed7aa; font-weight:700;">Avanzamento configurazione</span>
-                <span id="pctText" style="color:#EE7203; font-weight:900; font-size:18px;">0%</span>
+                <div class="progress-meta">
+                    <div class="progress-timer-box">Tempo: <span id="elapsedTimerText" class="progress-timer">00:00</span></div>
+                    <div id="pctText" class="progress-pct">0%</div>
+                </div>
             </div>
             <div class="progress-bar-bg"><div id="barFill" class="progress-bar-fill"></div></div>
             <div style="margin-top:6px; font-size:14px;" aria-live="polite">
@@ -526,8 +677,9 @@ open_pannello_mac() {
         </div>
 
         <div class="tab-bar">
-            <button type="button" class="tab-btn active" onclick="showTab('tab-cred', this)">&#128100; 1. Cliente</button>
-            <button type="button" class="tab-btn" onclick="showTab('tab-portali', this)">&#127760; 2. Portali</button>
+            <button type="button" id="btn-tab-cred" class="tab-btn active" onclick="showTabMac('tab-cred', this)">&#128100; 1. Cliente</button>
+            <button type="button" id="btn-tab-live" class="tab-btn" onclick="showTabMac('tab-live', this)">&#128202; 2. Avanzamento <span id="taskCountBadge" class="tab-badge-num">0/12</span></button>
+            <button type="button" id="btn-tab-portali" class="tab-btn" onclick="showTabMac('tab-portali', this)">&#127760; 3. Portali</button>
         </div>
 
         <div id="tab-cred" class="section-view active-view">
@@ -555,9 +707,17 @@ open_pannello_mac() {
                 <input type="tel" class="cred-input" id="inTelefono" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
 
                 <label class="etichetta" for="inEmail">Email proposta</label>
-                <input type="text" class="cred-input" id="inEmail" value="__EMAIL__" autocomplete="off">
+                <div class="cred-box">
+                    <input type="text" class="cred-input cred-mono" id="inEmail" value="__EMAIL__" autocomplete="off">
+                    <button type="button" class="btn-sec" onclick="copiaMac('inEmail', 'Email copiata')">&#128203; Copia</button>
+                </div>
                 <label class="etichetta" for="inPass">Password iniziale</label>
-                <input type="text" class="cred-input" id="inPass" value="__PASS__" autocomplete="off">
+                <div class="cred-box">
+                    <input type="password" class="cred-input cred-mono" id="inPass" value="__PASS__" autocomplete="off">
+                    <button type="button" class="btn-sec" id="btnMostraMac" onclick="togglePassMac()">&#128065; Mostra</button>
+                    <button type="button" class="btn-sec" onclick="generaPassCasualeMac()">&#127922; Nuova</button>
+                    <button type="button" class="btn-sec" onclick="copiaMac('inPass', 'Password copiata')">&#128203; Copia</button>
+                </div>
 
                 <div class="servizi">
                     <span class="etichetta" style="color:#fed7aa;">Servizi sullo scontrino</span>
@@ -593,31 +753,177 @@ open_pannello_mac() {
 
                 <button type="button" id="btnAvviaAuto" class="btn-avvia" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
+                <div style="margin-top:10px;">
+                    <button type="button" class="btn-sec" style="width:100%;" onclick="copiaRiepilogoCredMac()">&#128203; Copia dati per il ticket</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-live" class="section-view">
+            <div class="card">
+                <div style="font-size:14px; color:#b6c3d4; margin-bottom:10px;">Fase 1 e 3 vanno da sole; nella fase 2 servi tu (account, attivazioni, codici). I passi gi&agrave; fatti vengono saltati.</div>
+                <ul class="bg-tasks" id="tasksContainer">
+                    <li class="task-gruppo">Fase 1 &middot; Programmi e impostazioni macOS (automatico)</li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Lingua e Regione (it-IT)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-orario" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Sincronizzazione orario di rete</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Snapshot APFS di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-ottimizza" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Ottimizzazione macOS (Finder &amp; Dock)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-gestore" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Gestore pacchetti (Homebrew &amp; Rosetta 2)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Installazione applicazioni profilo</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 2 &middot; Passi manuali (operatore)</li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Nome Mac e account</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-servizi" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Servizi e attivazioni (Office / Antivirus / Proton)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 3 &middot; Aggiornamenti, sicurezza e consegna (automatico)</li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Aggiornamenti app e macOS (ultimo passo)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-sicurezza" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Sicurezza FileVault</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                </ul>
             </div>
         </div>
 
         <div id="tab-portali" class="section-view">
             <div class="card">
+                <div class="portal-divider">Account ed email</div>
                 <a href="https://account.proton.me/signup?plan=free" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#0284c7;"><span>Account Proton Mail (gratis)</span> <span>&rarr;</span></a>
                 <a href="https://appleid.apple.com" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Apple ID: crea o gestisci</span> <span>&rarr;</span></a>
+                <a href="https://accounts.google.com/signup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Account Google / Gmail</span> <span>&rarr;</span></a>
+                <a href="https://account.microsoft.com" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Account Microsoft / Outlook</span> <span>&rarr;</span></a>
+
+                <div class="portal-divider">Office</div>
                 <a href="https://microsoft365.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Riscatto card Office / Microsoft 365</span> <span>&rarr;</span></a>
                 <a href="https://account.microsoft.com/services" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Installa Office dall&rsquo;account Microsoft</span> <span>&rarr;</span></a>
+
+                <div class="portal-divider">Antivirus da card</div>
                 <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span> <span>&rarr;</span></a>
                 <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span> <span>&rarr;</span></a>
+
+                <div class="portal-divider">Servizio Unieuro</div>
                 <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Cyber Protection</span> <span>&rarr;</span></a>
             </div>
         </div>
     </div>
 
+    <div id="toastEl" class="toast" role="status" aria-live="polite"></div>
+
     <script>
         var currentDom = 'proton.me';
         var currentProv = 'Proton';
+        var inizioLavori = 0;
+        var manualEdit = false;
+        var audioPlayed = false;
+        var schedaScelta = false;
+        var TASK_KEYS = ['lingua', 'orario', 'ripristino', 'ottimizza', 'gestore', 'app', 'account', 'servizi', 'cyber', 'aggiorna', 'sicurezza', 'diagnostica'];
 
-        function showTab(id, btn) {
+        function showTabMac(id, btn) {
+            schedaScelta = true;
             document.querySelectorAll('.section-view').forEach(function(el){ el.classList.remove('active-view'); });
             document.querySelectorAll('.tab-btn').forEach(function(el){ el.classList.remove('active'); });
-            document.getElementById(id).classList.add('active-view');
-            btn.classList.add('active');
+            var v = document.getElementById(id);
+            if (v) v.classList.add('active-view');
+            if (btn) btn.classList.add('active');
+        }
+
+        var _toastTimer = null;
+        function showToast(msg, tipo) {
+            var t = document.getElementById('toastEl');
+            if (!t) return;
+            t.innerText = msg;
+            t.className = 'toast show' + (tipo ? ' ' + tipo : '');
+            clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(function() { t.className = 'toast' + (tipo ? ' ' + tipo : ''); }, tipo === 'errore' ? 4000 : 2500);
+        }
+
+        function scriviAppunti(testo, msgOk) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(testo).then(function() { showToast(msgOk); }, function() { showToast('Copia non riuscita: copia a mano', 'errore'); });
+            } else {
+                showToast('Copia non disponibile', 'errore');
+            }
+        }
+
+        function copiaMac(id, msg) {
+            var elem = document.getElementById(id);
+            var v = elem ? elem.value.trim() : '';
+            if (!v) { showToast('Campo vuoto: niente da copiare', 'avviso'); return; }
+            scriviAppunti(v, msg || 'Copiato');
+        }
+
+        function copiaSerialeMac() {
+            var elem = document.getElementById('hwSerialVal');
+            var sn = elem ? elem.innerText.trim() : '';
+            if (!sn) { showToast('Seriale non disponibile', 'avviso'); return; }
+            scriviAppunti(sn, 'Seriale copiato: ' + sn);
+        }
+
+        function copiaRiepilogoCredMac() {
+            var email = document.getElementById('inEmail') ? document.getElementById('inEmail').value.trim() : '';
+            var pass = document.getElementById('inPass') ? document.getElementById('inPass').value.trim() : '';
+            var tel = document.getElementById('inTelefono') ? document.getElementById('inTelefono').value.trim() : '';
+            if (!email) { showToast('Inserisci prima il cliente', 'avviso'); return; }
+            var text = 'Account: ' + email + ' | Password: ' + pass + (tel ? ' | Tel: ' + tel : '') + ' (Provider: ' + currentProv + ')';
+            scriviAppunti(text, 'Dati copiati per il ticket');
+        }
+
+        function togglePassMac() {
+            var inp = document.getElementById('inPass');
+            var btn = document.getElementById('btnMostraMac');
+            if (!inp) return;
+            inp.type = (inp.type === 'password' ? 'text' : 'password');
+            if (btn) btn.innerHTML = inp.type === 'password' ? '&#128065; Mostra' : '&#128065; Nascondi';
+        }
+
+        function generaPassCasualeMac() {
+            var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#%*';
+            var pass = '';
+            var rnd = new Uint32Array(12);
+            if (window.crypto && crypto.getRandomValues) {
+                crypto.getRandomValues(rnd);
+            } else {
+                for (var k = 0; k < 12; k++) rnd[k] = Math.floor(Math.random() * 4294967296);
+            }
+            for (var i = 0; i < 12; i++) pass += chars.charAt(rnd[i] % chars.length);
+            var inp = document.getElementById('inPass');
+            if (inp) {
+                inp.value = pass;
+                inp.type = 'text';
+                var btn = document.getElementById('btnMostraMac');
+                if (btn) btn.innerHTML = '&#128065; Nascondi';
+                showToast('Nuova password generata');
+            }
+        }
+
+        function formatoTempo(sec) {
+            var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+            var mm = (m < 10 ? '0' : '') + m, ss = (s < 10 ? '0' : '') + s;
+            return h > 0 ? (h + ':' + mm + ':' + ss) : (mm + ':' + ss);
+        }
+
+        setInterval(function() {
+            var e = document.getElementById('elapsedTimerText');
+            if (!e) return;
+            e.innerText = inizioLavori > 0 ? formatoTempo(Math.max(0, Math.floor((Date.now() - inizioLavori) / 1000))) : '00:00';
+        }, 1000);
+
+        function playChimeMac() {
+            try {
+                var AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return;
+                var ctx = new AC();
+                if (ctx.resume) ctx.resume();
+                [523.25, 659.25, 783.99, 1046.50].forEach(function(freq, idx) {
+                    var osc = ctx.createOscillator(), gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0, ctx.currentTime + idx * 0.12);
+                    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + idx * 0.12 + 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + idx * 0.12 + 0.35);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + idx * 0.12);
+                    osc.stop(ctx.currentTime + idx * 0.12 + 0.4);
+                });
+            } catch (e) {}
         }
 
         function apriESelezionaMac(chkId, url, e) {
@@ -690,8 +996,6 @@ open_pannello_mac() {
                     Cyber: cyber
                 }
             };
-            // Il Mac non ha un server locale: i dati passano con un file che lo
-            // script legge (e cancella) da Download.
             var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
             var a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -700,22 +1004,76 @@ open_pannello_mac() {
             a.click();
             document.body.removeChild(a);
             mostraEsito('\u2713 Dati confermati! Il terminale prosegue automaticamente.', 'ok');
+            showToast('Dati inviati al Mac');
+            showTabMac('tab-live', document.getElementById('btn-tab-live'));
         }
 
         function applyStatus(data) {
             if (!data) return;
+            if (data.inizio && !inizioLavori) {
+                inizioLavori = Number(data.inizio) || Date.now();
+            } else if (!inizioLavori) {
+                inizioLavori = Date.now();
+            }
+
             var pct = parseInt(data.percentuale, 10) || 0;
             document.getElementById('barFill').style.width = pct + '%';
             document.getElementById('pctText').innerText = pct + '%';
             if (data.faseCorrente) document.getElementById('faseText').innerText = data.faseCorrente;
-            document.getElementById('dettText').innerText = data.dettaglio || '';
+            var detVal = data.dettaglio || '';
+
+            var tasks = data.tasks || {};
+            var doneCount = 0;
+            for (var i = 0; i < TASK_KEYS.length; i++) {
+                var k = TASK_KEYS[i];
+                var t = tasks[k] || { stato: 'pending', dettaglio: '' };
+                var stato = (t.stato || 'pending').toLowerCase();
+                var det = t.dettaglio || '';
+                if (stato === 'done' || stato === 'skipped' || stato === 'error') doneCount++;
+                if (stato === 'running' && det) detVal = det;
+
+                var row = document.getElementById('task-' + k);
+                if (!row) continue;
+                row.className = 'task-item ' + stato;
+                var badge = row.querySelector('.task-badge');
+                if (badge) {
+                    var bClass = 'badge-pending', bText = 'In attesa';
+                    if (stato === 'done') { bClass = 'badge-done-task'; bText = 'Fatto'; }
+                    else if (stato === 'running') { bClass = 'badge-running'; bText = 'In corso'; }
+                    else if (stato === 'error') { bClass = 'badge-error'; bText = 'Errore'; }
+                    else if (stato === 'skipped') { bClass = 'badge-skipped'; bText = 'Saltato'; }
+                    badge.className = 'task-badge ' + bClass;
+                    badge.innerText = bText;
+                }
+                var icon = row.querySelector('.task-icon');
+                if (icon) {
+                    if (stato === 'done' || stato === 'skipped') icon.innerHTML = '&#10003;';
+                    else if (stato === 'running') icon.innerHTML = '<span class="spinner"></span>';
+                    else if (stato === 'error') icon.innerHTML = '&#10007;';
+                    else icon.innerHTML = '&#9675;';
+                }
+                var dEl = row.querySelector('.task-detail');
+                if (dEl) dEl.innerText = (det && stato !== 'pending' && stato !== 'done') ? det : '';
+            }
+
+            var tb = document.getElementById('taskCountBadge');
+            if (tb) tb.innerText = doneCount + '/' + TASK_KEYS.length;
+
+            document.getElementById('dettText').innerText = detVal;
+
             var b = document.getElementById('badgeLive');
             if (data.completato === true) {
                 b.innerText = 'Completato';
                 b.className = 'badge-stato ok';
                 document.getElementById('bannerFine').style.display = 'block';
+                if (!audioPlayed) { audioPlayed = true; playChimeMac(); }
             } else if (pct > 5) {
                 b.innerText = 'Configurazione in corso';
+            }
+
+            if (!schedaScelta && pct > 5) {
+                showTabMac('tab-live', document.getElementById('btn-tab-live'));
+                schedaScelta = true;
             }
         }
         window.onPCFacileMacStatusUpdate = applyStatus;
@@ -814,14 +1172,17 @@ attendi_credenziali_mac() {
     print -r -- "${C_DIM}     (Se il pannello non funziona premi INVIO qui e scrivi il nome del cliente)${C_RST}"
     print -r -- ""
     beep_attesa
+    start_bip_ripetuto_mac
     while true; do
         if leggi_credenziali_salvate_mac; then
+            stop_bip_ripetuto_mac
             ok "Dati cliente e servizi ricevuti dal pannello."
             [[ -n "$NOME_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Cliente :${C_RST} $NOME_CLIENTE"
             [[ -n "$TELEFONO_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Telefono:${C_RST} $TELEFONO_CLIENTE"
             return 0
         fi
         if read -t 0.5 -r tasto 2>/dev/null; then
+            stop_bip_ripetuto_mac
             chiedi_sempre "Cognome e nome del cliente:"
             [[ -n "$REPLY" ]] && NOME_CLIENTE="$REPLY"
             SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false
@@ -843,6 +1204,8 @@ invoke_auto_signup_mac() {
     if $MODO_TEST; then
         ok "TEST: Automazione Browser Mac simulata con successo su Proton Mail e servizi."
         add_report "Account Proton Mail" "OK"
+        update_pannello_mac_status 90 "Servizi e attivazioni" "Completato (test)" false "servizi" "done" "Servizi simulati"
+        update_pannello_mac_status 93 "Unieuro Cyber Protection" "Completato (test)" false "cyber" "done" "Cyber Protection simulato"
         return 0
     fi
 
@@ -866,6 +1229,7 @@ invoke_auto_signup_mac() {
 
     # 1. CREAZIONE ACCOUNT PROTON MAIL (SE SELEZIONATO)
     if [[ "$do_proton" == "true" ]]; then
+        update_pannello_mac_status 86 "Servizi e attivazioni" "Creazione casella Proton Mail..." false "servizi" "running" "Account Proton Mail..."
         titolo "1. CREAZIONE ACCOUNT PROTON MAIL (RAPIDO)"
         print -r -- "   ${C_TXT}Credenziali generate per il cliente ($nome_c):${C_RST}"
         print -r -- "     ${C_CYAN}- Email / Account:${C_RST} $email_proton"
@@ -887,7 +1251,7 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; print -n -- "   Premi INVIO appena sei nella casella di posta (o 'S' per saltare): "; read -r r_ok
+        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena sei nella casella di posta (o 'S' per saltare): "; read -r r_ok; stop_bip_ripetuto_mac
         if [[ "$r_ok" == [Ss]* ]]; then
             info "Creazione account Proton Mail saltata dall'operatore."
             add_report "Account Proton Mail" "SALTATO"
@@ -899,6 +1263,7 @@ invoke_auto_signup_mac() {
 
     # 2. RISCATTO CARD OFFICE 365 / MICROSOFT 365 (SE SELEZIONATO)
     if [[ "$do_office" == "true" ]]; then
+        update_pannello_mac_status 87 "Servizi e attivazioni" "Attivazione card Office 365..." false "servizi" "running" "Card Office 365..."
         titolo "2. ATTIVAZIONE CARD MICROSOFT 365 / OFFICE"
         print -r -- "   ${C_TXT}Dati per il riscatto del codice Office 365 a 25 caratteri:${C_RST}"
         print -r -- "     ${C_CYAN}- Email Cliente  :${C_RST} $email_proton"
@@ -916,7 +1281,7 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; print -n -- "   Premi INVIO appena associata la chiave Office (o 'S' per saltare): "; read -r r_off
+        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena associata la chiave Office (o 'S' per saltare): "; read -r r_off; stop_bip_ripetuto_mac
         if [[ "$r_off" == [Ss]* ]]; then
             info "Attivazione Office 365 saltata dall'operatore."
             add_report "Card Office 365" "SALTATO"
@@ -928,6 +1293,7 @@ invoke_auto_signup_mac() {
 
     # 3. ATTIVAZIONE CARD MCAFEE ANTIVIRUS (SE SELEZIONATO)
     if [[ "$do_mcafee" == "true" ]]; then
+        update_pannello_mac_status 88 "Servizi e attivazioni" "Attivazione card McAfee..." false "servizi" "running" "Card McAfee..."
         titolo "3. ATTIVAZIONE CARD MCAFEE ANTIVIRUS"
         print -r -- "   ${C_TXT}Dati per l'attivazione della licenza McAfee:${C_RST}"
         print -r -- "     ${C_CYAN}- Email Cliente  :${C_RST} $email_proton"
@@ -945,7 +1311,7 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; print -n -- "   Premi INVIO appena attivato McAfee (o 'S' per saltare): "; read -r r_mc
+        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena attivato McAfee (o 'S' per saltare): "; read -r r_mc; stop_bip_ripetuto_mac
         if [[ "$r_mc" == [Ss]* ]]; then
             info "Attivazione McAfee saltata dall'operatore."
             add_report "Card McAfee" "SALTATO"
@@ -957,6 +1323,7 @@ invoke_auto_signup_mac() {
 
     # 4. ATTIVAZIONE CARD NORTON ANTIVIRUS (SE SELEZIONATO)
     if [[ "$do_norton" == "true" ]]; then
+        update_pannello_mac_status 89 "Servizi e attivazioni" "Attivazione card Norton..." false "servizi" "running" "Card Norton..."
         titolo "4. ATTIVAZIONE CARD NORTON ANTIVIRUS"
         print -r -- "   ${C_TXT}Dati per l'attivazione della licenza Norton:${C_RST}"
         print -r -- "     ${C_CYAN}- Email Cliente  :${C_RST} $email_proton"
@@ -974,7 +1341,7 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; print -n -- "   Premi INVIO appena attivato Norton (o 'S' per saltare): "; read -r r_no
+        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena attivato Norton (o 'S' per saltare): "; read -r r_no; stop_bip_ripetuto_mac
         if [[ "$r_no" == [Ss]* ]]; then
             info "Attivazione Norton saltata dall'operatore."
             add_report "Card Norton" "SALTATO"
@@ -984,8 +1351,11 @@ invoke_auto_signup_mac() {
         fi
     fi
 
+    update_pannello_mac_status 90 "Servizi e attivazioni" "Completato" false "servizi" "done" "Servizi cliente completati"
+
     # 5. REGISTRAZIONE UNIEURO CYBER PROTECTION (SE SELEZIONATO)
     if [[ "$do_cyber" == "true" ]]; then
+        update_pannello_mac_status 91 "Unieuro Cyber Protection" "Configurazione portale Cyber Protection..." false "cyber" "running" "Portale Cyber Protection..."
         local tel="${TELEFONO_CLIENTE:-}"
         if [[ -z "$tel" ]]; then
             chiedi_sempre "Numero di Telefono/Cellulare Cliente per Cyber Protection (INVIO per saltare):"
@@ -1012,14 +1382,18 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; print -n -- "   Premi INVIO appena registrato Cyber Protection (o 'S' per saltare): "; read -r r_cyb
+        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena registrato Cyber Protection (o 'S' per saltare): "; read -r r_cyb; stop_bip_ripetuto_mac
         if [[ "$r_cyb" == [Ss]* ]]; then
             info "Cyber Protection saltato dall'operatore."
             add_report "Unieuro Cyber Protection" "SALTATO"
+            update_pannello_mac_status 93 "Unieuro Cyber Protection" "Saltato dall'operatore" false "cyber" "skipped" "Saltato"
         else
             ok "Unieuro Cyber Protection registrato con successo per $nome_c ($email_proton)!"
             add_report "Unieuro Cyber Protection ($email_proton)" "OK"
+            update_pannello_mac_status 93 "Unieuro Cyber Protection" "Completato" false "cyber" "done" "Cyber Protection registrato"
         fi
+    else
+        update_pannello_mac_status 93 "Unieuro Cyber Protection" "Non acquistato (saltato)" false "cyber" "skipped" "Non selezionato"
     fi
 
     printf '\a'
@@ -1083,11 +1457,14 @@ fi
 # =============================================================================
 # PASSO 1: LINGUA & REGIONE ITALIANA
 # =============================================================================
-update_pannello_mac_status 15 "Lingua e Regione" "Configurazione it-IT..."
+update_pannello_mac_status 15 "Lingua e Regione" "Configurazione it-IT..." false "lingua" "running" "Configurazione it-IT..."
 titolo "1. Lingua e Regione (Italiano)"
+start_barra_animata_mac "Configurazione Lingua e Regione (it-IT)"
 if defaults read NSGlobalDomain AppleLocale 2>/dev/null | grep -qi 'it_IT'; then
     ok "macOS risulta gia' configurato in Italiano."
     add_report "Lingua italiana" "OK"
+    stop_barra_animata_mac
+    update_pannello_mac_status 20 "Lingua e Regione" "Gia' configurato in Italiano" false "lingua" "done" "Italiano (it-IT)"
 else
     if $RUN_REALE; then
         defaults write NSGlobalDomain AppleLanguages -array "it-IT" "en-IT" 2>/dev/null
@@ -1095,39 +1472,51 @@ else
         ok "Lingua/regione impostate su Italiano."
         add_report "Lingua italiana" "OK"
     fi
+    stop_barra_animata_mac
+    update_pannello_mac_status 20 "Lingua e Regione" "Completato" false "lingua" "done" "Italiano (it-IT)"
 fi
 
 # =============================================================================
 # PASSO 2: SINCRONIZZAZIONE ORA & NOME MAC
 # =============================================================================
-update_pannello_mac_status 25 "Sincronizzazione orario" "Orario di rete..."
+update_pannello_mac_status 25 "Sincronizzazione orario" "Orario di rete..." false "orario" "running" "Sincronizzazione server Apple..."
 titolo "2. Sincronizzazione orario"
+start_barra_animata_mac "Sincronizzazione orario di rete (time.apple.com)"
 if $RUN_REALE; then
     sudo systemsetup -setusingnetworktime on >/dev/null 2>&1
     sudo systemsetup -setnetworktimeserver time.apple.com >/dev/null 2>&1
     ok "Orario di rete attivo."
 fi
+stop_barra_animata_mac
+update_pannello_mac_status 30 "Sincronizzazione orario" "Completato" false "orario" "done" "Orario di rete attivo"
 
 # =============================================================================
 # PASSO 3: SNAPSHOT DI RIPRISTINO APFS
 # =============================================================================
-update_pannello_mac_status 40 "Punto di Ripristino" "Creazione snapshot APFS..."
+update_pannello_mac_status 35 "Punto di Ripristino" "Creazione snapshot APFS..." false "ripristino" "running" "Creazione snapshot..."
 titolo "3. Snapshot APFS di Ripristino"
+start_barra_animata_mac "Creazione snapshot APFS di sicurezza"
 if $RUN_REALE; then
     if sudo tmutil localsnapshot >/dev/null 2>&1; then
         ok "Snapshot APFS creato con successo."
         add_report "Punto di ripristino APFS" "OK"
+        update_pannello_mac_status 45 "Punto di Ripristino" "Completato" false "ripristino" "done" "Snapshot APFS creato"
     else
         info "Snapshot APFS non disponibile (proseguo)."
         add_report "Punto di ripristino APFS" "SALTATO"
+        update_pannello_mac_status 45 "Punto di Ripristino" "Non disponibile (saltato)" false "ripristino" "skipped" "Ottimizzato per SSD"
     fi
+else
+    update_pannello_mac_status 45 "Punto di Ripristino" "Completato (test)" false "ripristino" "done" "Snapshot simulato"
 fi
+stop_barra_animata_mac
 
 # =============================================================================
 # PASSO 4: OTTIMIZZAZIONE macOS (Defaults)
 # =============================================================================
-update_pannello_mac_status 50 "Ottimizzazione macOS" "Applicazione impostazioni Finder e Dock..."
+update_pannello_mac_status 50 "Ottimizzazione macOS" "Applicazione impostazioni Finder e Dock..." false "ottimizza" "running" "Finder & Dock..."
 titolo "4. Ottimizzazione macOS"
+start_barra_animata_mac "Applicazione impostazioni Finder, Dock e screenshot"
 if $RUN_REALE; then
     defaults write NSGlobalDomain AppleShowAllExtensions -bool true 2>/dev/null
     defaults write com.apple.finder ShowPathbar -bool true 2>/dev/null
@@ -1142,33 +1531,40 @@ if $RUN_REALE; then
     ok "Impostazioni e ottimizzazioni macOS applicate."
     add_report "Ottimizzazione macOS" "OK"
 fi
+stop_barra_animata_mac
+update_pannello_mac_status 55 "Ottimizzazione macOS" "Completato" false "ottimizza" "done" "Finder, Dock e screenshot ottimizzati"
 
 # =============================================================================
 # PASSO 5: ROSETTA 2 & HOMEBREW
 # =============================================================================
-update_pannello_mac_status 60 "Gestore Pacchetti" "Verifica Homebrew e Rosetta 2..."
+update_pannello_mac_status 60 "Gestore Pacchetti" "Verifica Homebrew e Rosetta 2..." false "gestore" "running" "Verifica Homebrew..."
 titolo "5. Rosetta 2 & Gestore App (Homebrew)"
 if [[ "$(uname -m)" == "arm64" ]] && $RUN_REALE; then
     if /usr/bin/pgrep -q oahd 2>/dev/null; then
         ok "Rosetta 2 presente."
     else
         info "Installazione Rosetta 2 per compatibilita' universale..."
+        start_barra_animata_mac "Installazione Rosetta 2 per compatibilita' universale"
         softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1
+        stop_barra_animata_mac
         ok "Rosetta 2 installata."
     fi
 fi
 
 if ! command -v brew >/dev/null 2>&1 && $RUN_REALE; then
     info "Installazione Homebrew..."
+    start_barra_animata_mac "Installazione gestore pacchetti Homebrew"
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+    stop_barra_animata_mac
 fi
 command -v brew >/dev/null 2>&1 && ok "Homebrew pronto."
+update_pannello_mac_status 65 "Gestore Pacchetti" "Completato" false "gestore" "done" "Homebrew e Rosetta 2 pronti"
 
 # =============================================================================
 # PASSO 6: INSTALLAZIONE APPLICAZIONI
 # =============================================================================
-update_pannello_mac_status 75 "Installazione App" "Download e installazione profilo..."
+update_pannello_mac_status 68 "Installazione Applicazioni" "Preparazione profilo app..." false "app" "running" "Avvio installazione..."
 titolo "6. Installazione Applicazioni"
 # Profilo dal pannello se i dati sono gia' arrivati, altrimenti BASE (la
 # fase 1 non si ferma ad aspettare).
@@ -1176,12 +1572,25 @@ $RUN_REALE && ! $DATI_RICEVUTI && leggi_credenziali_salvate_mac
 case "$PROFILO_APP" in UFFICIO|GAMING) PROFILO="$PROFILO_APP";; *) PROFILO="BASE";; esac
 info "Profilo app: $PROFILO"
 if [[ -n "$PROFILO" ]] && $RUN_REALE; then
+    local app_tot=0
+    for riga in "${CATALOGO[@]}"; do
+        local profili="${${(s:|:)riga}[3]}"
+        [[ " $profili " == *" $PROFILO "* ]] && ((app_tot++))
+    done
+    [[ $app_tot -eq 0 ]] && app_tot=1
+    local app_idx=0
+
     for riga in "${CATALOGO[@]}"; do
         nome="${${(s:|:)riga}[1]}"; cask="${${(s:|:)riga}[2]}"; profili="${${(s:|:)riga}[3]}"
         if [[ " $profili " == *" $PROFILO "* ]]; then
+            ((app_idx++))
+            local pct_app=$(( 68 + (app_idx * 12 / app_tot) ))
+            update_pannello_mac_status "$pct_app" "Installazione Applicazioni" "Installazione $nome in corso..." false "app" "running" "$nome ($app_idx/$app_tot)"
+            start_barra_animata_mac "Installazione $nome ($app_idx/$app_tot)"
             info "Installazione $nome in corso..."
             # 1. Tentativo di installazione offline diretta da memoria USB (.dmg/.pkg)
             if installa_offline_app_mac "$nome"; then
+                stop_barra_animata_mac
                 ok "$nome installato con successo da cache offline USB!"
                 crea_collegamento_desktop_mac "$nome" "$cask"
                 INSTALLATE+=("$nome")
@@ -1190,6 +1599,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
 
             # Gia' installata: salto (i passi gia' fatti non si rifanno).
             if [[ -d "/Applications/$nome.app" ]] || { command -v brew >/dev/null 2>&1 && brew list --cask "$cask" >/dev/null 2>&1; }; then
+                stop_barra_animata_mac
                 ok "$nome gia' installato: salto."
                 crea_collegamento_desktop_mac "$nome" "$cask"
                 INSTALLATE+=("$nome")
@@ -1202,31 +1612,42 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
                     xattr -d -r com.apple.quarantine "/Applications/$nome.app" 2>/dev/null || true
                     # Chiude eventuali splash screen avviati in automatico post-install
                     pkill -f -i "$nome" 2>/dev/null || true
+                    stop_barra_animata_mac
                     ok "$nome installato tramite Homebrew."
                     crea_collegamento_desktop_mac "$nome" "$cask"
                     INSTALLATE+=("$nome")
+                else
+                    stop_barra_animata_mac
+                    info "$nome non installato (proseguo)."
                 fi
+            else
+                stop_barra_animata_mac
             fi
         fi
     done
+    stop_barra_animata_mac
     # Pulizia popup residui noti
     pkill -f -i "Spotify" 2>/dev/null || true
     pkill -f -i "Discord" 2>/dev/null || true
     pkill -f -i "Zoom" 2>/dev/null || true
     pkill -f -i "Steam" 2>/dev/null || true
     add_report "App profilo $PROFILO (${#INSTALLATE} installate)" "OK"
+    update_pannello_mac_status 80 "Installazione Applicazioni" "Tutte le app installate" false "app" "done" "${#INSTALLATE} app installate"
+else
+    update_pannello_mac_status 80 "Installazione Applicazioni" "Completato (test)" false "app" "done" "Installazione simulata"
 fi
 
 # =============================================================================
 # FASE 2: PASSI MANUALI (dati del cliente dal pannello, una volta sola)
 # =============================================================================
 titolo "FASE 2 di 3 - Passi manuali (operatore)"
-update_pannello_mac_status 80 "Passi manuali" "Dati cliente, account e servizi..."
+update_pannello_mac_status 82 "Passi manuali" "In attesa dati cliente e servizi..." false "account" "running" "Dati cliente e nome Mac..."
 $RUN_REALE && attendi_credenziali_mac
 [[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
 [[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
 
 titolo "7. Nome del Mac"
+start_barra_animata_mac "Configurazione nome Mac ($NOME_CLIENTE)"
 if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
     host="${NOME_CLIENTE//[^A-Za-z0-9-]/}"
     if [[ "$(scutil --get ComputerName 2>/dev/null)" == "$NOME_CLIENTE" ]]; then
@@ -1239,6 +1660,8 @@ if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
     fi
     add_report "Nome Mac ($NOME_CLIENTE)" "OK"
 fi
+stop_barra_animata_mac
+update_pannello_mac_status 85 "Passi manuali" "Nome Mac configurato" false "account" "done" "$NOME_CLIENTE"
 
 # Account e servizi indicati nel pannello (Proton, Office, antivirus, Cyber
 # Protection): pagina giusta + dati pronti, conferma con INVIO.
@@ -1248,34 +1671,54 @@ invoke_auto_signup_mac "${NOME_CLIENTE:-Utente}"
 # FASE 3: AGGIORNAMENTI (sempre per ultimi)
 # =============================================================================
 titolo "FASE 3 di 3 - Aggiornamenti (ultimo passo)"
-update_pannello_mac_status 90 "Aggiornamenti" "App (Homebrew) e macOS..."
+update_pannello_mac_status 94 "Aggiornamenti" "App (Homebrew) e macOS..." false "aggiorna" "running" "Download aggiornamenti..."
 if $RUN_REALE; then
     if command -v brew >/dev/null 2>&1; then
         info "Aggiorno le app installate con Homebrew..."
+        start_barra_animata_mac "Aggiornamento applicazioni (Homebrew)"
         brew upgrade >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
+        stop_barra_animata_mac
     fi
     info "Scarico gli aggiornamenti di macOS (si installano al riavvio da Impostazioni di Sistema)..."
+    start_barra_animata_mac "Download aggiornamenti di sicurezza macOS"
     if softwareupdate --download --all >/dev/null 2>&1; then
+        stop_barra_animata_mac
         ok "Aggiornamenti macOS scaricati."
         add_report "Aggiornamenti macOS (scaricati)" "OK"
+        update_pannello_mac_status 96 "Aggiornamenti" "Completato" false "aggiorna" "done" "macOS e app aggiornati"
     else
+        stop_barra_animata_mac
         info "Nessun aggiornamento macOS scaricato (gia' aggiornato o rete assente)."
         add_report "Aggiornamenti macOS" "AVVISO"
+        update_pannello_mac_status 96 "Aggiornamenti" "Verificato" false "aggiorna" "done" "Nessun aggiornamento in sospeso"
     fi
+else
+    update_pannello_mac_status 96 "Aggiornamenti" "Completato (test)" false "aggiorna" "done" "Aggiornamenti simulati"
 fi
 
 # =============================================================================
 # PASSO 8: FILEVAULT & DIAGNOSTICA
 # =============================================================================
-update_pannello_mac_status 95 "FileVault & Scheda Consegna" "Generazione scheda cliente..."
+update_pannello_mac_status 97 "FileVault & Scheda Consegna" "Verifica crittografia FileVault..." false "sicurezza" "running" "Verifica FileVault..."
 titolo "8. Sicurezza FileVault & Scheda Consegna"
+start_barra_animata_mac "Verifica stato sicurezza FileVault"
 FV_KEY=""
 if $RUN_REALE; then
     FV_STATO="$(fdesetup status 2>/dev/null)"
     if echo "$FV_STATO" | grep -q "On"; then
         ok "FileVault attivo."
+        update_pannello_mac_status 98 "Sicurezza FileVault" "FileVault attivo" false "sicurezza" "done" "FileVault attivo"
+    else
+        info "FileVault non attivo."
+        update_pannello_mac_status 98 "Sicurezza FileVault" "FileVault non attivo" false "sicurezza" "done" "FileVault opzionale"
     fi
+else
+    update_pannello_mac_status 98 "Sicurezza FileVault" "Completato (test)" false "sicurezza" "done" "Verifica simulata"
 fi
+stop_barra_animata_mac
+
+update_pannello_mac_status 99 "FileVault & Scheda Consegna" "Generazione scheda cliente..." false "diagnostica" "running" "Generazione scheda..."
+start_barra_animata_mac "Generazione scheda consegna cliente"
 
 # Genera Scheda Consegna Mac HTML sul Desktop
 DESKTOP="$HOME/Desktop"
@@ -1351,8 +1794,9 @@ cat <<EOF > "$HTML_CONSEGNA"
 </html>
 EOF
 
+stop_barra_animata_mac
 ok "Scheda di consegna HTML creata sul Desktop: $HTML_CONSEGNA"
-update_pannello_mac_status 100 "Configurazione Mac Completata!" "Tutti i lavori terminati con successo" true
+update_pannello_mac_status 100 "Configurazione Mac Completata!" "Tutti i lavori terminati con successo" true "diagnostica" "done" "Scheda creata sul Desktop"
 
 # Pulizia file temporanei con credenziali in chiaro: pannello generato in /tmp
 # (email e password precompilate) ed eventuale JSON salvato dal pannello.
@@ -1374,7 +1818,7 @@ if $RUN_REALE && ! $MODO_TEST; then
         print -r -- "     ${C_INFO}3) Esci senza riavviare${C_RST}"
         print -r -- ""
         
-        beep_attesa; print -n -- "   Scelta (1-3): "; read -r scelta_fine
+        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Scelta (1-3): "; read -r scelta_fine; stop_bip_ripetuto_mac
         case "$scelta_fine" in
             1)
                 diagnostica_salute_mac
