@@ -52,7 +52,20 @@ LINEA="============================================================"
 titolo(){ print -r -- ""; print -r -- "${C_ACC}  $LINEA${C_RST}"; print -r -- "${C_TXT}   $1${C_RST}"; print -r -- "${C_ACC}  $LINEA${C_RST}"; print -r -- ""; }
 ok(){    print -r -- "${C_OK}   [OK] $1${C_RST}"; }
 info(){  print -r -- "${C_INFO}   -> $1${C_RST}"; }
-errore(){ print -r -- "${C_ERR}   [X] $1${C_RST}"; }
+typeset -a ERRORI_IMPREVISTI
+
+registra_errore_imprevisto_mac() {
+    local msg="$1" riga="$2"
+    local ora="$(date '+%Y-%m-%d %H:%M:%S')"
+    [[ -z "$riga" ]] && riga="${(%):-%N}"
+    ERRORI_IMPREVISTI+=("$ora | riga $riga: $msg")
+    dim "   [!] Imprevisto gestito: $msg (riga $riga)"
+}
+
+errore(){
+    print -r -- "${C_ERR}   [X] $1${C_RST}"
+    registra_errore_imprevisto_mac "$1" "$LINENO"
+}
 dim(){   print -r -- "${C_DIM}   $1${C_RST}"; }
 
 # ---- Escape dei valori inseriti nelle pagine HTML generate ------------------
@@ -64,6 +77,11 @@ sed_esc(){ local s="$1"; s=${s//$'\n'/ }; s=${s//\\/\\\\}; s=${s//[|]/\\|}; s=${
 # ---- Report (voce + OK/ERRORE/SALTATO/AVVISO) --------------------------------
 typeset -a REPORT_VOCI REPORT_ESITI INSTALLATE
 add_report(){ REPORT_VOCI+=("$1"); REPORT_ESITI+=("$2"); }
+
+# Token fine-grained con l'UNICO permesso "Issues: write" su questo repository
+# (identico a setup-pc.ps1). Silenzioso su qualsiasi fallimento di rete.
+GH_REPORT_TOKEN="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"
+GH_REPORT_REPO="samuelenigro97-prog/pc-facile"
 
 RUN_REALE=false
 [[ "$MODO" == "CONFIGURA" ]] && RUN_REALE=true
@@ -1745,12 +1763,231 @@ else
 fi
 stop_barra_animata_mac
 
+# ---- Funzioni finali: Scheda PDF, Log Strutturato, GitHub Auto-Report --------
+salva_scheda_consegna_mac() {
+    local html_doc="$1"
+    local desktop_dir="$HOME/Desktop"
+    local cartella_lavoro="/tmp/pcfacile_consegna"
+    mkdir -p "$cartella_lavoro" 2>/dev/null
+
+    local nome_base="Scheda-Consegna-Mac"
+    local html_lavoro="$cartella_lavoro/$nome_base.html"
+    local pdf_lavoro="$cartella_lavoro/$nome_base.pdf"
+    local html_desktop="$desktop_dir/$nome_base.html"
+    local pdf_desktop="$desktop_dir/$nome_base.pdf"
+
+    print -r -- "$html_doc" > "$html_lavoro"
+    rm -f "$pdf_lavoro" 2>/dev/null
+
+    local browser_pdf=""
+    for b in \
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" \
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" \
+        "/Applications/Chromium.app/Contents/MacOS/Chromium"; do
+        if [[ -x "$b" ]]; then
+            browser_pdf="$b"
+            break
+        fi
+    done
+
+    local pdf_creato=false
+    if [[ -n "$browser_pdf" ]]; then
+        local user_data="/tmp/pcf_chrome_tmp"
+        mkdir -p "$user_data" 2>/dev/null
+        "$browser_pdf" --headless --disable-gpu --no-first-run --no-default-browser-check \
+            --user-data-dir="$user_data" \
+            --no-pdf-header-footer --print-to-pdf="$pdf_lavoro" "file://$html_lavoro" >/dev/null 2>&1 || true
+        rm -rf "$user_data" 2>/dev/null
+
+        if [[ -s "$pdf_lavoro" ]]; then
+            pdf_creato=true
+        fi
+    fi
+
+    if $pdf_creato; then
+        mv -f "$pdf_lavoro" "$pdf_desktop" 2>/dev/null
+        rm -f "$html_desktop" 2>/dev/null
+        ok "Scheda di consegna PDF creata sul Desktop: $pdf_desktop"
+    else
+        cp -f "$html_lavoro" "$html_desktop" 2>/dev/null
+        info "Scheda di consegna HTML creata sul Desktop: $html_desktop (aprila e stampa in PDF)"
+    fi
+    rm -rf "$cartella_lavoro" 2>/dev/null
+}
+
+mostra_riepilogo_console_mac() {
+    titolo "RIEPILOGO CONFIGURAZIONE MAC"
+    print -r -- "${C_TXT}   Voci completate:${C_RST}"
+    local i
+    for ((i=1; i<=${#REPORT_VOCI}; i++)); do
+        local voce="${REPORT_VOCI[$i]}"
+        local esito="${REPORT_ESITI[$i]}"
+        case "$esito" in
+            "OK")      print -r -- "     ${C_OK}[OK]${C_RST} $voce" ;;
+            "AVVISO")  print -r -- "     ${C_INFO}[AVVISO]${C_RST} $voce" ;;
+            "SALTATO") print -r -- "     ${C_DIM}[SALTATO]${C_RST} $voce" ;;
+            "ERRORE")  print -r -- "     ${C_ERR}[ERRORE]${C_RST} $voce" ;;
+            *)         print -r -- "     ${C_TXT}[$esito]${C_RST} $voce" ;;
+        esac
+    done
+    print -r -- ""
+}
+
+salva_log_strutturato_mac() {
+    local cartella_log="/Library/Application Support/PCFacile/log"
+    if $MODO_TEST || ! sudo -n mkdir -p "$cartella_log" 2>/dev/null || ! sudo -n chmod 777 "$cartella_log" 2>/dev/null || [[ ! -w "$cartella_log" ]]; then
+        cartella_log="$HOME/Library/Logs/PCFacile"
+        mkdir -p "$cartella_log" 2>/dev/null
+    fi
+    [[ ! -d "$cartella_log" ]] && return 0
+
+    local hw="$(get_hw_info_mac)"
+    local hw_m="${${(s:|:)hw}[1]}"
+    local hw_c="${${(s:|:)hw}[2]}"
+    local hw_r="${${(s:|:)hw}[3]}"
+    local hw_s="${${(s:|:)hw}[4]}"
+    local modello_clean="${hw_m//[^a-zA-Z0-9_-]/_}"
+    [[ -z "$modello_clean" ]] && modello_clean="Mac"
+
+    local data_file="$(date '+%Y-%m-%d_%H-%M')"
+    local base_log="$cartella_log/${data_file}_${modello_clean}"
+
+    # 1. CSV
+    local csv_file="$base_log.csv"
+    {
+        print -r -- "voce,esito"
+        local i
+        for ((i=1; i<=${#REPORT_VOCI}; i++)); do
+            local v="${REPORT_VOCI[$i]//\"/\"\"}"
+            local e="${REPORT_ESITI[$i]//\"/\"\"}"
+            print -r -- "\"$v\",\"$e\""
+        done
+    } > "$csv_file" 2>/dev/null
+
+    # 2. JSON
+    local json_file="$base_log.json"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c '
+import sys, json, datetime
+
+voci = sys.argv[1].split("\t") if sys.argv[1] else []
+esiti = sys.argv[2].split("\t") if sys.argv[2] else []
+apps = sys.argv[3].split("\t") if sys.argv[3] else []
+imprevisti = sys.argv[4].split("\t") if sys.argv[4] else []
+
+report = [{"voce": v, "esito": e} for v, e in zip(voci, esiti) if v]
+
+dati = {
+    "versioneScript": sys.argv[5],
+    "timestamp": datetime.datetime.now().isoformat(),
+    "hardware": {
+        "modello": sys.argv[6],
+        "cpu": sys.argv[7],
+        "ram": sys.argv[8],
+        "seriale": sys.argv[9]
+    },
+    "os": sys.argv[10],
+    "applicazioniInstallate": [a for a in apps if a],
+    "report": report,
+    "erroriImprevisti": [err for err in imprevisti if err]
+}
+
+with open(sys.argv[11], "w", encoding="utf-8") as f:
+    json.dump(dati, f, indent=2, ensure_ascii=False)
+' "${(pj:\t:)REPORT_VOCI}" "${(pj:\t:)REPORT_ESITI}" "${(pj:\t:)INSTALLATE}" "${(pj:\t:)ERRORI_IMPREVISTI}" \
+  "$SCRIPT_VERSION" "$hw_m" "$hw_c" "$hw_r" "$hw_s" "$(sw_vers -productVersion 2>/dev/null)" "$json_file" 2>/dev/null
+    fi
+
+    # 3. Interventi storico cumulativo
+    local storico="$cartella_log/interventi.csv"
+    if [[ ! -f "$storico" ]]; then
+        print -r -- "Data,Modello,Seriale,Applicazioni,Esito" > "$storico" 2>/dev/null
+    fi
+    local esito_globale="OK"
+    for e in "${REPORT_ESITI[@]}"; do
+        if [[ "$e" == "ERRORE" ]]; then esito_globale="ERRORE"; break; fi
+        if [[ "$e" == "AVVISO" ]]; then esito_globale="AVVISO"; fi
+    done
+    print -r -- "\"$(date '+%Y-%m-%d %H:%M')\",\"$hw_m\",\"$hw_s\",\"${#INSTALLATE}\",\"$esito_globale\"" >> "$storico" 2>/dev/null
+
+    ok "Log tecnico salvato: $base_log.json / .csv"
+}
+
+send_report_github_mac() {
+    $MODO_TEST && return 0
+    ! $RUN_REALE && return 0
+    [[ -n "$PESTER_TEST" || -n "$ZSH_TEST" ]] && return 0
+
+    local n_errore=0 n_avviso=0
+    local problemi=""
+    local i
+    for ((i=1; i<=${#REPORT_VOCI}; i++)); do
+        local voce="${REPORT_VOCI[$i]}"
+        local esito="${REPORT_ESITI[$i]}"
+        if [[ "$esito" == "ERRORE" ]]; then
+            ((n_errore++))
+            problemi+="- **ERRORE**: $voce"$'\n'
+        elif [[ "$esito" == "AVVISO" ]]; then
+            ((n_avviso++))
+            problemi+="- **AVVISO**: $voce"$'\n'
+        fi
+    done
+
+    # Invia issue SOLO se ci sono problemi effettivi o imprevisti gestiti (zero spam)
+    if (( n_errore == 0 && n_avviso == 0 && ${#ERRORI_IMPREVISTI} == 0 )); then
+        return 0
+    fi
+
+    local hw="$(get_hw_info_mac)"
+    local hw_m="${${(s:|:)hw}[1]}"
+    [[ -z "$hw_m" ]] && hw_m="Apple Mac sconosciuto"
+    local os_ver="$(sw_vers -productVersion 2>/dev/null || echo "macOS")"
+    local os_build="$(sw_vers -buildVersion 2>/dev/null || echo "")"
+    local data_ora="$(date '+%Y-%m-%d %H:%M')"
+
+    local corpo="**Mac**: $hw_m"$'\n'
+    corpo+="**macOS**: $os_ver ($os_build)"$'\n'
+    corpo+="**Script**: v$SCRIPT_VERSION (macOS)"$'\n'
+    corpo+="**Data**: $data_ora"$'\n\n'
+
+    if [[ -n "$problemi" ]]; then
+        corpo+="### Esiti da controllare"$'\n'
+        corpo+="$problemi"$'\n'
+    fi
+
+    if (( ${#ERRORI_IMPREVISTI} > 0 )); then
+        corpo+="### Imprevisti gestiti (non bloccanti)"$'\n'
+        for err in "${ERRORI_IMPREVISTI[@]}"; do
+            corpo+="- $err"$'\n'
+        done
+        corpo+=$'\n'
+    fi
+
+    local titolo="[Auto-report Mac] $hw_m - $n_errore errori, $n_avviso avvisi"
+
+    local payload
+    if command -v python3 >/dev/null 2>&1; then
+        payload="$(python3 -c 'import sys, json; print(json.dumps({"title": sys.argv[1], "body": sys.argv[2]}))' "$titolo" "$corpo" 2>/dev/null)"
+    else
+        local t_esc="${titolo//\"/\\\"}"
+        local b_esc="${corpo//\"/\\\"}"
+        b_esc="${b_esc//$'\n'/\\n}"
+        payload="{\"title\":\"$t_esc\",\"body\":\"$b_esc\"}"
+    fi
+
+    curl -fsSL -X POST "https://api.github.com/repos/$GH_REPORT_REPO/issues" \
+        -H "Authorization: Bearer $GH_REPORT_TOKEN" \
+        -H "Accept: application/vnd.github+json" \
+        -H "Content-Type: application/json; charset=utf-8" \
+        -d "$payload" \
+        --max-time 10 >/dev/null 2>&1 || true
+}
+
 update_pannello_mac_status 99 "FileVault & Scheda Consegna" "Generazione scheda cliente..." false "diagnostica" "running" "Generazione scheda..."
 start_barra_animata_mac "Generazione scheda consegna cliente"
 
-# Genera Scheda Consegna Mac HTML sul Desktop
-DESKTOP="$HOME/Desktop"
-HTML_CONSEGNA="$DESKTOP/Scheda-Consegna-Mac.html"
+# Genera Scheda Consegna Mac HTML
 hw="$(get_hw_info_mac)"
 hw_m="${${(s:|:)hw}[1]}"
 hw_c="${${(s:|:)hw}[2]}"
@@ -1771,11 +2008,10 @@ for a in "${INSTALLATE[@]}"; do
 done
 [[ -z "$app_badges" ]] && app_badges="<div style='background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:11.5px;'>&#10003; <strong>Applicazioni base configurate</strong></div>"
 
-cat <<EOF > "$HTML_CONSEGNA"
-<!DOCTYPE html>
-<html lang="it">
+HTML_CONSEGNA_DOC="<!DOCTYPE html>
+<html lang=\"it\">
 <head>
-    <meta charset="UTF-8">
+    <meta charset=\"UTF-8\">
     <title>Scheda Consegna Apple Mac - $h_nome</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
@@ -1788,43 +2024,46 @@ cat <<EOF > "$HTML_CONSEGNA"
     </style>
 </head>
 <body>
-    <div class="sheet">
-        <div class="header">
+    <div class=\"sheet\">
+        <div class=\"header\">
             <div>
-                <h1 style="font-size:20px;">🍎 Scheda di Consegna Apple Mac</h1>
-                <p style="font-size:12px; color:#cbd5e1;">Assistenza Tecnica Unieuro &bull; Batte. Forte. Sempre.</p>
+                <h1 style=\"font-size:20px;\">🍎 Scheda di Consegna Apple Mac</h1>
+                <p style=\"font-size:12px; color:#cbd5e1;\">Assistenza Tecnica Unieuro &bull; Batte. Forte. Sempre.</p>
             </div>
-            <div style="background:#EE7203; padding:6px 12px; border-radius:6px; font-weight:700;">PC FACILE MAC v$SCRIPT_VERSION</div>
+            <div style=\"background:#EE7203; padding:6px 12px; border-radius:6px; font-weight:700;\">PC FACILE MAC v$SCRIPT_VERSION</div>
         </div>
-        <div style="padding: 24px;">
-            <div class="card card-cred">
-                <h3 style="color:#EE7203; margin-bottom:8px;">🔑 Credenziali &amp; Account Apple ID</h3>
+        <div style=\"padding: 24px;\">
+            <div class=\"card card-cred\">
+                <h3 style=\"color:#EE7203; margin-bottom:8px;\">🔑 Credenziali &amp; Account Apple ID</h3>
                 <p><strong>Email / Apple ID:</strong> $h_account</p>
-                <p><strong>Password provvisoria:</strong> <code style="background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;">$h_password</code></p>
+                <p><strong>Password provvisoria:</strong> <code style=\"background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;\">$h_password</code></p>
             </div>
-            <div class="card">
-                <h3 style="margin-bottom:8px; color:#00122B;">💻 Dati Dispositivo &amp; Diagnostica</h3>
+            <div class=\"card\">
+                <h3 style=\"margin-bottom:8px; color:#00122B;\">💻 Dati Dispositivo &amp; Diagnostica</h3>
                 <p><strong>Modello:</strong> $hw_m ($hw_c &bull; $hw_r)</p>
                 <p><strong>Seriale (S/N):</strong> $hw_s</p>
                 <p><strong>Batteria:</strong> $batt_desc</p>
                 <p><strong>Data Setup:</strong> $(date '+%d/%m/%Y %H:%M')</p>
             </div>
-            <div class="card">
-                <h3 style="margin-bottom:8px; color:#00122B;">📦 Applicazioni Installate</h3>
+            <div class=\"card\">
+                <h3 style=\"margin-bottom:8px; color:#00122B;\">📦 Applicazioni Installate</h3>
                 $app_badges
             </div>
-            <div style="text-align:right; margin-top:14px;">
-                <button class="btn-print" onclick="window.print()">🖨️ Stampa Scheda Cliente</button>
+            <div style=\"text-align:right; margin-top:14px;\">
+                <button class=\"btn-print\" onclick=\"window.print()\">🖨️ Stampa Scheda Cliente</button>
             </div>
         </div>
     </div>
 </body>
-</html>
-EOF
+</html>"
 
 stop_barra_animata_mac
-ok "Scheda di consegna HTML creata sul Desktop: $HTML_CONSEGNA"
+salva_scheda_consegna_mac "$HTML_CONSEGNA_DOC"
+mostra_riepilogo_console_mac
+salva_log_strutturato_mac
+send_report_github_mac
 update_pannello_mac_status 100 "Configurazione Mac Completata!" "Tutti i lavori terminati con successo" true "diagnostica" "done" "Scheda creata sul Desktop"
+
 
 # Pulizia file temporanei con credenziali in chiaro: pannello generato in /tmp
 # (email e password precompilate) ed eventuale JSON salvato dal pannello.
