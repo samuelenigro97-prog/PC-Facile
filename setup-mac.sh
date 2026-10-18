@@ -90,6 +90,58 @@ beep_attesa(){ $RUN_REALE && printf '\a'; }
 # ---- Controllo rete ---------------------------------------------------------
 test_rete(){ curl -s --head --max-time 5 https://www.apple.com >/dev/null 2>&1 || ping -c1 -t2 8.8.8.8 >/dev/null 2>&1; }
 
+# ---- Connessione automatica Wi-Fi negozio / chiavetta -----------------------
+connetti_wifi_mac() {
+    $MODO_TEST && return 0
+    test_rete && return 0
+
+    local ssid="UNIEURO_EXPO"
+    local pass="W1f1@Un13uro"
+    local f_wifi=""
+
+    # 1. Cerca file wifi.txt personalizzato sulla chiavetta o cartelle adiacenti
+    for d in "./wifi" "." "${0:a:h}/wifi" "${0:a:h}" /Volumes/*/wifi /Volumes/*; do
+        if [[ -f "$d/wifi.txt" ]]; then
+            f_wifi="$d/wifi.txt"
+            break
+        fi
+    done
+
+    if [[ -n "$f_wifi" ]]; then
+        while IFS= read -r riga || [[ -n "$riga" ]]; do
+            riga="${riga%$'\r'}"
+            if [[ "$riga" =~ '^(SSID|RETE|WIFI)[[:space:]]*[:=][[:space:]]*(.+)$' ]]; then
+                ssid="${match[2]}"
+            elif [[ "$riga" =~ '^(PASS|PASSWORD|KEY|CHIAVE)[[:space:]]*[:=][[:space:]]*(.+)$' ]]; then
+                pass="${match[2]}"
+            fi
+        done < "$f_wifi"
+    fi
+
+    # 2. Rileva interfaccia hardware Wi-Fi (es. en0)
+    local wdev
+    wdev="$(networksetup -listallhardwareports 2>/dev/null | awk '/Hardware Port: Wi-Fi/{getline; print $2}')"
+    if [[ -z "$wdev" ]]; then
+        wdev="$(networksetup -listallhardwareports 2>/dev/null | awk '/Wi-Fi/{getline; print $2}')"
+    fi
+
+    if [[ -n "$wdev" ]]; then
+        info "Connessione automatica al Wi-Fi del negozio ($ssid su $wdev)..."
+        networksetup -setairportpower "$wdev" on 2>/dev/null
+        networksetup -setairportnetwork "$wdev" "$ssid" "$pass" 2>/dev/null
+        local t=0
+        while ! test_rete && [[ $t -lt 8 ]]; do
+            sleep 1
+            ((t++))
+        done
+        if test_rete; then
+            ok "Connesso automaticamente alla rete Wi-Fi: $ssid"
+            return 0
+        fi
+    fi
+    return 1
+}
+
 $MODO_TEST || { [[ "$MODO" == "TEST" ]] && MODO_TEST=true; }
 
 # ---- Richiamo acustico ripetuto (Start-BipRipetuto / Stop-BipRipetuto) ------
@@ -1500,6 +1552,9 @@ fi
 # AVVIO AMBIENTE & SPLIT SCREEN
 # =============================================================================
 if $RUN_REALE; then
+  if ! test_rete; then
+    connetti_wifi_mac
+  fi
   if ! test_rete; then
     titolo "ATTENZIONE: Connessione Internet assente"
     errore "Il Mac non e' connesso a Internet. Collega il Wi-Fi per proseguire."

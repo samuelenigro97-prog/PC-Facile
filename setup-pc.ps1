@@ -4085,6 +4085,28 @@ function Connect-AutoWiFi {
                 }
             }
         }
+
+        if (-not (Test-Rete)) {
+            $defaultSsid = "UNIEURO_EXPO"
+            $defaultPass = "W1f1@Un13uro"
+            Write-Info "Tentativo di connessione automatica alla rete Wi-Fi del negozio ($defaultSsid)..."
+            $tempXml = Join-Path $env:TEMP "wifi_auto_default.xml"
+            $xmlData = New-WlanProfileXml -Ssid $defaultSsid -Password $defaultPass
+            [System.IO.File]::WriteAllText($tempXml, $xmlData, [System.Text.Encoding]::UTF8)
+            & netsh.exe wlan add profile filename="$tempXml" user=all 2>$null | Out-Null
+            & netsh.exe wlan connect name="$defaultSsid" 2>$null | Out-Null
+            Remove-Item -LiteralPath $tempXml -Force -ErrorAction SilentlyContinue
+
+            $t = 0
+            while ((-not (Test-Rete)) -and $t -lt 8) {
+                Start-Sleep -Seconds 2
+                $t += 2
+            }
+            if (Test-Rete) {
+                Write-OK "Connesso automaticamente al Wi-Fi: $defaultSsid!"
+                return $true
+            }
+        }
     } catch {}
     return $false
 }

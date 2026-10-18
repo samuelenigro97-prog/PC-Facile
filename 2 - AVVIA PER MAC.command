@@ -11,6 +11,51 @@ cd "$(dirname "$0")" || exit 1
 xattr -d com.apple.quarantine "$0" 2>/dev/null || true
 xattr -cr . 2>/dev/null || true
 
+# Auto-connessione Wi-Fi Negozio (se non ancora connesso a Internet)
+connetti_wifi_launcher_mac() {
+    (curl -s --head --max-time 3 https://www.apple.com >/dev/null 2>&1 || ping -c1 -t2 8.8.8.8 >/dev/null 2>&1) && return 0
+
+    local ssid="UNIEURO_EXPO"
+    local pass="W1f1@Un13uro"
+    local f_wifi=""
+    for d in "./wifi" "." "${0:a:h}/wifi" "${0:a:h}" /Volumes/*/wifi /Volumes/*; do
+        if [[ -f "$d/wifi.txt" ]]; then
+            f_wifi="$d/wifi.txt"
+            break
+        fi
+    done
+    if [[ -n "$f_wifi" ]]; then
+        while IFS= read -r riga || [[ -n "$riga" ]]; do
+            riga="${riga%$'\r'}"
+            if [[ "$riga" =~ '^(SSID|RETE|WIFI)[[:space:]]*[:=][[:space:]]*(.+)$' ]]; then
+                ssid="${match[2]}"
+            elif [[ "$riga" =~ '^(PASS|PASSWORD|KEY|CHIAVE)[[:space:]]*[:=][[:space:]]*(.+)$' ]]; then
+                pass="${match[2]}"
+            fi
+        done < "$f_wifi"
+    fi
+
+    local wdev
+    wdev="$(networksetup -listallhardwareports 2>/dev/null | awk '/Hardware Port: Wi-Fi/{getline; print $2}')"
+    if [[ -z "$wdev" ]]; then
+        wdev="$(networksetup -listallhardwareports 2>/dev/null | awk '/Wi-Fi/{getline; print $2}')"
+    fi
+
+    if [[ -n "$wdev" ]]; then
+        echo "Connessione automatica al Wi-Fi del negozio ($ssid)..."
+        networksetup -setairportpower "$wdev" on 2>/dev/null
+        networksetup -setairportnetwork "$wdev" "$ssid" "$pass" 2>/dev/null
+        for ((i=0; i<8; i++)); do
+            sleep 1
+            if curl -s --head --max-time 2 https://www.apple.com >/dev/null 2>&1 || ping -c1 -t2 8.8.8.8 >/dev/null 2>&1; then
+                echo "  [OK] Connesso alla rete Wi-Fi: $ssid"
+                return 0
+            fi
+        done
+    fi
+}
+connetti_wifi_launcher_mac
+
 BASE="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main"
 BASE_CDN="https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main"
 # File temporaneo univoco (mktemp), non un percorso fisso e prevedibile in /tmp.

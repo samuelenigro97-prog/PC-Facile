@@ -29,6 +29,7 @@ allineati come flusso e funzioni.
 | Report finale / Scheda      | Desktop solo `Scheda-Consegna-Cliente.pdf` (ripiego `.html` se il PDF fallisce); riepilogo tecnico in `C:\ProgramData\PCFacile\log` | Desktop solo `Scheda-Consegna-Mac.pdf` (conversione automatica headless con ripiego `.html`); riepilogo tecnico in console e log | pari |
 | Assist credenziali pagine   | copia email/password negli appunti + pulsanti copia nel pannello | copia email/password negli appunti + pulsanti copia nel pannello | pari |
 | Pannello Operatore Web      | 3 schede (Cliente, Avanzamento con 13 task live, Portali) + pulsante `AVVIA INSTALLAZIONE` (dati opzionali con fallback) + timer `MM:SS` + chime | 3 schede (Cliente, Avanzamento con 12 task live, Portali) + pulsante `AVVIA INSTALLAZIONE` (dati opzionali con fallback) + timer `MM:SS` + chime | pari |
+| Wi-Fi auto-connessione (negozio) | `netsh wlan` + `wifi/wifi.txt` o `UNIEURO_EXPO.xml` (fallback embedded `UNIEURO_EXPO`) | `networksetup` + `wifi/wifi.txt` (fallback embedded `UNIEURO_EXPO`) | pari |
 | Pulizia finale (auto-elimina)| rimuove `%TEMP%\setup-pc.ps1` + reg colori + checkpoint | `rm` dello script scaricato in `/tmp` | pari |
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |
 | Collegamenti Office Desktop | WScript.Shell dopo installazione Office   | —                                             | solo Win |
