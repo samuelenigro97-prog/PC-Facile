@@ -138,7 +138,9 @@ set "PS1=%TEMP%\setup-pc-%RANDOM%%RANDOM%.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; $bases=@('https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main','https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main'); $done=$false; foreach($base in $bases){ if($done){break}; for($i=1;$i -le 2 -and -not $done;$i++){ try { $t=(Get-Date).Ticks; irm ($base+'/setup-pc.ps1?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -OutFile '%PS1%' -ErrorAction Stop; $atteso=((([string](irm ($base+'/setup-pc.ps1.sha256?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -ErrorAction Stop)).Trim()) -split '\s+')[0].ToLower(); $reale=(Get-FileHash '%PS1%' -Algorithm SHA256).Hash.ToLower(); if ($atteso -match '^[0-9a-f]{64}$' -and $reale -eq $atteso) { Write-Host ('Scaricato e verificato da: '+$base) -ForegroundColor Green; $done=$true } else { Write-Host 'Impronta SHA256 assente o non combacia: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue } } catch { Write-Host 'Download o verifica SHA256 non riusciti: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 } } }; if(-not $done){ Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Write-Host 'Impossibile scaricare lo script: connessione assente o bloccata.' -ForegroundColor Yellow }"
 
 if exist "%PS1%" (
-    echo Avvio configurazione da versione verificata GitHub...
+    echo Configuro e scarico automaticamente tutti i file nella chiavetta ^(manifest.txt^)...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -AggiornaUSB -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0"
+    echo Avvio configurazione...
     if defined USER_ARGS (
         powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0" %USER_ARGS%
     ) else (

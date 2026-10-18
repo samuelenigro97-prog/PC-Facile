@@ -37,7 +37,7 @@ scarica_verificato() {
 # esecuzione, si aggiorna senza problemi.
 aggiorna_chiavetta() {
     # Solo se questa e' una cartella PC Facile (chiavetta o copia offline).
-    [[ -f "./setup-mac.sh" || -f "./setup-pc.ps1" || "$PWD" == /Volumes/* ]] || return 0
+    [[ -f "./setup-mac.sh" || -f "./setup-pc.ps1" || "$PWD" == /Volumes/* || "${PWD:t}" == *"PC Facile"* || "${PWD:t}" == *"pc facile"* ]] || return 0
     local man t riga hash nome dest tmpf base url ok
     man="$(mktemp -t pcf-manifest.XXXXXX)" || return 0
     t="$(date +%s)"
@@ -110,9 +110,13 @@ if [[ -n "$SCRIPT_LOCALE" ]]; then
     xattr -d com.apple.quarantine "$SCRIPT_LOCALE" 2>/dev/null || true
     zsh "$SCRIPT_LOCALE"
 elif scarica_verificato; then
-    echo "Chiavetta non rilevata: scarico e verifico da GitHub (SHA256)..."
+    echo "Configuro e scarico automaticamente tutti i file nella chiavetta (SHA256)..."
     aggiorna_chiavetta
-    zsh "$TMP"
+    if [[ -f "./setup-mac.sh" ]]; then
+        zsh "./setup-mac.sh"
+    else
+        zsh "$TMP"
+    fi
 else
     echo "Impossibile scaricare o verificare lo script e nessuna copia locale su chiavetta: controlla la rete."
 fi
