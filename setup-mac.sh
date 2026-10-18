@@ -1993,69 +1993,204 @@ hw_m="${${(s:|:)hw}[1]}"
 hw_c="${${(s:|:)hw}[2]}"
 hw_r="${${(s:|:)hw}[3]}"
 hw_s="${${(s:|:)hw}[4]}"
+hw_os="${${(s:|:)hw}[5]}"
 
 batt="$(get_battery_info_mac)"
 batt_desc="${${(s:|:)batt}[2]} - ${${(s:|:)batt}[3]}"
+[[ -z "$batt_desc" || "$batt_desc" == " - " ]] && batt_desc="Alimentazione da rete / Fisso"
+
+storage="$(get_storage_info_mac)"
+storage_desc="${${(s:|:)storage}[1]} (${${(s:|:)storage}[2]}, ${${(s:|:)storage}[3]})"
+
+os_ver="$(sw_vers -productVersion 2>/dev/null || echo "macOS")"
+os_build="$(sw_vers -buildVersion 2>/dev/null || echo "")"
+mac_host="$(scutil --get ComputerName 2>/dev/null || hostname -s 2>/dev/null || echo "Mac")"
 
 # Valori escapati per la scheda HTML (nome, credenziali e dati hardware)
-h_nome="$(html_esc "$NOME_CLIENTE")"; h_account="$(html_esc "$CRED_ACCOUNT")"; h_password="$(html_esc "$CRED_PASSWORD")"
-hw_m="$(html_esc "$hw_m")"; hw_c="$(html_esc "$hw_c")"; hw_r="$(html_esc "$hw_r")"; hw_s="$(html_esc "$hw_s")"
+h_nome="$(html_esc "${NOME_CLIENTE:-Cliente}")"
+h_tel="$(html_esc "${TELEFONO_CLIENTE:-}")"
+h_account="$(html_esc "$CRED_ACCOUNT")"
+h_password="$(html_esc "$CRED_PASSWORD")"
+h_mac_name="$(html_esc "$mac_host")"
+hw_m="$(html_esc "$hw_m")"
+hw_c="$(html_esc "$hw_c")"
+hw_r="$(html_esc "$hw_r")"
+hw_s="$(html_esc "$hw_s")"
 batt_desc="$(html_esc "$batt_desc")"
+storage_desc="$(html_esc "$storage_desc")"
 
+# Riquadro cellulare se presente
+tel_riga=""
+if [[ -n "$h_tel" ]]; then
+    tel_riga="<tr><td>Cellulare / Tel:</td><td><strong>$h_tel</strong></td></tr>"
+fi
+
+# Servizi inclusi
+servizi_inclusi_arr=()
+servizi_righe=""
+if [[ "$SVC_PROTON" == true ]]; then
+    servizi_inclusi_arr+=("Proton Mail")
+fi
+if [[ "$SVC_OFFICE" == true ]]; then
+    servizi_inclusi_arr+=("Microsoft 365 / Office")
+    servizi_righe+="<tr><td style='font-weight: 600;'>Office / Microsoft 365:</td><td>Attivato con account del cliente &bull; PIN card registrato</td></tr>"
+fi
+if [[ "$SVC_MCAFEE" == true ]]; then
+    servizi_inclusi_arr+=("McAfee")
+    servizi_righe+="<tr><td style='font-weight: 600;'>McAfee:</td><td>Attivato con account del cliente &bull; PIN card registrato</td></tr>"
+fi
+if [[ "$SVC_NORTON" == true ]]; then
+    servizi_inclusi_arr+=("Norton 360")
+    servizi_righe+="<tr><td style='font-weight: 600;'>Norton 360:</td><td>Attivato con account del cliente &bull; PIN card registrato</td></tr>"
+fi
+if [[ "$SVC_CYBER" == true ]]; then
+    servizi_inclusi_arr+=("Cyber Protection")
+    servizi_righe+="<tr><td style='font-weight: 600;'>Cyber Protection:</td><td>Registrato sul portale &bull; Notifiche via email/SMS al cliente</td></tr>"
+fi
+servizi_inclusi_arr+=("macOS (Licenza Ufficiale Apple)")
+servizi_inclusi_testo="${(j:, :)servizi_inclusi_arr}"
+
+# Badge applicazioni
 app_badges=""
 for a in "${INSTALLATE[@]}"; do
-    app_badges+="<div style='background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:11.5px; display:inline-block; margin:3px;'>&#10003; <strong>$(html_esc "$a")</strong></div>"
+    app_badges+="<div class='app-badge'>&#10003; <strong>$(html_esc "$a")</strong></div>"
 done
-[[ -z "$app_badges" ]] && app_badges="<div style='background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:11.5px;'>&#10003; <strong>Applicazioni base configurate</strong></div>"
+[[ -z "$app_badges" ]] && app_badges="<div class='app-badge'>&#10003; <strong>Applicazioni base configurate</strong></div>"
+
+# Box FileVault se attivo
+filevault_box=""
+fv_status_check="$(fdesetup status 2>/dev/null)"
+if echo "$fv_status_check" | grep -qi "On"; then
+    filevault_box="<div class='card card-bitlocker'>
+        <div class='bl-titolo'>&#9888; CONSERVA QUESTA SCHEDA &bull; Protezione e Cifratura FileVault</div>
+        <p class='bl-testo'>Il disco di questo Mac &egrave; protetto con <strong>FileVault</strong>. Tutti i documenti e dati personali sono cifrati e al sicuro da accessi non autorizzati.</p>
+        <div class='bl-chiave'>PROTEZIONE FILEVAULT ATTIVA</div>
+        <table class='info-table'>
+            <tr><td>Stato cifratura:</td><td><strong style='color:#16a34a;'>&#10003; Attivo e Protetto</strong></td></tr>
+            <tr><td>Volume protetto:</td><td>Macintosh HD (APFS Cifrato)</td></tr>
+        </table>
+        <p class='bl-testo' style='margin-top: 8px;'><strong>Stampa questa scheda o fotografala con lo smartphone</strong> e conservala in un posto sicuro, lontano dal Mac. Le tue credenziali Apple ID sono essenziali per il ripristino.</p>
+    </div>"
+fi
 
 HTML_CONSEGNA_DOC="<!DOCTYPE html>
 <html lang=\"it\">
 <head>
     <meta charset=\"UTF-8\">
-    <title>Scheda Consegna Apple Mac - $h_nome</title>
+    <title>Scheda Consegna Mac - $h_nome</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
         body { background: #f1f5f9; color: #1e293b; padding: 24px; font-size: 13px; line-height: 1.5; }
         .sheet { max-width: 820px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #e2e8f0; }
         .header { background: linear-gradient(135deg, #00122B 0%, #002B5C 100%); color: #fff; padding: 22px 28px; border-bottom: 4px solid #EE7203; display: flex; justify-content: space-between; align-items: center; }
-        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+        .header-brand { display: flex; align-items: center; gap: 14px; }
+        .brand-logo { background: #EE7203; color: #fff; font-weight: 900; font-size: 18px; letter-spacing: 1.5px; padding: 6px 12px; border-radius: 6px; }
+        .header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+        .header p { font-size: 12px; color: #cbd5e1; }
+        .badge-brand { background: #EE7203; color: #fff; font-weight: 700; font-size: 12px; padding: 6px 12px; border-radius: 6px; }
+        .body { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
         .card-cred { background: #fffaf5; border: 1.5px solid #EE7203; }
-        .btn-print { background: #EE7203; color: #fff; border: none; font-weight: 700; font-size: 13px; padding: 8px 18px; border-radius: 6px; cursor: pointer; }
+        .card-cred h3 { color: #EE7203; border-bottom: 1px solid #fed7aa; }
+        .card-bitlocker { background: #fff7ed; border: 3px solid #dc2626; page-break-inside: avoid; break-inside: avoid; }
+        .bl-titolo { font-size: 16px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .bl-testo { font-size: 12px; color: #1e293b; }
+        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 10px 12px; margin: 10px 0; text-align: center; word-break: break-all; }
+        .card h3 { font-size: 14px; color: #00122B; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .info-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .info-table td { padding: 3px 0; }
+        .info-table td:first-child { width: 42%; color: #64748b; font-weight: 500; }
+        .app-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+        .app-badge { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 9px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; color: #1e293b; }
+        .app-badge strong { color: #00122B; }
+        .tips-list { font-size: 12px; color: #475569; padding-left: 18px; line-height: 1.6; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; }
+        .btn-print { background: #EE7203; color: #fff; border: none; font-weight: 700; font-size: 13px; padding: 8px 18px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(238,114,3,0.3); }
+        .btn-print:hover { background: #d96300; }
+        @media print {
+            @page { size: A4 portrait; margin: 10mm; }
+            body { background: #fff; padding: 0; font-size: 11.5px; }
+            .sheet { box-shadow: none; max-width: 100%; border: none; }
+            .header { padding: 16px 20px; }
+            .body { padding: 16px 20px; gap: 12px; }
+            .card { padding: 12px; }
+            .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body>
     <div class=\"sheet\">
         <div class=\"header\">
-            <div>
-                <h1 style=\"font-size:20px;\">🍎 Scheda di Consegna Apple Mac</h1>
-                <p style=\"font-size:12px; color:#cbd5e1;\">Assistenza Tecnica Unieuro &bull; Batte. Forte. Sempre.</p>
+            <div class=\"header-brand\">
+                <div class=\"brand-logo\">UNIEURO</div>
+                <div>
+                    <h1>Scheda di Consegna e Configurazione Mac</h1>
+                    <p>Assistenza Tecnica &bull; <em style=\"color: #EE7203; font-weight: 600;\">Batte. Forte. Sempre.</em></p>
+                </div>
             </div>
-            <div style=\"background:#EE7203; padding:6px 12px; border-radius:6px; font-weight:700;\">PC FACILE MAC v$SCRIPT_VERSION</div>
+            <div class=\"badge-brand\">PC FACILE MAC v$SCRIPT_VERSION</div>
         </div>
-        <div style=\"padding: 24px;\">
+        <div class=\"body\">
             <div class=\"card card-cred\">
-                <h3 style=\"color:#EE7203; margin-bottom:8px;\">🔑 Credenziali &amp; Account Apple ID</h3>
-                <p><strong>Email / Apple ID:</strong> $h_account</p>
-                <p><strong>Password provvisoria:</strong> <code style=\"background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;\">$h_password</code></p>
+                <h3>&#128273; Credenziali di Primo Accesso &bull; Apple ID &amp; Servizi</h3>
+                <table class=\"info-table\">
+                    <tr><td style=\"width: 32%; font-weight: 600;\">Email / Apple ID:</td><td><strong style=\"font-size: 14px; color: #00122B;\">$h_account</strong></td></tr>
+                    <tr><td style=\"font-weight: 600;\">Password iniziale:</td><td><code style=\"font-size: 14px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px;\">$h_password</code> <em style=\"color: #64748b; font-size: 11px; margin-left: 8px;\">(da personalizzare al primo accesso)</em></td></tr>
+                    <tr><td style=\"font-weight: 600;\">Account macOS:</td><td><code>$h_nome</code></td></tr>
+                    <tr><td style=\"font-weight: 600;\">Servizi inclusi:</td><td>$servizi_inclusi_testo</td></tr>
+                    $servizi_righe
+                </table>
+            </div>
+            $filevault_box
+            <div class=\"grid\">
+                <div class=\"card\">
+                    <h3>&#128100; Dati Cliente</h3>
+                    <table class=\"info-table\">
+                        <tr><td>Cliente:</td><td><strong>$h_nome</strong></td></tr>
+                        $tel_riga
+                        <tr><td>Nome Computer:</td><td><code>$h_mac_name</code></td></tr>
+                        <tr><td>Seriale / S/N:</td><td><strong>$hw_s</strong></td></tr>
+                        <tr><td>Data Setup:</td><td>$(date '+%d/%m/%Y %H:%M')</td></tr>
+                        <tr><td>Sistema Operativo:</td><td><strong style=\"color:#16a34a;\">&#10003; macOS $os_ver ($os_build)</strong></td></tr>
+                        <tr><td>Stato Setup:</td><td><strong style=\"color:#16a34a;\">&#10003; Pronto e Collaudato</strong></td></tr>
+                    </table>
+                </div>
+                <div class=\"card\">
+                    <h3>&#128187; Specifiche Hardware &amp; Diagnostica</h3>
+                    <table class=\"info-table\">
+                        <tr><td>Dispositivo:</td><td><strong>$hw_m</strong></td></tr>
+                        <tr><td>Processore / Chip:</td><td>$hw_c</td></tr>
+                        <tr><td>Memoria RAM:</td><td>$hw_r</td></tr>
+                        <tr><td>Archiviazione / SSD:</td><td><strong>$storage_desc</strong></td></tr>
+                        <tr><td>Salute Batteria:</td><td><strong>$batt_desc</strong></td></tr>
+                        <tr><td>Lingua:</td><td>Italiano (it-IT)</td></tr>
+                    </table>
+                </div>
             </div>
             <div class=\"card\">
-                <h3 style=\"margin-bottom:8px; color:#00122B;\">💻 Dati Dispositivo &amp; Diagnostica</h3>
-                <p><strong>Modello:</strong> $hw_m ($hw_c &bull; $hw_r)</p>
-                <p><strong>Seriale (S/N):</strong> $hw_s</p>
-                <p><strong>Batteria:</strong> $batt_desc</p>
-                <p><strong>Data Setup:</strong> $(date '+%d/%m/%Y %H:%M')</p>
+                <h3>&#128230; Programmi e Utility Installate</h3>
+                <div class=\"app-grid\">$app_badges</div>
             </div>
             <div class=\"card\">
-                <h3 style=\"margin-bottom:8px; color:#00122B;\">📦 Applicazioni Installate</h3>
-                $app_badges
+                <h3>&#128161; Consigli e Istruzioni per l'Uso</h3>
+                <ul class=\"tips-list\">
+                    <li><strong>Connessione Wi-Fi:</strong> All'accensione a casa, seleziona la tua rete Wi-Fi in alto a destra nella barra dei menu ed inserisci la password di casa.</li>
+                    <li><strong>Sicurezza Credenziali:</strong> Se &egrave; stata creata una password provvisoria, modificala al primo accesso in <em>Impostazioni di Sistema &gt; Account Apple</em>.</li>
+                    <li><strong>Teleassistenza:</strong> AnyDesk e TeamViewer sono configurati e pronti sul desktop in caso di necessit&agrave; di supporto da remoto.</li>
+                    <li><strong>Backup Time Machine:</strong> Consigliamo di collegare periodicamente un disco esterno per eseguire i backup automatici con Time Machine (gi&agrave; predisposto).</li>
+                    <li><strong>Aggiornamenti:</strong> macOS &egrave; configurato con gli aggiornamenti di sicurezza raccomandati per proteggere il dispositivo.</li>
+                </ul>
             </div>
-            <div style=\"text-align:right; margin-top:14px;\">
-                <button class=\"btn-print\" onclick=\"window.print()\">🖨️ Stampa Scheda Cliente</button>
-            </div>
+        </div>
+        <div class=\"footer\">
+            <div>Documento di consegna ufficiale generato automaticamente per il cliente da <strong>PC Facile</strong>.</div>
+            <button class=\"btn-print no-print\" onclick=\"window.print()\">&#128438; Stampa / Salva in PDF</button>
         </div>
     </div>
 </body>
 </html>"
+
 
 stop_barra_animata_mac
 salva_scheda_consegna_mac "$HTML_CONSEGNA_DOC"
