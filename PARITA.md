@@ -32,6 +32,7 @@ allineati come flusso e funzioni.
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |
 | Collegamenti Office Desktop | WScript.Shell dopo installazione Office   | —                                             | solo Win |
 | Icona Desktop per ogni app  | copia lnk da Start / shell:AppsFolder     | symlink .app su Desktop                      | pari |
+| Scorciatoie portali/servizi | link diretti con auto-selezione checkbox nel pannello | link diretti con auto-selezione checkbox nel pannello | pari |
 | Errori: rete di sicurezza   | `trap` a livello script + lista imprevisti | (`set -e` / trap shell)                       | solo Win (per ora) |
 | Log strutturato             | JSON + CSV in `ProgramData\PCFacile\log`  | — (TODO)                                       | solo Win (per ora) |
 

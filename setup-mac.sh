@@ -476,9 +476,13 @@ open_pannello_mac() {
         .cred-input { width: 100%; min-height: 44px; background: #00122B; border: 1.5px solid #00458C; border-radius: 8px; padding: 8px 12px; font-size: 16px; color: #fff; margin-bottom: 10px; }
         .cred-input.errore { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.4); }
         .servizi { background: #00152f; border: 1px solid #003B7A; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-        .servizi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
-        .svc { min-height: 44px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; padding: 6px 8px; border: 1px solid #003B7A; border-radius: 8px; }
-        .svc input { width: 22px; height: 22px; accent-color: #EE7203; }
+        .servizi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+        .svc { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; padding: 6px 10px; border: 1px solid #003B7A; border-radius: 8px; }
+        .svc:hover { border-color: #EE7203; }
+        .svc label { display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; min-width: 0; }
+        .svc input { width: 22px; height: 22px; accent-color: #EE7203; cursor: pointer; flex-shrink: 0; }
+        .btn-svc-link { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #002b5c; border: 1px solid #0056B3; color: #7dd3fc; text-decoration: none; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; transition: all 0.2s ease; }
+        .btn-svc-link:hover { background: #EE7203; border-color: #EE7203; color: #fff; }
         .btn-avvia { min-height: 52px; background: #16a34a; font-weight: 800; font-size: 17px; padding: 10px 14px; width: 100%; border: none; cursor: pointer; border-radius: 8px; color: #fff; }
         .esito { display: none; margin-top: 8px; padding: 10px 12px; border-radius: 8px; font-size: 15px; font-weight: 700; }
         .esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #bbf7d0; }
@@ -555,11 +559,26 @@ open_pannello_mac() {
                 <div class="servizi">
                     <span class="etichetta" style="color:#fed7aa;">Servizi sullo scontrino</span>
                     <div class="servizi-grid">
-                        <label class="svc"><input type="checkbox" id="chkSvcProton" checked> <span>Email Proton</span></label>
-                        <label class="svc"><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
-                        <label class="svc"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
-                        <label class="svc"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection</span></label>
+                        <div class="svc">
+                            <label><input type="checkbox" id="chkSvcProton" checked> <span>Email Proton</span></label>
+                            <a href="https://account.proton.me/signup?plan=free" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaMac('chkSvcProton', 'https://account.proton.me/signup?plan=free', event)">Apri &#8599;</a>
+                        </div>
+                        <div class="svc">
+                            <label><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
+                            <a href="https://microsoft365.com/setup" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaMac('chkSvcOffice', 'https://microsoft365.com/setup', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc">
+                            <label><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
+                            <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaMac('chkSvcMcAfee', 'https://www.mcafee.com/activate', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc">
+                            <label><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
+                            <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaMac('chkSvcNorton', 'https://www.norton.com/setup', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc" style="grid-column: 1 / -1; border-color:#EE7203;">
+                            <label><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection</span></label>
+                            <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaMac('chkSvcCyber', 'https://unieuro-cyber-protection.covercare.it', event)">Apri portale &#8599;</a>
+                        </div>
                     </div>
                     <label class="etichetta" for="selProfilo" style="margin-top:10px;">Programmi</label>
                     <select id="selProfilo" class="cred-input">
@@ -596,6 +615,13 @@ open_pannello_mac() {
             document.querySelectorAll('.tab-btn').forEach(function(el){ el.classList.remove('active'); });
             document.getElementById(id).classList.add('active-view');
             btn.classList.add('active');
+        }
+
+        function apriESelezionaMac(chkId, url, e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            var chk = document.getElementById(chkId);
+            if (chk) chk.checked = true;
+            window.open(url, '_blank');
         }
 
         function setDomMac(dom, prov, btn) {
@@ -1038,6 +1064,17 @@ $RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
 
 titolo "FASE 1 di 3 - Programmi e lingua (automatico)"
 info "Intanto inserisci i dati del cliente nel pannello operatore."
+
+# Mantieni i privilegi amministratore (sudo) attivi per tutta la durata del setup.
+# In questo modo brew install (es. Adobe Reader .pkg) e i comandi di sistema non
+# bloccano il terminale chiedendo la password a meta' lavoro.
+if $RUN_REALE && ! $MODO_TEST; then
+    info "Verifica privilegi amministratore (sudo)..."
+    if ! sudo -n true 2>/dev/null; then
+        sudo -v || true
+    fi
+    while true; do sudo -n true; sleep 50; kill -0 "$$" || exit; done 2>/dev/null &
+fi
 
 # =============================================================================
 # PASSO 1: LINGUA & REGIONE ITALIANA

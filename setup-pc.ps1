@@ -1897,7 +1897,7 @@ function Open-PannelloOperatore {
             text-decoration: none;
         }
         .btn-sec:hover { background: #003B7A; border-color: #EE7203; }
-        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
         .svc-item {
             min-height: 44px;
             background: #000e21;
@@ -1906,12 +1906,41 @@ function Open-PannelloOperatore {
             padding: 8px 12px;
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
             font-size: 15px;
-            cursor: pointer;
         }
         .svc-item:hover { border-color: #EE7203; }
+        .svc-item label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            flex: 1;
+            min-width: 0;
+        }
         .svc-item input { width: 22px; height: 22px; accent-color: #EE7203; cursor: pointer; flex-shrink: 0; }
+        .btn-svc-link {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: #002b5c;
+            border: 1px solid #0056B3;
+            color: #7dd3fc;
+            text-decoration: none;
+            white-space: nowrap;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+        .btn-svc-link:hover {
+            background: #EE7203;
+            border-color: #EE7203;
+            color: #fff;
+        }
         .btn-avvia {
             min-height: 56px;
             background: #16a34a;
@@ -2132,7 +2161,10 @@ function Open-PannelloOperatore {
                     <div class="cred-step-title"><span class="step-badge">4</span> Servizi sullo scontrino</div>
                     <div class="campi-2" style="margin-bottom: 10px;">
                         <div>
-                            <label class="cred-label" for="selOffice">Office</label>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <label class="cred-label" for="selOffice" style="margin-bottom: 0;">Office</label>
+                                <a href="https://microsoft365.com/setup" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaOffice(event)">Apri setup &#8599;</a>
+                            </div>
                             <select id="selOffice" class="cred-input">
                                 <option value="no" selected>Nessuna card Office</option>
                                 <option value="m365">Card Microsoft 365 (abbonamento)</option>
@@ -2151,10 +2183,22 @@ function Open-PannelloOperatore {
                         </div>
                     </div>
                     <div class="services-grid">
-                        <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
-                        <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
-                        <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                        <div class="svc-item">
+                            <label><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
+                            <a href="https://account.proton.me/signup?plan=free" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcProton', 'https://account.proton.me/signup?plan=free', event)">Apri &#8599;</a>
+                        </div>
+                        <div class="svc-item">
+                            <label><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
+                            <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcMcAfee', 'https://www.mcafee.com/activate', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc-item">
+                            <label><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
+                            <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcNorton', 'https://www.norton.com/setup', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;">
+                            <label><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                            <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcCyber', 'https://unieuro-cyber-protection.covercare.it', event)">Apri portale &#8599;</a>
+                        </div>
                     </div>
                 </div>
 
@@ -2233,6 +2277,20 @@ function Open-PannelloOperatore {
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
+
+        function apriESeleziona(chkId, url, e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            var chk = el(chkId);
+            if (chk) chk.checked = true;
+            window.open(url, '_blank');
+        }
+
+        function apriESelezionaOffice(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            var sel = el('selOffice');
+            if (sel && sel.value === 'no') sel.value = 'm365';
+            window.open('https://microsoft365.com/setup', '_blank');
+        }
 
         // fetch con timeout: se lo script non risponde entro 2 s la richiesta viene
         // annullata (niente richieste appese che bloccano il pannello).
