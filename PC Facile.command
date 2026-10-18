@@ -7,6 +7,10 @@
 # =============================================================================
 cd "$(dirname "$0")" || exit 1
 
+# Sblocca automaticamente la cartella ed elimina l'avviso "malware" / quarantena di macOS Gatekeeper
+xattr -d com.apple.quarantine "$0" 2>/dev/null || true
+xattr -cr . 2>/dev/null || true
+
 BASE="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main"
 BASE_CDN="https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main"
 # File temporaneo univoco (mktemp), non un percorso fisso e prevedibile in /tmp.
@@ -17,6 +21,8 @@ scarica_verificato() {
     local t atteso reale
     t="$(date +%s)"
     curl -fsSL "$BASE/setup-mac.sh?t=$t" -o "$TMP" 2>/dev/null || return 1
+    xattr -d com.apple.quarantine "$TMP" 2>/dev/null || true
+    chmod +x "$TMP" 2>/dev/null || true
     atteso="$(curl -fsSL "$BASE/setup-mac.sh.sha256?t=$t" 2>/dev/null | awk '{print tolower($1); exit}')"
     reale="$(shasum -a 256 "$TMP" 2>/dev/null | awk '{print tolower($1)}')"
     [[ "$atteso" =~ '^[0-9a-f]{64}$' && "$reale" == "$atteso" ]]
@@ -65,6 +71,7 @@ aggiorna_chiavetta() {
         done
         if $ok; then
             [[ "$nome" == *.command || "$nome" == *.sh ]] && chmod +x "$tmpf" 2>/dev/null
+            xattr -d com.apple.quarantine "$tmpf" 2>/dev/null || true
             if mv -f -- "$tmpf" "$dest" 2>/dev/null; then echo "  aggiornato: $nome"; else rm -f -- "$tmpf"; fi
         else
             rm -f -- "$tmpf"

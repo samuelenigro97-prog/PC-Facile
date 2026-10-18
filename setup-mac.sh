@@ -21,6 +21,10 @@ if command -v caffeinate >/dev/null 2>&1 && [[ "$1" != "--test" && "$1" != "-t" 
   caffeinate -dimsu -w $$ >/dev/null 2>&1 &
 fi
 
+# Rimuove l'attributo di quarantena di Gatekeeper da se' stesso e dalla cartella/chiavetta
+xattr -d com.apple.quarantine "$0" 2>/dev/null || true
+xattr -cr "${0:a:h}" 2>/dev/null || true
+
 # ---- Un solo flusso: doppio click su "PC Facile.command" = configura --------
 # Niente menu. --test (solo CI) e --diagnostica (manutenzione) non sono per
 # l'operatore; i vecchi --veloce/--auto sono accettati e ignorati.
@@ -112,6 +116,42 @@ CATALOGO=(
   "Epic Games|epic-games|GAMING"
   "Discord|discord|GAMING"
 )
+
+# ---- Collegamenti alle app sul Desktop (i clienti in negozio le cercano li') ---
+crea_collegamento_desktop_mac() {
+  local nome="$1"
+  local cask="$2"
+  local app_path=""
+  if [[ -d "/Applications/$nome.app" ]]; then
+    app_path="/Applications/$nome.app"
+  elif [[ -n "$cask" ]]; then
+    case "$cask" in
+      vlc)                  [[ -d "/Applications/VLC.app" ]] && app_path="/Applications/VLC.app" ;;
+      zoom)                 [[ -d "/Applications/zoom.us.app" ]] && app_path="/Applications/zoom.us.app" ;;
+      the-unarchiver)       [[ -d "/Applications/The Unarchiver.app" ]] && app_path="/Applications/The Unarchiver.app" ;;
+      libreoffice)          [[ -d "/Applications/LibreOffice.app" ]] && app_path="/Applications/LibreOffice.app" ;;
+      epic-games)           [[ -d "/Applications/Epic Games Launcher.app" ]] && app_path="/Applications/Epic Games Launcher.app" ;;
+      adobe-acrobat-reader) for a in /Applications/*Acrobat*.app; do [[ -d "$a" ]] && app_path="$a"; done ;;
+    esac
+  fi
+  if [[ -z "$app_path" ]]; then
+    local prima="${nome%% *}"
+    for a in /Applications/*.app; do
+      if [[ "${(L)a:t}" == *"${(L)prima}"* ]]; then
+        app_path="$a"
+        break
+      fi
+    done
+  fi
+  if [[ -n "$app_path" && -d "$app_path" ]]; then
+    local desktop="$HOME/Desktop"
+    local link_name="${app_path:t}"
+    if [[ ! -e "$desktop/$link_name" ]]; then
+      ln -s "$app_path" "$desktop/$link_name" 2>/dev/null
+      ok "Icona creata sul Desktop: $link_name"
+    fi
+  fi
+}
 
 # ---- Ricerca installer offline (.dmg / .pkg / .app) su USB o cartella locale --
 get_offline_dirs_mac() {
@@ -1101,6 +1141,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             # 1. Tentativo di installazione offline diretta da memoria USB (.dmg/.pkg)
             if installa_offline_app_mac "$nome"; then
                 ok "$nome installato con successo da cache offline USB!"
+                crea_collegamento_desktop_mac "$nome" "$cask"
                 INSTALLATE+=("$nome")
                 continue
             fi
@@ -1108,6 +1149,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             # Gia' installata: salto (i passi gia' fatti non si rifanno).
             if [[ -d "/Applications/$nome.app" ]] || { command -v brew >/dev/null 2>&1 && brew list --cask "$cask" >/dev/null 2>&1; }; then
                 ok "$nome gia' installato: salto."
+                crea_collegamento_desktop_mac "$nome" "$cask"
                 INSTALLATE+=("$nome")
                 continue
             fi
@@ -1119,6 +1161,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
                     # Chiude eventuali splash screen avviati in automatico post-install
                     pkill -f -i "$nome" 2>/dev/null || true
                     ok "$nome installato tramite Homebrew."
+                    crea_collegamento_desktop_mac "$nome" "$cask"
                     INSTALLATE+=("$nome")
                 fi
             fi
