@@ -60,6 +60,7 @@ REM le ripristina nella pulizia finale. Un backup gia' presente NON viene
 REM sovrascritto (es. ripresa dopo riavvio: le chiavi sarebbero gia' modificate).
 if not exist "%ProgramData%\PCFacile" mkdir "%ProgramData%\PCFacile" >nul 2>&1
 if not exist "%ProgramData%\PCFacile\console-backup.reg" reg export "HKCU\Console" "%ProgramData%\PCFacile\console-backup.reg" /y >nul 2>&1
+reg add "HKCU\Console" /v QuickEdit /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKCU\Console" /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
 reg add "HKCU\Console" /v FaceName /t REG_SZ /d "Consolas" /f >nul 2>&1
 reg add "HKCU\Console" /v FontWeight /t REG_DWORD /d 700 /f >nul 2>&1
