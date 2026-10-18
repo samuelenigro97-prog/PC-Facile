@@ -56,3 +56,8 @@ allineati come flusso e funzioni.
 - **Windows**: `setup-pc.ps1` v13.1 (2026-10-18); `1 - AVVIA PER WINDOWS.bat` mostra versione script locale e supporta download da branch oltre a main.
 - **Mac**: `setup-mac.sh` v2.2 (2026-10-18); `2 - AVVIA PER MAC.command` mostra versione script locale e supporta download da branch oltre a main.
 
+## Layout Console e Parità Visiva (Windows & Mac)
+- **Separatori e Intestazioni**: Stesso formato a 60 caratteri (`============================================================`) in arancione sia su Windows (`setup-pc.ps1`) che su Mac (`setup-mac.sh`), eliminando cornici ASCII a larghezza fissa che sbordavano.
+- **Icone e Prefissi di Stato**: Parità completa con `[OK]` (verde), `->` (arancio/giallo), `[X]` (rosso).
+- **Pulizia Pipeline**: Eliminati i residui booleani (`True`) su Windows causati da `ShowWindow` e chiamate di sistema.
+

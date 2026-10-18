@@ -164,20 +164,16 @@ try {
 
 function Write-Titolo {
     param([string]$Testo)
-    $winW = 80
-    try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
-    $len = [Math]::Max(20, [Math]::Min(44, $winW - 6))
-    $barra = ([string][char]0x2550) * $len
-    Write-Host ""
+    $linea = "=" * 60
     Write-Host ""
     if ($vtOn) {
-        Write-Host "  $U_ORANGE$barra$U_RESET"
-        Write-Host "  $U_ORANGE_BG UNIEURO $U_RESET  $U_WHITE$($Testo.ToUpper())$U_RESET"
-        Write-Host "  $U_ORANGE$barra$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host "   $U_WHITE$Testo$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
     } else {
-        Write-Host "  $barra" -ForegroundColor DarkYellow
-        Write-Host "   [UNIEURO] $($Testo.ToUpper())" -ForegroundColor White
-        Write-Host "  $barra" -ForegroundColor DarkYellow
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host "   $Testo" -ForegroundColor White
+        Write-Host "  $linea" -ForegroundColor DarkYellow
     }
     Write-Host ""
 }
@@ -185,27 +181,27 @@ function Write-Titolo {
 function Write-OK {
     param([string]$Testo)
     if ($vtOn) {
-        Write-Host "   $U_GREEN$SYM_OK$U_RESET  $U_WHITE$Testo$U_RESET"
+        Write-Host "   $U_GREEN[OK] $Testo$U_RESET"
     } else {
-        Write-Host "   $SYM_OK  $Testo" -ForegroundColor Green
+        Write-Host "   [OK] $Testo" -ForegroundColor Green
     }
 }
 
 function Write-Info {
     param([string]$Testo)
     if ($vtOn) {
-        Write-Host "   $U_ORANGE$SYM_INFO$U_RESET  $U_BLUE$Testo$U_RESET"
+        Write-Host "   $U_ORANGE->$U_RESET $U_PEACH$Testo$U_RESET"
     } else {
-        Write-Host "   $SYM_INFO  $Testo" -ForegroundColor Yellow
+        Write-Host "   -> $Testo" -ForegroundColor Yellow
     }
 }
 
 function Write-Errore {
     param([string]$Testo)
     if ($vtOn) {
-        Write-Host "   $U_ERR$SYM_ERR$U_RESET  $U_ERR$Testo$U_RESET"
+        Write-Host "   $U_ERR[X] $Testo$U_RESET"
     } else {
-        Write-Host "   $SYM_ERR  $Testo" -ForegroundColor Red
+        Write-Host "   [X] $Testo" -ForegroundColor Red
     }
 }
 
@@ -1291,7 +1287,7 @@ public class WinSplit {
                     $rootH = [WinSplit]::GetAncestor($hConsole, 2) # GA_ROOT = 2
                     if ($rootH -and $rootH -ne [IntPtr]::Zero) { $hConsole = $rootH }
                 } catch {}
-                [WinSplit]::ShowWindow($hConsole, 9) # SW_RESTORE
+                [void][WinSplit]::ShowWindow($hConsole, 9) # SW_RESTORE
                 [WinSplit]::MoveWindow($hConsole, $halfW, 0, $halfW, $workH, $true) | Out-Null
                 [WinSplit]::SetWindowPos($hConsole, [IntPtr]::Zero, $halfW, 0, $halfW, $workH, 0x0040) | Out-Null
             }
@@ -1317,7 +1313,7 @@ public class WinSplit {
                 $edgeWindows = Get-Process -Name "msedge" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
                 foreach ($ew in $edgeWindows) {
                     if ($ew.MainWindowTitle -like "*Unieuro*" -or $ew.MainWindowTitle -like "*Pannello*" -or ($edgeProc -and $ew.Id -eq $edgeProc.Id)) {
-                        [WinSplit]::ShowWindow($ew.MainWindowHandle, 9)
+                        [void][WinSplit]::ShowWindow($ew.MainWindowHandle, 9)
                         [WinSplit]::MoveWindow($ew.MainWindowHandle, 0, 0, $halfW, $workH, $true) | Out-Null
                         [WinSplit]::SetWindowPos($ew.MainWindowHandle, [IntPtr]::Zero, 0, 0, $halfW, $workH, 0x0040) | Out-Null
                         break
@@ -4515,30 +4511,31 @@ if ($PreparaUSB) {
 
 if (-not $Diagnostica) {
     try { Clear-Host } catch {}
-    $larg = 64
-    $titoloB = "PC FACILE   -   versione $SCRIPT_VERSION"
-    $padSx = [int](($larg - $titoloB.Length) / 2)
-    $padDx = $larg - $padSx - $titoloB.Length
-    $boxLine = ([string][char]0x2550) * $larg
+    $linea = "=" * 60
     Write-Host ""
     if ($vtOn) {
-        Write-Host "  $U_ORANGE$([char]0x2554)$boxLine$([char]0x2557)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE_BG UNIEURO $U_RESET $U_WHITE PC FACILE  -  Assistenza & Configurazione PC      $U_ORANGE$([char]0x2551)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH - Setup Tecnico Dedicato v$SCRIPT_VERSION      $U_ORANGE$([char]0x2551)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x255A)$boxLine$([char]0x255D)$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host "   $U_WHITE PC FACILE WINDOWS v$SCRIPT_VERSION - Configurazione Attiva$U_RESET"
+        Write-Host "   $U_PEACH Data build: 18 Ottobre 2026 | Store: UNIEURO_EXPO$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
         Write-Host ""
-        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (PROGRAMMI E LINGUA) IN CORSO$U_RESET"
-        Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Intanto inserisci i dati del cliente nel pannello operatore (una volta sola).$U_RESET"
-        Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Poi i passi manuali, poi pulizia e driver; aggiornamenti per ultimi.$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host "   $U_WHITE FASE 1 di 3 - Programmi e lingua (automatico)$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host ""
+        Write-Host "   $U_ORANGE->$U_RESET $U_WHITE Intanto inserisci i dati del cliente nel pannello operatore.$U_RESET"
         Write-Host ""
     } else {
-        Write-Host "  $([char]0x2554)$boxLine$([char]0x2557)" -ForegroundColor DarkYellow
-        Write-Host "  $([char]0x2551)$(" " * $padSx)$titoloB$(" " * $padDx)$([char]0x2551)" -ForegroundColor White
-        Write-Host "  $([char]0x255A)$boxLine$([char]0x255D)" -ForegroundColor DarkYellow
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host "   PC FACILE WINDOWS v$SCRIPT_VERSION - Configurazione Attiva" -ForegroundColor White
+        Write-Host "   Data build: 18 Ottobre 2026 | Store: UNIEURO_EXPO" -ForegroundColor Cyan
+        Write-Host "  $linea" -ForegroundColor DarkYellow
         Write-Host ""
-        Write-Host "  CONFIGURAZIONE AVVIATA: FASE 1 (PROGRAMMI E LINGUA) IN CORSO" -ForegroundColor Green
-        Write-Host "  Intanto inserisci i dati del cliente nel pannello operatore (una volta sola)." -ForegroundColor White
-        Write-Host "  Poi i passi manuali, poi pulizia e driver; aggiornamenti per ultimi." -ForegroundColor Cyan
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host "   FASE 1 di 3 - Programmi e lingua (automatico)" -ForegroundColor White
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host ""
+        Write-Host "   -> Intanto inserisci i dati del cliente nel pannello operatore." -ForegroundColor Yellow
         Write-Host ""
     }
 }
@@ -4548,7 +4545,7 @@ if ($RunReale) {
     try { Enable-SilentElevation } catch {}
     try { Set-PreventSleep $true } catch {}
     try { Set-EdgeFirstRunPolicies } catch {}
-    try { Connect-AutoWiFi -TargetDir $TargetDir } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
+    try { [void](Connect-AutoWiFi -TargetDir $TargetDir) } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
     # Il pannello NON blocca: la fase 1 parte subito. I dati del cliente
     # arrivano dal pannello mentre la fase 1 lavora (Get-CredenzialiSalvatePannello
     # a ogni passo); servono davvero solo da Office in poi (Wait-DatiCliente).
@@ -5780,13 +5777,13 @@ function Mostra-CredenzialiPagina {
     if (-not ($Utente -or $Password)) { return }
     $winW = 80
     try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
-    $barra = ([string][char]0x2550) * [Math]::Max(20, [Math]::Min(40, $winW - 6))
+    $linea = "=" * 60
     Write-Host ""
-    Write-Host "  $barra" -ForegroundColor DarkYellow
+    Write-Host "  $linea" -ForegroundColor DarkYellow
     Write-Host "   CREDENZIALI DA INCOLLARE" -ForegroundColor Yellow
     if ($Utente)   { Write-Host "   Email:    $Utente" -ForegroundColor White }
     if ($Password) { Write-Host "   Password: $Password" -ForegroundColor White }
-    Write-Host "  $barra" -ForegroundColor DarkYellow
+    Write-Host "  $linea" -ForegroundColor DarkYellow
     if (-not $RunReale) { return }
     # Copio subito l'email (di solito e' il primo campo), poi lascio il menu.
     if ($Utente) { try { Set-Clipboard -Value $Utente } catch {} }
