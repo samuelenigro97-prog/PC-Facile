@@ -112,11 +112,17 @@ if not defined SCRIPT_LOCALE (
     )
 )
 
+if /i "%~1"=="--aggiorna" set "SCRIPT_LOCALE="
+if /i "%~1"=="/aggiorna" set "SCRIPT_LOCALE="
+
 if defined SCRIPT_LOCALE (
     echo.
     echo ============================================================
     echo   File preinstallati trovati su chiavetta USB!
     echo   Posizione: %SCRIPT_LOCALE%
+    for /f "tokens=2 delims==" %%v in ('findstr /b /c:"$SCRIPT_VERSION" "%SCRIPT_LOCALE%" 2^>nul') do (
+        echo   Versione: %%~v
+    )
     echo   Tutti i file sono gia' presenti: nessun download eseguito.
     echo   Avvio immediato della configurazione...
     echo ============================================================
@@ -136,7 +142,7 @@ echo ============================================================
 del "%TEMP%\setup-pc*.ps1" /f /q >nul 2>&1
 set "PS1=%TEMP%\setup-pc-%RANDOM%%RANDOM%.ps1"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; $bases=@('https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main','https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main'); $done=$false; foreach($base in $bases){ if($done){break}; for($i=1;$i -le 2 -and -not $done;$i++){ try { $t=(Get-Date).Ticks; irm ($base+'/setup-pc.ps1?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -OutFile '%PS1%' -ErrorAction Stop; $atteso=((([string](irm ($base+'/setup-pc.ps1.sha256?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -ErrorAction Stop)).Trim()) -split '\s+')[0].ToLower(); $reale=(Get-FileHash '%PS1%' -Algorithm SHA256).Hash.ToLower(); if ($atteso -match '^[0-9a-f]{64}$' -and $reale -eq $atteso) { Write-Host ('Scaricato e verificato da: '+$base) -ForegroundColor Green; $done=$true } else { Write-Host 'Impronta SHA256 assente o non combacia: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue } } catch { Write-Host 'Download o verifica SHA256 non riusciti: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 } } }; if(-not $done){ Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Write-Host 'Impossibile scaricare lo script: connessione assente o bloccata.' -ForegroundColor Yellow }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; $bases=@('https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/feat/mac-full-parity-and-progress-bars','https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main','https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main'); $done=$false; foreach($base in $bases){ if($done){break}; for($i=1;$i -le 2 -and -not $done;$i++){ try { $t=(Get-Date).Ticks; irm ($base+'/setup-pc.ps1?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -OutFile '%PS1%' -ErrorAction Stop; $atteso=((([string](irm ($base+'/setup-pc.ps1.sha256?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -ErrorAction Stop)).Trim()) -split '\s+')[0].ToLower(); $reale=(Get-FileHash '%PS1%' -Algorithm SHA256).Hash.ToLower(); if ($atteso -match '^[0-9a-f]{64}$' -and $reale -eq $atteso) { Write-Host ('Scaricato e verificato da: '+$base) -ForegroundColor Green; $done=$true } else { Write-Host 'Impronta SHA256 assente o non combacia: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue } } catch { Write-Host 'Download o verifica SHA256 non riusciti: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 } } }; if(-not $done){ Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Write-Host 'Impossibile scaricare lo script: connessione assente o bloccata.' -ForegroundColor Yellow }"
 
 if exist "%PS1%" (
     echo Configuro e scarico automaticamente tutti i file nella chiavetta ^(manifest.txt^)...

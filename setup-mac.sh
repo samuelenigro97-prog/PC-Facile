@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.1 (2026-09-26)"
+SCRIPT_VERSION="2.2 (2026-10-18)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1583,6 +1583,13 @@ if $RUN_REALE; then
     start_sudo_keepalive_mac
     open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
 fi
+
+print -r -- ""
+print -r -- "${C_ACC}============================================================${C_RST}"
+print -r -- "${C_OK}  PC FACILE MAC v${SCRIPT_VERSION} - Configurazione Attiva${C_RST}"
+print -r -- "${C_DIM}  Data build: 18 Ottobre 2026 | Rete: UNIEURO_EXPO${C_RST}"
+print -r -- "${C_ACC}============================================================${C_RST}"
+print -r -- ""
 
 titolo "FASE 1 di 3 - Programmi e lingua (automatico)"
 info "Intanto inserisci i dati del cliente nel pannello operatore."

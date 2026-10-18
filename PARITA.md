@@ -51,5 +51,8 @@ allineati come flusso e funzioni.
 - **Attivazione Office/driver**: Office da web, driver inclusi in macOS.
 - **GeForce se NVIDIA**: i Mac recenti non hanno GPU NVIDIA.
 
-## Solo Mac (Non Esiste su Windows)
-- **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
+
+## Versione e Launcher (Parità Completa)
+- **Windows**: `setup-pc.ps1` v13.1 (2026-10-18); `1 - AVVIA PER WINDOWS.bat` mostra versione script locale e supporta download da branch oltre a main.
+- **Mac**: `setup-mac.sh` v2.2 (2026-10-18); `2 - AVVIA PER MAC.command` mostra versione script locale e supporta download da branch oltre a main.
+

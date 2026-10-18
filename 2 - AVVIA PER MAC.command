@@ -56,21 +56,28 @@ connetti_wifi_launcher_mac() {
 }
 connetti_wifi_launcher_mac
 
-BASE="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main"
+BASE="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/feat/mac-full-parity-and-progress-bars"
+BASE_MAIN="https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main"
 BASE_CDN="https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main"
 # File temporaneo univoco (mktemp), non un percorso fisso e prevedibile in /tmp.
 TMP="$(mktemp -t setup-mac.XXXXXX)" || { echo "Impossibile creare un file temporaneo."; exit 1; }
 trap 'rm -f -- "$TMP"' EXIT
 
 scarica_verificato() {
-    local t atteso reale
+    local t atteso reale base
     t="$(date +%s)"
-    curl -fsSL "$BASE/setup-mac.sh?t=$t" -o "$TMP" 2>/dev/null || return 1
-    xattr -d com.apple.quarantine "$TMP" 2>/dev/null || true
-    chmod +x "$TMP" 2>/dev/null || true
-    atteso="$(curl -fsSL "$BASE/setup-mac.sh.sha256?t=$t" 2>/dev/null | awk '{print tolower($1); exit}')"
-    reale="$(shasum -a 256 "$TMP" 2>/dev/null | awk '{print tolower($1)}')"
-    [[ "$atteso" =~ '^[0-9a-f]{64}$' && "$reale" == "$atteso" ]]
+    for base in "$BASE" "$BASE_MAIN" "$BASE_CDN"; do
+        if curl -fsSL "$base/setup-mac.sh?t=$t" -o "$TMP" 2>/dev/null; then
+            xattr -d com.apple.quarantine "$TMP" 2>/dev/null || true
+            chmod +x "$TMP" 2>/dev/null || true
+            atteso="$(curl -fsSL "$base/setup-mac.sh.sha256?t=$t" 2>/dev/null | awk '{print tolower($1); exit}')"
+            reale="$(shasum -a 256 "$TMP" 2>/dev/null | awk '{print tolower($1)}')"
+            if [[ "$atteso" =~ '^[0-9a-f]{64}$' && "$reale" == "$atteso" ]]; then
+                return 0
+            fi
+        fi
+    done
+    return 1
 }
 
 # Aggiornamento automatico della chiavetta: scarica manifest.txt e ogni file
@@ -86,8 +93,12 @@ aggiorna_chiavetta() {
     local man t riga hash nome dest tmpf base url ok
     man="$(mktemp -t pcf-manifest.XXXXXX)" || return 0
     t="$(date +%s)"
-    if ! curl -fsSL "$BASE/manifest.txt?t=$t" -o "$man" 2>/dev/null &&
-       ! curl -fsSL "$BASE_CDN/manifest.txt?t=$t" -o "$man" 2>/dev/null; then
+    for base in "$BASE" "$BASE_MAIN" "$BASE_CDN"; do
+        if curl -fsSL "$base/manifest.txt?t=$t" -o "$man" 2>/dev/null; then
+            break
+        fi
+    done
+    if [[ ! -s "$man" ]]; then
         rm -f -- "$man"; echo "Aggiornamento chiavetta saltato (manifest non raggiungibile)."; return 0
     fi
     echo "Aggiorno i file della chiavetta (manifest.txt)..."
@@ -107,7 +118,7 @@ aggiorna_chiavetta() {
         mkdir -p -- "$(dirname -- "$dest")" 2>/dev/null
         tmpf="$dest.pcfacile-tmp"
         ok=false
-        for base in "$BASE" "$BASE_CDN"; do
+        for base in "$BASE" "$BASE_MAIN" "$BASE_CDN"; do
             url="$base/${nome// /%20}?t=$t"
             if curl -fsSL "$url" -o "$tmpf" 2>/dev/null &&
                [[ "$(shasum -a 256 "$tmpf" 2>/dev/null | awk '{print tolower($1)}')" == "$hash" ]]; then
@@ -128,7 +139,9 @@ aggiorna_chiavetta() {
 
 # --- Rilevamento file preinstallati su chiavetta USB o cartella locale ---
 SCRIPT_LOCALE=""
-if [[ -f "./setup-mac.sh" ]]; then
+if [[ "$1" == "--aggiorna" || "$1" == "-u" ]]; then
+    SCRIPT_LOCALE=""
+elif [[ -f "./setup-mac.sh" ]]; then
     SCRIPT_LOCALE="./setup-mac.sh"
 else
     for v in /Volumes/*; do
@@ -146,9 +159,14 @@ else
 fi
 
 if [[ -n "$SCRIPT_LOCALE" ]]; then
+    ver_script=""
+    if grep -q 'SCRIPT_VERSION=' "$SCRIPT_LOCALE" 2>/dev/null; then
+        ver_script="$(grep 'SCRIPT_VERSION=' "$SCRIPT_LOCALE" | head -n1 | cut -d'"' -f2)"
+    fi
     echo "============================================================"
     echo "  PC FACILE MAC - File preinstallati trovati su chiavetta!"
     echo "  Posizione: $SCRIPT_LOCALE"
+    [[ -n "$ver_script" ]] && echo "  Versione:  v$ver_script"
     echo "  Tutti i file sono gia' presenti: nessun download eseguito."
     echo "  Avvio immediato della configurazione..."
     echo "============================================================"
