@@ -436,6 +436,9 @@ open_pannello_mac() {
 
     update_pannello_mac_status 5 "Inizializzazione Setup Mac" "Avvio pannello operatore..." false
 
+    # Impedisce a Safari di aprire automaticamente file scaricati (es. TextEdit con json)
+    defaults write com.apple.Safari AutoOpenSafeDownloads -bool false 2>/dev/null
+
     cat <<'EOF' > "$pannello_html"
 <!DOCTYPE html>
 <html lang="it">
@@ -696,7 +699,7 @@ open_pannello_mac() {
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            mostraEsito('\u2713 Dati salvati (file pcfacile-cred.json in Download): il terminale li legge in pochi secondi. Se il browser chiede dove salvare, scegli Download.', 'ok');
+            mostraEsito('\u2713 Dati confermati! Il terminale prosegue automaticamente.', 'ok');
         }
 
         function applyStatus(data) {
@@ -785,6 +788,7 @@ PYEOF
                     done <<< "$res"
                     # Letto: il file contiene la password in chiaro, lo cancello.
                     rm -f -- "$p" 2>/dev/null
+                    pkill -f -i "TextEdit" 2>/dev/null || true
                     DATI_RICEVUTI=true
                     [[ -n "$EMAIL_CLIENTE" ]] && CRED_ACCOUNT="$EMAIL_CLIENTE"
                     [[ -n "$PASS_CLIENTE" ]] && CRED_PASSWORD="$PASS_CLIENTE"
@@ -1133,6 +1137,7 @@ if $RUN_REALE; then
     defaults write com.apple.dock show-recents -bool false 2>/dev/null
     mkdir -p "$HOME/Desktop/Screenshot" 2>/dev/null
     defaults write com.apple.screencapture location -string "$HOME/Desktop/Screenshot" 2>/dev/null
+    defaults write com.apple.Safari AutoOpenSafeDownloads -bool false 2>/dev/null
     killall Finder Dock 2>/dev/null
     ok "Impostazioni e ottimizzazioni macOS applicate."
     add_report "Ottimizzazione macOS" "OK"
