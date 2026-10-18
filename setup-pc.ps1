@@ -1594,20 +1594,20 @@ function Open-PannelloOperatore {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PC Facile - Pannello operatore</title>
+    <title>PC Facile &middot; Pannello operatore</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
         body {
             background: #000c20;
             color: #f8fafc;
-            padding: 12px;
+            padding: 14px;
             min-height: 100vh;
             font-size: 15px;
             line-height: 1.5;
         }
         .container { max-width: 980px; margin: 0 auto; }
-        button, a, input { font-size: inherit; }
-        button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
+        button, a, input, select { font-size: inherit; }
+        button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
         .muted { color: #b6c3d4; }
 
         /* INTESTAZIONE */
@@ -1651,7 +1651,7 @@ function Open-PannelloOperatore {
         .stato-ok { background: #14532d; border-color: #22c55e; color: #dcfce7; }
         .stato-avvisi { background: #422006; border-color: #f59e0b; color: #fef3c7; }
 
-        /* AVVISI IN CIMA (script non avviato / PC in attesa dati) */
+        /* AVVISI IN CIMA */
         .notice {
             display: none;
             border-radius: 10px;
@@ -1684,13 +1684,13 @@ function Open-PannelloOperatore {
         .hw-item .etichetta { color: #b6c3d4; }
         .hw-item strong { color: #fff; }
 
-        /* AVANZAMENTO */
+        /* AVANZAMENTO GENERALE */
         .progress-card {
             background: #001a3a;
             border: 2px solid #00458C;
             border-radius: 12px;
             padding: 12px 16px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
         .progress-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .progress-title { color: #fed7aa; font-weight: 800; font-size: 15px; }
@@ -1720,7 +1720,7 @@ function Open-PannelloOperatore {
             display: none;
             border-radius: 12px;
             padding: 14px 18px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             border: 2.5px solid #22c55e;
             background: #052e16;
         }
@@ -1730,105 +1730,114 @@ function Open-PannelloOperatore {
         .banner-complete p { font-size: 14px; color: #e2e8f0; }
         .banner-complete ul { margin: 6px 0 6px 20px; font-size: 14px; color: #fde68a; }
 
-        /* SCHEDE */
-        .tab-bar {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
-            background: #00142e;
-            padding: 5px;
-            border-radius: 12px;
-            border: 1.5px solid #003875;
+        /* STRUTTURA A SEZIONI UNIFICATE (PAGINA SINGOLA) */
+        .dashboard-section {
+            margin-bottom: 16px;
         }
-        .tab-btn {
-            flex: 1;
-            min-height: 48px;
-            background: transparent;
-            border: 1.5px solid transparent;
-            color: #b6c3d4;
-            font-size: 15px;
-            font-weight: 700;
-            padding: 8px 10px;
-            border-radius: 8px;
-            cursor: pointer;
+        .section-header {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding: 2px 4px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #fff;
+            display: flex;
+            align-items: center;
             gap: 8px;
         }
-        .tab-btn:hover { color: #fff; background: #002b5c; }
-        .tab-btn[aria-selected="true"] { background: #003B7A; color: #fff; border-color: #0056B3; }
-        .tab-badge-num {
-            background: #001f48;
-            color: #bfdbfe;
-            font-size: 13px;
-            padding: 1px 8px;
-            border-radius: 12px;
-            font-weight: 800;
+        .section-badge-num {
+            background: #EE7203;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 900;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
-        .tab-btn[aria-selected="true"] .tab-badge-num { background: #EE7203; color: #fff; }
-
-        .section-view { display: none; }
-        .section-view.active-view { display: block; }
         .card {
             background: #001f48;
             border: 1.5px solid #003B7A;
             border-radius: 12px;
             padding: 14px 16px;
-            margin-bottom: 12px;
         }
-        .card-subtitle { font-size: 14px; color: #b6c3d4; margin-bottom: 10px; }
+        .card-subtitle { font-size: 14px; color: #b6c3d4; margin-bottom: 12px; }
 
-        /* FASI */
-        .bg-tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-        .task-item {
+        /* BADGE RIEPILOGO CLIENTE (STATO COMPATTO) */
+        .summary-card {
+            background: #00152f;
+            border: 2px solid #22c55e;
+            border-left: 6px solid #22c55e;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+        }
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .summary-status {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 8px;
-            font-size: 15px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            border: 1.5px solid transparent;
-            background: #00152f;
+            gap: 10px;
         }
-        .task-left { display: grid; grid-template-columns: 20px 1fr; align-items: center; column-gap: 10px; flex: 1; min-width: 0; }
-        .task-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; font-weight: 700; color: #94a3b8; }
-        .task-name { color: #e2e8f0; font-weight: 600; }
-        .task-detail { color: #fed7aa; font-size: 14px; grid-column: 2; }
-        .task-detail:empty { display: none; }
-        .task-badge {
-            font-size: 13px;
-            font-weight: 800;
-            padding: 4px 10px;
-            border-radius: 6px;
-            white-space: nowrap;
+        .summary-icon {
+            background: #14532d;
+            border: 1.5px solid #22c55e;
+            color: #86efac;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 15px;
             flex-shrink: 0;
         }
-        .badge-pending { background: #00122B; color: #cbd5e1; border: 1px solid #003B7A; }
-        .task-item.running { background: #2a1606; border-color: #EE7203; }
-        .task-item.running .task-name { color: #fff; font-weight: 800; }
-        .badge-running { background: #EE7203; color: #fff; }
-        .task-item.done .task-icon { color: #22c55e; }
-        .badge-done-task { background: #052e16; color: #86efac; border: 1px solid #22c55e; }
-        .task-item.error { background: #2a0a0a; border-color: #ef4444; }
-        .task-item.error .task-icon { color: #f87171; }
-        .badge-error { background: #dc2626; color: #fff; }
-        .task-item.skipped .task-icon { color: #38bdf8; }
-        .task-gruppo { color: #fdba74; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 8px 2px 0; }
-        .badge-skipped { background: #082f49; color: #7dd3fc; border: 1px solid #0284c7; }
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid #EE7203;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+        .summary-status strong { font-size: 16px; color: #fff; }
+        .summary-sub { font-size: 13.5px; color: #fed7aa; }
+        .summary-actions { display: flex; gap: 8px; align-items: center; }
+        .summary-creds {
+            display: flex;
+            gap: 8px 18px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            background: #000f24;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #003366;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        .summary-cred-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-mini {
+            background: #002b5c;
+            border: 1px solid #0056B3;
+            color: #7dd3fc;
+            padding: 2px 7px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .btn-mini:hover { background: #EE7203; border-color: #EE7203; color: #fff; }
 
-        /* DATI CLIENTE */
+        /* FORM CLIENTE COMPLETO */
         .cred-step-box {
             background: #00152f;
             border: 1px solid #003B7A;
@@ -1873,13 +1882,13 @@ function Open-PannelloOperatore {
         .dom-btn:hover { border-color: #EE7203; }
         .dom-btn[aria-pressed="true"] { background: #EE7203; border-color: #EE7203; color: #fff; }
         .btn-sec {
-            min-height: 44px;
+            min-height: 40px;
             background: #002b5c;
             border: 1.5px solid #0056B3;
             color: #fff;
             border-radius: 8px;
-            padding: 8px 14px;
-            font-size: 15px;
+            padding: 6px 14px;
+            font-size: 14px;
             font-weight: 700;
             cursor: pointer;
             white-space: nowrap;
@@ -1935,7 +1944,7 @@ function Open-PannelloOperatore {
             color: #fff;
         }
         .btn-avvia {
-            min-height: 56px;
+            min-height: 54px;
             background: #16a34a;
             color: #fff;
             font-weight: 800;
@@ -1945,6 +1954,12 @@ function Open-PannelloOperatore {
             cursor: pointer;
             border-radius: 10px;
             width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4);
+            transition: background 0.2s ease, transform 0.1s ease;
         }
         .btn-avvia:hover { background: #15803d; }
         .btn-avvia:disabled { background: #166534; cursor: wait; }
@@ -1960,27 +1975,99 @@ function Open-PannelloOperatore {
         .esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fecaca; }
         .esito.avviso { display: block; background: #2b1705; border: 1.5px solid #f59e0b; color: #fde68a; }
 
-        /* PORTALI */
-        .links-grid { display: flex; flex-direction: column; gap: 8px; }
-        .portal-divider { font-size: 13px; font-weight: 800; color: #fed7aa; text-transform: uppercase; letter-spacing: 0.4px; margin: 8px 0 0 0; }
-        .portal-divider:first-child { margin-top: 0; }
+        /* FASI */
+        .task-badge-num {
+            background: #001f48;
+            color: #bfdbfe;
+            font-size: 13px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 800;
+            border: 1px solid #00458C;
+        }
+        .bg-tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+        .task-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 15px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1.5px solid transparent;
+            background: #00152f;
+        }
+        .task-left { display: grid; grid-template-columns: 20px 1fr; align-items: center; column-gap: 10px; flex: 1; min-width: 0; }
+        .task-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; font-weight: 700; color: #94a3b8; }
+        .task-name { color: #e2e8f0; font-weight: 600; }
+        .task-detail { color: #fed7aa; font-size: 14px; grid-column: 2; }
+        .task-detail:empty { display: none; }
+        .task-badge {
+            font-size: 13px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .badge-pending { background: #00122B; color: #cbd5e1; border: 1px solid #003B7A; }
+        .task-item.running { background: #2a1606; border-color: #EE7203; }
+        .task-item.running .task-name { color: #fff; font-weight: 800; }
+        .badge-running { background: #EE7203; color: #fff; }
+        .task-item.done .task-icon { color: #22c55e; }
+        .badge-done-task { background: #052e16; color: #86efac; border: 1px solid #22c55e; }
+        .task-item.error { background: #2a0a0a; border-color: #ef4444; }
+        .task-item.error .task-icon { color: #f87171; }
+        .badge-error { background: #dc2626; color: #fff; }
+        .task-item.skipped .task-icon { color: #38bdf8; }
+        .task-gruppo { color: #fdba74; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; padding: 8px 2px 0; }
+        .badge-skipped { background: #082f49; color: #7dd3fc; border: 1px solid #0284c7; }
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #EE7203;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* PORTALI & STRUMENTI */
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 8px;
+        }
+        .portal-divider {
+            grid-column: 1 / -1;
+            font-size: 13px;
+            font-weight: 800;
+            color: #fed7aa;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin: 10px 0 2px 0;
+            padding-top: 4px;
+        }
+        .portal-divider:first-child { margin-top: 0; padding-top: 0; }
         .portal-btn {
-            min-height: 48px;
+            min-height: 46px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 8px;
             background: #00142E;
             border: 1.5px solid #003B7A;
-            border-radius: 10px;
-            padding: 10px 14px;
+            border-radius: 8px;
+            padding: 8px 12px;
             color: #f8fafc;
             text-decoration: none;
-            font-size: 15px;
+            font-size: 14.5px;
             font-weight: 700;
+            transition: all 0.2s ease;
         }
-        .portal-btn:hover { background: #002554; border-color: #EE7203; }
-        .portal-btn .portal-tag { color: #fed7aa; font-size: 14px; white-space: nowrap; }
+        .portal-btn:hover { background: #002554; border-color: #EE7203; transform: translateY(-1px); }
+        .portal-btn .portal-tag { color: #fed7aa; font-size: 13px; white-space: nowrap; }
         .portal-btn.highlight { border-color: #EE7203; }
 
         /* MESSAGGIO A COMPARSA */
@@ -2012,8 +2099,6 @@ function Open-PannelloOperatore {
             .brand-titles p { display: none; }
             .brand-titles h1 { font-size: 15px; }
             .progress-pct { font-size: 24px; }
-            .tab-btn { font-size: 14px; padding: 6px; }
-            .tab-lungo { display: none; }
             .card { padding: 12px; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -2023,7 +2108,7 @@ function Open-PannelloOperatore {
 </head>
 <body>
     <div class="container">
-        <!-- INTESTAZIONE: un solo indicatore di stato -->
+        <!-- INTESTAZIONE: indicatore di stato unificato -->
         <div class="header">
             <div class="brand-box">
                 <div class="u-logo">UNIEURO</div>
@@ -2035,7 +2120,7 @@ function Open-PannelloOperatore {
             <div id="badgeStato" class="badge-stato stato-off" role="status">Script non avviato</div>
         </div>
 
-        <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE (visibile in tutte le schede) -->
+        <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE -->
         <div id="offlineNoticeBox" class="notice notice-off" style="display: block;">
             <h2>&#9888; PC Facile non risponde</h2>
             <p>Questo pannello lo apre PC Facile da solo e parla solo con lo script avviato su questo PC. Controlla la finestra di PC Facile: se l'hai chiusa, riapri <strong>PC Facile.bat</strong> dalla chiavetta (riprende da dove era arrivato).</p>
@@ -2044,9 +2129,9 @@ function Open-PannelloOperatore {
         <!-- AVVISO: IL PC ASPETTA I DATI DEL CLIENTE -->
         <div id="attesaDatiBox" class="notice notice-attesa">
             <h2>&#9998; Il PC aspetta i dati del cliente</h2>
-            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila i dati nella scheda <strong>Cliente</strong> (facoltativi) e premi <strong>AVVIA INSTALLAZIONE</strong>.</p>
+            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila i dati nella sezione <strong>1. Cliente</strong> qui sotto (facoltativi) e premi <strong>AVVIA INSTALLAZIONE</strong>.</p>
             <div class="notice-azioni">
-                <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">Vai alla scheda Cliente</button>
+                <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">&#9998; Compila dati cliente</button>
             </div>
         </div>
 
@@ -2054,10 +2139,10 @@ function Open-PannelloOperatore {
         <div id="hwBar" class="hw-bar">
             <div class="hw-item"><span class="etichetta">Computer:</span> <strong id="hwModelloText"></strong></div>
             <div class="hw-item"><span class="etichetta">Processore e RAM:</span> <strong id="hwCpuText"></strong></div>
-            <div class="hw-item"><span class="etichetta">Seriale:</span> <strong id="hwSerialVal"></strong> <button type="button" class="btn-sec" onclick="copiaSeriale()">&#128203; Copia seriale</button></div>
+            <div class="hw-item"><span class="etichetta">Seriale:</span> <strong id="hwSerialVal"></strong> <button type="button" class="btn-sec" style="min-height:30px; padding:2px 8px; font-size:12px; margin-left:4px;" onclick="copiaSeriale()">&#128203; Copia</button></div>
         </div>
 
-        <!-- AVANZAMENTO -->
+        <!-- AVANZAMENTO GENERALE -->
         <div class="progress-card">
             <div class="progress-header">
                 <div class="progress-title">Avanzamento configurazione</div>
@@ -2082,22 +2167,52 @@ function Open-PannelloOperatore {
             <p>Sul Desktop di questo PC c'&egrave; solo la scheda di consegna: <strong>Scheda-Consegna-Cliente.pdf</strong> (se il PDF non si crea, resta la versione <strong>.html</strong> da stampare). Il riepilogo tecnico &egrave; in <code>C:\ProgramData\PCFacile\log</code>.</p>
         </div>
 
-        <!-- SCHEDE -->
-        <div class="tab-bar" role="tablist" aria-label="Sezioni del pannello">
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-cred" aria-controls="view-tab-cred" aria-selected="true" onclick="apriScheda('tab-cred')">
-                <span><span class="tab-lungo">&#128100; </span>1. Cliente</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-live" aria-controls="view-tab-live" aria-selected="false" onclick="apriScheda('tab-live')">
-                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/13</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
-                <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
-            </button>
-        </div>
+        <!-- ================================================================= -->
+        <!-- SEZIONE 1: DATI CLIENTE & SERVIZI (DINAMICA: FORM O BADGE)        -->
+        <!-- ================================================================= -->
+        <div class="dashboard-section" id="secCliente">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="section-badge-num">1</span>
+                    <span>Dati cliente &amp; Servizi scontrino</span>
+                </div>
+            </div>
 
-        <!-- SCHEDA 1: DATI CLIENTE -->
-        <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
-            <div class="card">
+            <!-- BADGE COMPATTO: compare dopo l'avvio o quando i dati sono gia' acquisiti -->
+            <div id="summaryClienteCard" class="summary-card" style="display: none;">
+                <div class="summary-header">
+                    <div class="summary-status">
+                        <span class="summary-icon">&#10003;</span>
+                        <div>
+                            <strong id="sumNomeCliente">Cliente</strong>
+                            <div class="summary-sub" id="sumProfiloServizi">Profilo: Base &middot; Servizi inclusi</div>
+                        </div>
+                    </div>
+                    <div class="summary-actions">
+                        <button type="button" class="btn-sec" onclick="espandiFormCliente()">&#9998; Modifica dati</button>
+                        <button type="button" class="btn-sec" onclick="copiaRiepilogoCred()">&#128203; Copia ticket</button>
+                    </div>
+                </div>
+                <div class="summary-creds">
+                    <div class="summary-cred-item">
+                        <span class="muted">Email:</span>
+                        <strong id="sumEmail" class="cred-mono"></strong>
+                        <button type="button" class="btn-mini" onclick="copia('inEmail', 'Email copiata')">&#128203;</button>
+                    </div>
+                    <div class="summary-cred-item">
+                        <span class="muted">Password:</span>
+                        <strong id="sumPass" class="cred-mono"></strong>
+                        <button type="button" class="btn-mini" onclick="copia('inPass', 'Password copiata')">&#128203;</button>
+                    </div>
+                    <div class="summary-cred-item" id="sumTelBox" style="display: none;">
+                        <span class="muted">Tel:</span>
+                        <strong id="sumTel"></strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM COMPLETO -->
+            <div id="formClienteFull" class="card">
                 <div class="card-subtitle">Mentre il PC installa programmi e lingua, puoi inserire qui i dati del cliente: email e password si creano da sole (puoi modificarle). Se lasci i campi vuoti verranno usati valori predefiniti.</div>
 
                 <div class="cred-step-box">
@@ -2203,8 +2318,17 @@ function Open-PannelloOperatore {
             </div>
         </div>
 
-        <!-- SCHEDA 2: AVANZAMENTO -->
-        <div id="view-tab-live" class="section-view" role="tabpanel" aria-labelledby="btn-tab-live">
+        <!-- ================================================================= -->
+        <!-- SEZIONE 2: AVANZAMENTO LAVORI (SEMPRE A VISTA SOTTO I DATI)       -->
+        <!-- ================================================================= -->
+        <div class="dashboard-section" id="secAvanzamento">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="section-badge-num">2</span>
+                    <span>Avanzamento lavori</span>
+                </div>
+                <span id="taskCountBadge" class="task-badge-num">0/13</span>
+            </div>
             <div class="card">
                 <div class="card-subtitle">Fase 1 e 3 vanno da sole; nella fase 2 servi tu (account, attivazioni, codici). I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
@@ -2228,8 +2352,16 @@ function Open-PannelloOperatore {
             </div>
         </div>
 
-        <!-- SCHEDA 3: PORTALI -->
-        <div id="view-tab-portali" class="section-view" role="tabpanel" aria-labelledby="btn-tab-portali">
+        <!-- ================================================================= -->
+        <!-- SEZIONE 3: PORTALI & STRUMENTI OPERATORE (GRIGLIA RAPIDA)         -->
+        <!-- ================================================================= -->
+        <div class="dashboard-section" id="secPortali">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="section-badge-num">3</span>
+                    <span>Portali &amp; Strumenti rapidi</span>
+                </div>
+            </div>
             <div class="card">
                 <div class="links-grid" id="portalLinksGrid">
                     <div class="portal-divider">Account ed email</div>
@@ -2265,7 +2397,7 @@ function Open-PannelloOperatore {
         var inizioLavori = 0;
         var isScriptConnected = false;
         var lastStatusPing = 0;
-        var schedaScelta = false;
+        var formManualmenteAperto = false;
         var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function el(id) { return document.getElementById(id); }
@@ -2349,12 +2481,19 @@ function Open-PannelloOperatore {
             e.className = 'esito ' + tipo;
         }
 
-        function apriScheda(tabId, automatica) {
-            if (!automatica) schedaScelta = true;
-            var tabs = document.querySelectorAll('.tab-btn');
-            for (var i = 0; i < tabs.length; i++) tabs[i].setAttribute('aria-selected', tabs[i].id === 'btn-' + tabId ? 'true' : 'false');
-            var views = document.querySelectorAll('.section-view');
-            for (var j = 0; j < views.length; j++) views[j].classList.toggle('active-view', views[j].id === 'view-' + tabId);
+        // Navigazione / scorrimento rapido tra le sezioni della pagina singola
+        function apriScheda(tabId) {
+            if (tabId === 'tab-cred') {
+                espandiFormCliente();
+                var s1 = el('secCliente');
+                if (s1) s1.scrollIntoView({ behavior: 'smooth' });
+            } else if (tabId === 'tab-portali') {
+                var s3 = el('secPortali');
+                if (s3) s3.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                var s2 = el('secAvanzamento');
+                if (s2) s2.scrollIntoView({ behavior: 'smooth' });
+            }
         }
 
         function setDomain(dom, provName, btn) {
@@ -2461,9 +2600,55 @@ function Open-PannelloOperatore {
             }
         }
 
-        function segnaErrore(id) {
-            var e = el(id);
-            if (e) { e.classList.add('errore'); e.focus(); }
+        // COMPRESSIONE DINAMICA DEL FORM IN UN BADGE COMPATTO
+        function aggiornaRiepilogoCompatto() {
+            var c = val('inCognome'), n = val('inNome');
+            var nomeCompleto = (c && n) ? (c + ' ' + n).trim() : (c || n || 'Cliente');
+            var email = val('inEmail') || ('cliente@' + currentDomain);
+            var pass = val('inPass') || 'Cliente123!';
+            var tel = val('inTelefono');
+
+            if (el('sumNomeCliente')) el('sumNomeCliente').innerText = nomeCompleto;
+            if (el('sumEmail')) el('sumEmail').innerText = email;
+            if (el('sumPass')) el('sumPass').innerText = pass;
+
+            var sumTelBox = el('sumTelBox');
+            if (sumTelBox) {
+                if (tel) {
+                    el('sumTel').innerText = tel;
+                    sumTelBox.style.display = 'inline-flex';
+                } else {
+                    sumTelBox.style.display = 'none';
+                }
+            }
+
+            var prof = el('selProfilo') ? el('selProfilo').value : 'BASE';
+            var svcList = [];
+            var selOffice = el('selOffice');
+            if (selOffice && selOffice.value !== 'no') {
+                svcList.push('Office: ' + selOffice.options[selOffice.selectedIndex].text.replace(/\s*\(.*\)/, ''));
+            }
+            if (el('chkSvcProton') && el('chkSvcProton').checked) svcList.push('Proton');
+            if (el('chkSvcMcAfee') && el('chkSvcMcAfee').checked) svcList.push('McAfee');
+            if (el('chkSvcNorton') && el('chkSvcNorton').checked) svcList.push('Norton');
+            if (el('chkSvcCyber') && el('chkSvcCyber').checked) svcList.push('Cyber Protection');
+
+            var descSvc = 'Profilo app: ' + prof + (svcList.length > 0 ? (' \u00b7 ' + svcList.join(' \u00b7 ')) : '');
+            if (el('sumProfiloServizi')) el('sumProfiloServizi').innerText = descSvc;
+        }
+
+        function comprimiFormCliente() {
+            aggiornaRiepilogoCompatto();
+            var form = el('formClienteFull'), sum = el('summaryClienteCard');
+            if (form) form.style.display = 'none';
+            if (sum) sum.style.display = 'block';
+        }
+
+        function espandiFormCliente() {
+            formManualmenteAperto = true;
+            var form = el('formClienteFull'), sum = el('summaryClienteCard');
+            if (form) form.style.display = 'block';
+            if (sum) sum.style.display = 'none';
         }
 
         // Costruisce i dati da inviare: campi facoltativi con valori predefiniti se lasciati vuoti.
@@ -2500,7 +2685,7 @@ function Open-PannelloOperatore {
             };
         }
 
-        // Unico pulsante: invia i dati confermati allo script e avvia/prosegue l'installazione.
+        // Unico pulsante: invia i dati confermati allo script e comprime il form in primo piano
         function avviaConfigurazione() {
             var payload = datiCliente();
             if (!payload) return;
@@ -2519,7 +2704,9 @@ function Open-PannelloOperatore {
                     mostraEsito('\u2713 Installazione avviata! Il PC prosegue automaticamente.', 'ok');
                     showToast('Installazione avviata');
                     playChime();
-                    apriScheda('tab-live');
+                    comprimiFormCliente();
+                    var secAv = el('secAvanzamento');
+                    if (secAv) secAv.scrollIntoView({ behavior: 'smooth' });
                 } else {
                     mostraEsito('Il PC ha rifiutato i dati: ' + ((res.j && res.j.motivo) || 'risposta non valida') + '.', 'errore');
                 }
@@ -2593,7 +2780,6 @@ function Open-PannelloOperatore {
         setInterval(checkConnection, 1500);
         checkConnection();
 
-        var NOMI_TASK = {};
         function applyStatus(data) {
             if (!data) return;
             lastStatusPing = Date.now();
@@ -2657,7 +2843,8 @@ function Open-PannelloOperatore {
                     else icon.innerHTML = '&#9675;';
                     row.querySelector('.task-detail').innerText = (dettaglio && stato !== 'pending' && stato !== 'done') ? dettaglio : '';
                 }
-                el('taskCountBadge').innerText = doneCount + '/' + TASK_KEYS.length;
+                var tb = el('taskCountBadge');
+                if (tb) tb.innerText = doneCount + '/' + TASK_KEYS.length;
             }
 
             var completato = !!(data.Completato || data.completato);
@@ -2678,9 +2865,13 @@ function Open-PannelloOperatore {
             } else {
                 banner.style.display = 'none';
             }
-            // Pannello aperto a lavori gia' avviati: mostro l'avanzamento (una volta,
-            // solo se l'operatore non ha gia' scelto una scheda).
-            if (!schedaScelta && !data.InAttesaDati && (pct > 5 || completato)) { apriScheda('tab-live', true); schedaScelta = true; }
+
+            // Pannello aperto a lavori gia' avviati o dati confermati:
+            // se l'operatore non ha aperto a mano il form, comprimiamo nei dati cliente
+            if (!formManualmenteAperto && !data.InAttesaDati && (pct > 5 || completato)) {
+                comprimiFormCliente();
+            }
+
             aggiornaIndicatore();
         }
 
