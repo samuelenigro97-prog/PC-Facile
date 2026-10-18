@@ -7,7 +7,7 @@ allineati come flusso e funzioni.
 | Passo / funzione            | Windows (`setup-pc.ps1`)                  | Mac (`setup-mac.sh`)                          | Note |
 |-----------------------------|-------------------------------------------|-----------------------------------------------|------|
 | Avvio unico (no menu)       | doppio click `PC Facile.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
-| Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (unico canale); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (zsh non ha un server HTTP) ; INVIO = nome in console | canale diverso per limite tecnico |
+| Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (pulsante `AVVIA INSTALLAZIONE`, dati facoltativi non bloccanti); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (pulsante `AVVIA INSTALLAZIONE`, dati facoltativi non bloccanti); INVIO = default in console | canale diverso per limite tecnico |
 | Ordine                      | fase 1 app+lingua (+Office) · fase 2 manuali · fase 3 pulizia/driver/aggiornamenti per ultimi | fase 1 lingua/app · fase 2 nome+account/servizi · fase 3 aggiornamenti per ultimi | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
 | Sincronizzazione orario     | `w32tm` + W32Time auto + tzautoupdate     | `systemsetup -setusingnetworktime on` + sntp  | pari |
@@ -28,7 +28,7 @@ allineati come flusso e funzioni.
 | Credenziali (esist./gen.)   | `Nome123!` + `Set-Clipboard`              | `Nome123!` + `pbcopy`                         | pari |
 | Report finale / Scheda      | Desktop solo `Scheda-Consegna-Cliente.pdf` (ripiego `.html` se il PDF fallisce); riepilogo tecnico in `C:\ProgramData\PCFacile\log` | Desktop solo `Scheda-Consegna-Mac.pdf` (conversione automatica headless con ripiego `.html`); riepilogo tecnico in console e log | pari |
 | Assist credenziali pagine   | copia email/password negli appunti + pulsanti copia nel pannello | copia email/password negli appunti + pulsanti copia nel pannello | pari |
-| Pannello Operatore Web      | 3 schede (Cliente, Avanzamento con 13 task live, Portali) + timer `MM:SS` + chime | 3 schede (Cliente, Avanzamento con 12 task live, Portali) + timer `MM:SS` + chime | pari |
+| Pannello Operatore Web      | 3 schede (Cliente, Avanzamento con 13 task live, Portali) + pulsante `AVVIA INSTALLAZIONE` (dati opzionali con fallback) + timer `MM:SS` + chime | 3 schede (Cliente, Avanzamento con 12 task live, Portali) + pulsante `AVVIA INSTALLAZIONE` (dati opzionali con fallback) + timer `MM:SS` + chime | pari |
 | Pulizia finale (auto-elimina)| rimuove `%TEMP%\setup-pc.ps1` + reg colori + checkpoint | `rm` dello script scaricato in `/tmp` | pari |
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |
 | Collegamenti Office Desktop | WScript.Shell dopo installazione Office   | —                                             | solo Win |

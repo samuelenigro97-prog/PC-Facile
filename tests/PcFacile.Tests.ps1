@@ -969,11 +969,11 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
 }
 
 Describe 'Test-DatiClienteConfermati' {
-    It 'accetta solo dati con Conferma, cognome, nome e servizi' {
+    It 'accetta solo dati con Conferma e servizi (cognome e nome sono facoltativi)' {
         $ok = [pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = [pscustomobject]@{ Cyber = $true } }
         Test-DatiClienteConfermati $ok | Should -BeTrue
         Test-DatiClienteConfermati ([pscustomobject]@{ Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
-        Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = 'R'; Cognome = ''; Servizi = @{ Cyber = $true } }) | Should -BeFalse
+        Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = ''; Cognome = ''; Servizi = @{ Cyber = $true } }) | Should -BeTrue
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi' }) | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = 'true'; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
         Test-DatiClienteConfermati $null | Should -BeFalse
@@ -1045,12 +1045,21 @@ Describe 'Server locale del pannello (runspace in background)' {
         (Invoke-RichiestaPannello 'POST' '/cred' 'https://samuelenigro97-prog.github.io' '{"Conferma":true,"Nome":"A","Cognome":"B","Servizi":{}}').Codice | Should -Be 403
     }
 
-    It 'rifiuta dati senza Conferma o senza cognome, e non li mette in coda' {
+    It 'rifiuta dati senza Conferma o senza servizi, e non li mette in coda' {
         (Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Nome":"Mario","Cognome":"Rossi","Servizi":{"Cyber":true}}').Codice | Should -Be 400
-        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Conferma":true,"Nome":"R","Cognome":"","Servizi":{"Cyber":true}}'
+        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Conferma":true,"Nome":"R","Cognome":""}'
         $r.Codice | Should -Be 400
-        ($r.Corpo | ConvertFrom-Json).motivo | Should -Match 'cognome'
+        ($r.Corpo | ConvertFrom-Json).motivo | Should -Match 'servizi'
         $Global:PannelloSync.CodaCred.Count | Should -Be 0
+    }
+
+    It 'accetta dati con cognome o nome vuoti usando il fallback predefinito' {
+        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Conferma":true,"Nome":"","Cognome":"","Servizi":{"Cyber":true}}'
+        $r.Codice | Should -Be 200
+        ($r.Corpo | ConvertFrom-Json).ok | Should -BeTrue
+        $Global:PannelloSync.CodaCred.Count | Should -Be 1
+        $rimosso = $null
+        [void]$Global:PannelloSync.CodaCred.TryDequeue([ref]$rimosso)
     }
 
     It 'accetta i dati confermati e Get-CredenzialiSalvatePannello li applica (anche servizi)' {

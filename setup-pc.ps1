@@ -1419,12 +1419,11 @@ function Update-PannelloStatus {
 }
 
 function Test-DatiClienteConfermati {
-    # Il pannello avvia/aggiorna la configurazione SOLO con il pulsante "AVVIA
-    # CONFIGURAZIONE": i dati devono avere Conferma = true, cognome, nome e servizi.
+    # Il pannello avvia/aggiorna la configurazione con il pulsante "AVVIA
+    # INSTALLAZIONE": i dati devono avere Conferma = true e servizi.
     param($Dati)
     if (-not $Dati) { return $false }
     if (-not ($Dati.Conferma -is [bool] -and $Dati.Conferma)) { return $false }
-    if ([string]::IsNullOrWhiteSpace([string]$Dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$Dati.Cognome)) { return $false }
     if (-not $Dati.Servizi) { return $false }
     return $true
 }
@@ -1501,9 +1500,7 @@ function Start-ServerPannello {
                             if (-not $dati) {
                                 Invia $res 400 '{"ok":false,"motivo":"dati non leggibili"}'
                             } elseif (-not ($dati.Conferma -is [bool] -and $dati.Conferma)) {
-                                Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante CONFERMA DATI CLIENTE)"}'
-                            } elseif ([string]::IsNullOrWhiteSpace([string]$dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$dati.Cognome)) {
-                                Invia $res 400 '{"ok":false,"motivo":"mancano cognome o nome"}'
+                                Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante AVVIA INSTALLAZIONE)"}'
                             } elseif (-not $dati.Servizi) {
                                 Invia $res 400 '{"ok":false,"motivo":"mancano i servizi"}'
                             } else {
@@ -2051,7 +2048,7 @@ function Open-PannelloOperatore {
         <!-- AVVISO: IL PC ASPETTA I DATI DEL CLIENTE -->
         <div id="attesaDatiBox" class="notice notice-attesa">
             <h2>&#9998; Il PC aspetta i dati del cliente</h2>
-            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila cognome, nome e servizi nella scheda <strong>Cliente</strong> e premi <strong>CONFERMA DATI CLIENTE</strong>.</p>
+            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila i dati nella scheda <strong>Cliente</strong> (facoltativi) e premi <strong>AVVIA INSTALLAZIONE</strong>.</p>
             <div class="notice-azioni">
                 <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">Vai alla scheda Cliente</button>
             </div>
@@ -2105,7 +2102,7 @@ function Open-PannelloOperatore {
         <!-- SCHEDA 1: DATI CLIENTE -->
         <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
             <div class="card">
-                <div class="card-subtitle">Mentre il PC installa programmi e lingua, inserisci qui i dati del cliente <strong>una volta sola</strong>: email e password si creano da sole (puoi modificarle). Puoi correggerli e confermare di nuovo finch&eacute; il passo che li usa non &egrave; partito.</div>
+                <div class="card-subtitle">Mentre il PC installa programmi e lingua, puoi inserire qui i dati del cliente: email e password si creano da sole (puoi modificarle). Se lasci i campi vuoti verranno usati valori predefiniti.</div>
 
                 <div class="cred-step-box">
                     <div class="cred-step-title"><span class="step-badge">1</span> Cliente</div>
@@ -2120,7 +2117,7 @@ function Open-PannelloOperatore {
                         </div>
                     </div>
                     <div>
-                        <label class="cred-label" for="inTelefono">Cellulare <span class="obbligo">(obbligatorio con Cyber Protection)</span></label>
+                        <label class="cred-label" for="inTelefono">Cellulare <span class="obbligo" style="color:var(--muted); font-weight:normal;">(facoltativo &middot; consigliato con Cyber Protection)</span></label>
                         <input type="tel" id="inTelefono" class="cred-input" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
                     </div>
                 </div>
@@ -2202,7 +2199,7 @@ function Open-PannelloOperatore {
                     </div>
                 </div>
 
-                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
+                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#128640; AVVIA INSTALLAZIONE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top: 10px;">
                     <button type="button" class="btn-sec" style="width: 100%;" onclick="copiaRiepilogoCred()">&#128203; Copia dati per il ticket</button>
@@ -2473,40 +2470,41 @@ function Open-PannelloOperatore {
             if (e) { e.classList.add('errore'); e.focus(); }
         }
 
-        // Costruisce i dati da inviare; null se manca qualcosa di obbligatorio.
+        // Costruisce i dati da inviare: campi facoltativi con valori predefiniti se lasciati vuoti.
         function datiCliente() {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
-            var cyber = el('chkSvcCyber').checked;
-            if (!cognome) { segnaErrore('inCognome'); mostraEsito('Manca il cognome del cliente.', 'errore'); return null; }
-            if (!nome) { segnaErrore('inNome'); mostraEsito('Manca il nome del cliente.', 'errore'); return null; }
-            if (cyber && telefono.replace(/\D/g, '').length < 6) { segnaErrore('inTelefono'); mostraEsito('Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.', 'errore'); return null; }
-            if (email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
-            if (!pass) { segnaErrore('inPass'); mostraEsito('Manca la password.', 'errore'); return null; }
+            var cyber = el('chkSvcCyber') ? el('chkSvcCyber').checked : false;
+
+            var cognomeVal = cognome || 'Cliente';
+            var nomeVal = nome || 'Cliente';
+            var nomeCompleto = (cognome && nome) ? (cognome + ' ' + nome).trim() : (cognome || nome || 'Cliente');
+            var emailVal = (email && email.indexOf('@') > 0) ? email : ('cliente@' + currentDomain);
+            var passVal = pass || 'Cliente123!';
+
             return {
                 Conferma: true,
-                Email: email,
-                Password: pass,
+                Email: emailVal,
+                Password: passVal,
                 Provider: currentProviderName,
-                Cliente: (cognome + ' ' + nome).trim(),
-                Nome: nome,
-                Cognome: cognome,
+                Cliente: nomeCompleto,
+                Nome: nomeVal,
+                Cognome: cognomeVal,
                 Telefono: telefono,
-                ProfiloApp: el('selProfilo').value,
+                ProfiloApp: el('selProfilo') ? el('selProfilo').value : 'BASE',
                 Servizi: {
-                    Proton: el('chkSvcProton').checked,
-                    Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
-                    OfficeTipo: el('selOffice').value,
-                    McAfee: el('chkSvcMcAfee').checked,
-                    Norton: el('chkSvcNorton').checked,
+                    Proton: el('chkSvcProton') ? el('chkSvcProton').checked : false,
+                    Office: el('selOffice') ? (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo') : false,
+                    OfficeTipo: el('selOffice') ? el('selOffice').value : 'm365',
+                    McAfee: el('chkSvcMcAfee') ? el('chkSvcMcAfee').checked : false,
+                    Norton: el('chkSvcNorton') ? el('chkSvcNorton').checked : false,
                     Cyber: cyber
                 }
             };
         }
 
-        // Unico pulsante: invia i dati confermati allo script. Lo script parte (o
-        // aggiorna i dati) SOLO con Conferma:true; l'esito mostrato e' quello vero.
+        // Unico pulsante: invia i dati confermati allo script e avvia/prosegue l'installazione.
         function avviaConfigurazione() {
             var payload = datiCliente();
             if (!payload) return;
@@ -2522,8 +2520,9 @@ function Open-PannelloOperatore {
             }).then(function(res) {
                 btn.disabled = false;
                 if (res.ok && res.j && res.j.ok !== false) {
-                    mostraEsito('\u2713 Dati ricevuti dal PC: i passi che li usano partono con questi dati.', 'ok');
-                    showToast('Dati ricevuti dal PC');
+                    mostraEsito('\u2713 Installazione avviata! Il PC prosegue automaticamente.', 'ok');
+                    showToast('Installazione avviata');
+                    playChime();
                     apriScheda('tab-live');
                 } else {
                     mostraEsito('Il PC ha rifiutato i dati: ' + ((res.j && res.j.motivo) || 'risposta non valida') + '.', 'errore');
@@ -2721,30 +2720,35 @@ function Set-DatiCliente {
     param($Dati)
     if (-not $Dati) { return $false }
     try {
-        if ($Dati.Email) {
-            $Global:credMsAccount = [string]$Dati.Email
-            $script:credMsAccount = [string]$Dati.Email
-            if ([string]$Dati.Email -like "*@*") { $Global:credDominio = ([string]$Dati.Email -split "@")[-1] }
-        }
-        if ($Dati.Password) {
-            $Global:credMsPassword = [string]$Dati.Password
-            $script:credMsPassword = [string]$Dati.Password
-        }
-        if ($Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
-        if ($Dati.Cliente) {
-            $Global:nomeCliente = [string]$Dati.Cliente
-            $script:nomeCliente = [string]$Dati.Cliente
-        }
-        if ($Dati.Nome)     { $Global:nomeProprioCliente = [string]$Dati.Nome }
-        if ($Dati.Cognome)  { $Global:cognomeCliente = [string]$Dati.Cognome }
-        if ($Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
-        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
-        if ($Dati.Servizi) {
+        $hasP = { param($obj, [string]$name) return ($null -ne $obj -and $null -ne $obj.PSObject -and $null -ne $obj.PSObject.Properties[$name]) }
+
+        $cognome = if ((&$hasP $Dati 'Cognome') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Cognome))) { [string]$Dati.Cognome } else { 'Cliente' }
+        $nome    = if ((&$hasP $Dati 'Nome') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Nome))) { [string]$Dati.Nome } else { 'Cliente' }
+        $cliente = if ((&$hasP $Dati 'Cliente') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Cliente))) { [string]$Dati.Cliente } else { "$cognome $nome".Trim() }
+        if (-not $cliente) { $cliente = 'Cliente' }
+        $Global:nomeCliente = $cliente
+        $script:nomeCliente = $cliente
+        $Global:nomeProprioCliente = $nome
+        $Global:cognomeCliente = $cognome
+
+        $email = if ((&$hasP $Dati 'Email') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Email))) { [string]$Dati.Email } else { "cliente@$($Global:credDominio)" }
+        $Global:credMsAccount = $email
+        $script:credMsAccount = $email
+        if ($email -like "*@*") { $Global:credDominio = ($email -split "@")[-1] }
+
+        $pass = if ((&$hasP $Dati 'Password') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Password))) { [string]$Dati.Password } else { 'Cliente123!' }
+        $Global:credMsPassword = $pass
+        $script:credMsPassword = $pass
+
+        if ((&$hasP $Dati 'Provider') -and $Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
+        if ((&$hasP $Dati 'Telefono') -and $Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
+        if ((&$hasP $Dati 'ProfiloApp') -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
+        if ((&$hasP $Dati 'Servizi') -and $Dati.Servizi) {
             $Global:serviziSelezionati = $Dati.Servizi
             # Suite Office da installare/attivare (1 = Microsoft 365, 2 = perpetuo,
             # 4 = LibreOffice, 5 = nessuna). Senza OfficeTipo (pannelli vecchi)
             # la spunta "card Office" vale Microsoft 365.
-            $tipo = [string]$Dati.Servizi.OfficeTipo
+            $tipo = if (&$hasP $Dati.Servizi 'OfficeTipo') { [string]$Dati.Servizi.OfficeTipo } else { '' }
             $Global:SceltaOffice = switch ($tipo) {
                 'm365'        { '1' }
                 'perpetuo'    { '2' }

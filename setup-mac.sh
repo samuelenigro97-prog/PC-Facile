@@ -778,7 +778,7 @@ open_pannello_mac() {
                     </div>
                 </div>
 
-                <label class="etichetta" for="inTelefono">Cellulare <span style="color:#fca5a5; font-size:13px;">(obbligatorio con Cyber Protection)</span></label>
+                <label class="etichetta" for="inTelefono">Cellulare <span style="color:#94a3b8; font-size:13px;">(facoltativo &middot; consigliato con Cyber Protection)</span></label>
                 <input type="tel" class="cred-input" id="inTelefono" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
 
                 <label class="etichetta" for="inEmail">Email proposta</label>
@@ -826,7 +826,7 @@ open_pannello_mac() {
                     </select>
                 </div>
 
-                <button type="button" id="btnAvviaAuto" class="btn-avvia" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
+                <button type="button" id="btnAvviaAuto" class="btn-avvia" onclick="avviaAutoMac()">&#128640; AVVIA INSTALLAZIONE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top:10px;">
                     <button type="button" class="btn-sec" style="width:100%;" onclick="copiaRiepilogoCredMac()">&#128203; Copia dati per il ticket</button>
@@ -1039,7 +1039,10 @@ open_pannello_mac() {
         }
 
         function avviaAutoMac() {
-            ['inCognome', 'inNome', 'inTelefono'].forEach(function(id) { document.getElementById(id).classList.remove('errore'); });
+            ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.classList.remove('errore');
+            });
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
             var c = document.getElementById('inCognome').value.trim();
@@ -1050,17 +1053,21 @@ open_pannello_mac() {
             var mcafee = document.getElementById('chkSvcMcAfee').checked;
             var norton = document.getElementById('chkSvcNorton').checked;
             var cyber = document.getElementById('chkSvcCyber').checked;
-            if (!c) { campoErrato('inCognome', 'Manca il cognome del cliente.'); return; }
-            if (!n) { campoErrato('inNome', 'Manca il nome del cliente.'); return; }
-            if (cyber && t.replace(/\D/g, '').length < 6) { campoErrato('inTelefono', 'Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.'); return; }
+
+            var cognomeVal = c || 'Cliente';
+            var nomeVal = n || 'Cliente';
+            var nomeCompleto = (c && n) ? (c + ' ' + n).trim() : (c || n || 'Cliente');
+            var emailVal = (email && email.indexOf('@') > 0) ? email : ('cliente@' + currentDom);
+            var passVal = pass || 'Cliente123!';
+
             var payload = {
                 Conferma: true,
-                Email: email,
-                Password: pass,
+                Email: emailVal,
+                Password: passVal,
                 Provider: currentProv,
-                Cliente: (c + ' ' + n).trim(),
-                Nome: n,
-                Cognome: c,
+                Cliente: nomeCompleto,
+                Nome: nomeVal,
+                Cognome: cognomeVal,
                 Telefono: t,
                 ProfiloApp: document.getElementById('selProfilo').value,
                 Servizi: {
@@ -1078,8 +1085,9 @@ open_pannello_mac() {
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            mostraEsito('\u2713 Dati confermati! Il terminale prosegue automaticamente.', 'ok');
-            showToast('Dati inviati al Mac');
+            mostraEsito('\u2713 Installazione avviata! Il terminale prosegue automaticamente.', 'ok');
+            showToast('Installazione avviata');
+            playChimeMac();
             showTabMac('tab-live', document.getElementById('btn-tab-live'));
         }
 
@@ -1242,9 +1250,9 @@ attendi_credenziali_mac() {
     if leggi_credenziali_salvate_mac; then return 0; fi
 
     titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
-    print -r -- "${C_CYAN}  -> Compila Cognome, Nome, Telefono e servizi nel pannello (scheda Cliente).${C_RST}"
-    print -r -- "${C_OK}  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo.${C_RST}"
-    print -r -- "${C_DIM}     (Se il pannello non funziona premi INVIO qui e scrivi il nome del cliente)${C_RST}"
+    print -r -- "${C_CYAN}  -> Compila i dati nel pannello (scheda Cliente, facoltativi).${C_RST}"
+    print -r -- "${C_OK}  -> Premi 'AVVIA INSTALLAZIONE': si riparte da solo.${C_RST}"
+    print -r -- "${C_DIM}     (Oppure premi INVIO qui per proseguire subito con valori predefiniti)${C_RST}"
     print -r -- ""
     beep_attesa
     start_bip_ripetuto_mac
