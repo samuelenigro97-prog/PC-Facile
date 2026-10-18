@@ -7,6 +7,15 @@
 # =============================================================================
 cd "$(dirname "$0")" || exit 1
 
+LAUNCHER_VERSION="2.2 (2026-10-18)"
+printf '\e]2;PC Facile Mac - v%s\a' "$LAUNCHER_VERSION" 2>/dev/null || true
+echo ""
+echo "============================================================"
+echo "  🚀 PC FACILE MAC  -  v$LAUNCHER_VERSION"
+echo "  Batte. Forte. Sempre. | Store: UNIEURO_EXPO"
+echo "============================================================"
+echo ""
+
 # Sblocca automaticamente la cartella ed elimina l'avviso "malware" / quarantena di macOS Gatekeeper
 xattr -d com.apple.quarantine "$0" 2>/dev/null || true
 xattr -cr . 2>/dev/null || true

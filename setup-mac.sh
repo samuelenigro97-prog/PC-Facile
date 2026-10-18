@@ -9,6 +9,7 @@
 # =============================================================================
 
 SCRIPT_VERSION="2.2 (2026-10-18)"
+printf '\e]2;PC Facile Mac - v%s\a' "$SCRIPT_VERSION" 2>/dev/null || true
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1

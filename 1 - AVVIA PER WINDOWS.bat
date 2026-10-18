@@ -52,6 +52,13 @@ set "USER_ARGS=%USER_ARGS% %1"
 shift
 goto :raccogli_argomenti
 :argomenti_pronti
+title PC Facile Windows - v13.1 (2026-10-18)
+echo.
+echo ============================================================
+echo   PC FACILE WINDOWS  -  v13.1 (2026-10-18)
+echo   Batte. Forte. Sempre. | Store: UNIEURO_EXPO
+echo ============================================================
+echo.
 
 REM --- 2. Impostazioni console a tema Unieuro (Navy #00122B & Arancio #EE7203) ---
 set "SEE_MASK_NOZONECHECKS=1"
