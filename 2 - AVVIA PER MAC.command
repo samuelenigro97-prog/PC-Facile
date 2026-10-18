@@ -104,6 +104,7 @@ if [[ -n "$SCRIPT_LOCALE" ]]; then
     echo "============================================================"
     echo "  PC FACILE MAC - File preinstallati trovati su chiavetta!"
     echo "  Posizione: $SCRIPT_LOCALE"
+    echo "  Tutti i file sono gia' presenti: nessun download eseguito."
     echo "  Avvio immediato della configurazione..."
     echo "============================================================"
     chmod +x "$SCRIPT_LOCALE" 2>/dev/null || true

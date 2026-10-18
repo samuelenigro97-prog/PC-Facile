@@ -117,6 +117,7 @@ if defined SCRIPT_LOCALE (
     echo ============================================================
     echo   File preinstallati trovati su chiavetta USB!
     echo   Posizione: %SCRIPT_LOCALE%
+    echo   Tutti i file sono gia' presenti: nessun download eseguito.
     echo   Avvio immediato della configurazione...
     echo ============================================================
     powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:SEE_MASK_NOZONECHECKS=1; Unblock-File '%SCRIPT_LOCALE%' -ErrorAction SilentlyContinue" >nul 2>&1
