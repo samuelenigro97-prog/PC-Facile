@@ -15,6 +15,7 @@ export NONINTERACTIVE=1
 export HOMEBREW_NO_AUTO_UPDATE=1
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_INSTALL_CLEANUP=1
+export HOMEBREW_NO_ANALYTICS=1
 
 # Prevenzione stop/sleep del Mac durante il setup
 if command -v caffeinate >/dev/null 2>&1 && [[ "$1" != "--test" && "$1" != "-t" ]]; then
@@ -157,7 +158,7 @@ start_sudo_keepalive_mac() {
   fi
   (
     while kill -0 "$$" 2>/dev/null; do
-      sudo -n true 2>/dev/null
+      sudo -n -v 2>/dev/null || sudo -n true 2>/dev/null
       sleep 30
     done
   ) &
