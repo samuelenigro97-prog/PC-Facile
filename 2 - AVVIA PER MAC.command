@@ -81,16 +81,40 @@ aggiorna_chiavetta() {
     rm -f -- "$man"
 }
 
-echo "Scarico l'ultima versione da GitHub..."
-if scarica_verificato; then
-    echo "Scaricato e verificato (SHA256)."
+# --- Rilevamento file preinstallati su chiavetta USB o cartella locale ---
+SCRIPT_LOCALE=""
+if [[ -f "./setup-mac.sh" ]]; then
+    SCRIPT_LOCALE="./setup-mac.sh"
+else
+    for v in /Volumes/*; do
+        if [[ -f "$v/setup-mac.sh" ]]; then
+            SCRIPT_LOCALE="$v/setup-mac.sh"
+            break
+        elif [[ -f "$v/PC Facile/setup-mac.sh" ]]; then
+            SCRIPT_LOCALE="$v/PC Facile/setup-mac.sh"
+            break
+        elif [[ -f "$v/PC-Facile-Kit-USB/setup-mac.sh" ]]; then
+            SCRIPT_LOCALE="$v/PC-Facile-Kit-USB/setup-mac.sh"
+            break
+        fi
+    done
+fi
+
+if [[ -n "$SCRIPT_LOCALE" ]]; then
+    echo "============================================================"
+    echo "  PC FACILE MAC - File preinstallati trovati su chiavetta!"
+    echo "  Posizione: $SCRIPT_LOCALE"
+    echo "  Avvio immediato della configurazione..."
+    echo "============================================================"
+    chmod +x "$SCRIPT_LOCALE" 2>/dev/null || true
+    xattr -d com.apple.quarantine "$SCRIPT_LOCALE" 2>/dev/null || true
+    zsh "$SCRIPT_LOCALE"
+elif scarica_verificato; then
+    echo "Chiavetta non rilevata: scarico e verifico da GitHub (SHA256)..."
     aggiorna_chiavetta
     zsh "$TMP"
-elif [[ -f "./setup-mac.sh" ]]; then
-    echo "Download non riuscito o impronta SHA256 non valida: uso la copia accanto (potrebbe non essere l'ultima)."
-    zsh "./setup-mac.sh"
 else
-    echo "Impossibile scaricare/verificare lo script e nessuna copia locale: controlla la rete."
+    echo "Impossibile scaricare o verificare lo script e nessuna copia locale su chiavetta: controlla la rete."
 fi
 
 echo ""
