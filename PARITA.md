@@ -31,7 +31,7 @@ allineati come flusso e funzioni.
 | Pulizia finale (auto-elimina)| rimuove `%TEMP%\setup-pc.ps1` + reg colori + checkpoint | `rm` dello script scaricato in `/tmp` | pari |
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |
 | Collegamenti Office Desktop | WScript.Shell dopo installazione Office   | —                                             | solo Win |
-| Icona Desktop per ogni app  | copia lnk da Start / shell:AppsFolder     | —                                             | solo Win |
+| Icona Desktop per ogni app  | copia lnk da Start / shell:AppsFolder     | symlink .app su Desktop                      | pari |
 | Errori: rete di sicurezza   | `trap` a livello script + lista imprevisti | (`set -e` / trap shell)                       | solo Win (per ora) |
 | Log strutturato             | JSON + CSV in `ProgramData\PCFacile\log`  | — (TODO)                                       | solo Win (per ora) |
 

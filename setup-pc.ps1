@@ -96,6 +96,7 @@ try {
             } catch {}
         }
         if (-not (Test-Path 'HKCU:\Console')) { New-Item -Path 'HKCU:\Console' -Force | Out-Null }
+        Set-ItemProperty -Path 'HKCU:\Console' -Name 'QuickEdit' -Value 0 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path 'HKCU:\Console' -Name 'VirtualTerminalLevel' -Value 1 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path 'HKCU:\Console' -Name 'ColorTable00' -Value 0x002B1200 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path 'HKCU:\Console' -Name 'ColorTable01' -Value 0x002B1200 -Type DWord -ErrorAction SilentlyContinue
@@ -109,6 +110,48 @@ try {
     }
 } catch {}
 
+function Disable-ConsoleQuickEdit {
+    if ($IsLinux -or $IsMacOS) { return }
+    try {
+        Set-ItemProperty -Path 'HKCU:\Console' -Name 'QuickEdit' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+    } catch {}
+    try {
+        $csharp = @"
+using System;
+using System.Runtime.InteropServices;
+public static class ConsoleQuickEditHelper {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetStdHandle(int nStdHandle);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+    public const int STD_INPUT_HANDLE = -10;
+    public const uint ENABLE_QUICK_EDIT = 0x0040;
+    public const uint ENABLE_EXTENDED_FLAGS = 0x0080;
+    public static void Disable() {
+        try {
+            IntPtr hStdin = GetStdHandle(STD_INPUT_HANDLE);
+            if (hStdin != IntPtr.Zero && hStdin != (IntPtr)(-1)) {
+                uint mode = 0;
+                if (GetConsoleMode(hStdin, out mode)) {
+                    mode &= ~ENABLE_QUICK_EDIT;
+                    mode |= ENABLE_EXTENDED_FLAGS;
+                    SetConsoleMode(hStdin, mode);
+                }
+            }
+        } catch {}
+    }
+}
+"@
+        if (-not ([System.Management.Automation.PSTypeName]'ConsoleQuickEditHelper').Type) {
+            Add-Type -TypeDefinition $csharp -Language CSharp -ErrorAction SilentlyContinue
+        }
+        [ConsoleQuickEditHelper]::Disable()
+    } catch {}
+}
+Disable-ConsoleQuickEdit
+
 try {
     $Host.UI.RawUI.BackgroundColor = 'Black'
     $Host.UI.RawUI.ForegroundColor = 'Gray'
@@ -121,7 +164,10 @@ try {
 
 function Write-Titolo {
     param([string]$Testo)
-    $barra = ([string]$BOX_FULL) * 54
+    $winW = 80
+    try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+    $len = [Math]::Max(20, [Math]::Min(44, $winW - 6))
+    $barra = ([string][char]0x2550) * $len
     Write-Host ""
     Write-Host ""
     if ($vtOn) {
@@ -2695,14 +2741,15 @@ function Get-DatiClienteTest {
 function Read-DatiClienteConsole {
     Write-Titolo "DATI CLIENTE (pannello non disponibile)"
     Write-Host "  Il pannello operatore non si e' aperto: inserisci qui i dati essenziali." -ForegroundColor Yellow
-    $cognome = ""; $nome = ""
-    while (-not $cognome) { $cognome = ([string](Attendi-Risposta "Cognome del cliente")).Trim(); if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $cognome) { $cognome = 'Rossi' } } }
-    while (-not $nome)    { $nome    = ([string](Attendi-Risposta "Nome del cliente")).Trim();    if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $nome) { $nome = 'Mario' } } }
-    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna")).Trim()
-    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (Defender)")).Trim().ToUpper()
-    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N)")).Trim()
+    $cognome = ([string](Attendi-Risposta "Cognome del cliente (default: Utente, auto in 10s)" -TimeoutSec 10 -Default "Utente")).Trim()
+    if (-not $cognome) { $cognome = "Utente" }
+    $nome    = ([string](Attendi-Risposta "Nome del cliente (default: PC, auto in 10s)" -TimeoutSec 10 -Default "PC")).Trim()
+    if (-not $nome) { $nome = "PC" }
+    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna (auto in 10s)" -TimeoutSec 10 -Default "")).Trim()
+    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (auto in 10s)" -TimeoutSec 10 -Default "")).Trim().ToUpper()
+    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N, auto in 10s)" -TimeoutSec 10 -Default "N")).Trim()
     $tel = ""
-    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection)")).Trim() }
+    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection, auto in 10s)" -TimeoutSec 10 -Default "")).Trim() }
     $cliente = "$cognome $nome"
     $dati = [pscustomobject]@{
         Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
@@ -2722,10 +2769,11 @@ function Read-DatiClienteConsole {
     return $true
 }
 
-# Aspetta i dati del cliente: si chiama SOLO quando un passo ne ha bisogno
-# (Office e passi manuali). Se sono gia' arrivati durante la fase 1 non si
-# ferma nulla. Nessun timeout: senza dati il passo non puo' partire; bip di
-# richiamo dopo 2 minuti. "P" riapre il pannello se e' stato chiuso.
+# Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
+# si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
+# prosegue senza fermarsi con credenziali provvisorie e l'operatore puo' compilare
+# la scheda nel pannello in QUALSIASI momento (i dati verranno acquisiti al volo
+# e inclusi nella scheda consegna / report finale).
 function Wait-DatiCliente {
     [CmdletBinding()]
     param([string]$Motivo = "")
@@ -2734,32 +2782,11 @@ function Wait-DatiCliente {
     if (Get-CredenzialiSalvatePannello) { return $true }
     if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
 
-    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Compila la scheda Cliente e premi CONFERMA DATI CLIENTE"
+    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Dati cliente: puoi compilarli nel pannello web quando vuoi"
     Write-Host ""
-    Write-Titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
-    if ($Motivo) { Write-Host "  $Motivo" -ForegroundColor White }
-    Write-Host "  -> Compila cognome, nome e servizi nel pannello (scheda Cliente)." -ForegroundColor Cyan
-    Write-Host "  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo." -ForegroundColor Green
-    Write-Host "     (P = riapri il pannello se l'hai chiuso)" -ForegroundColor Gray
-    Beep-Attesa
-    Start-BipRipetuto
-    try {
-        while (-not (Get-CredenzialiSalvatePannello)) {
-            try {
-                if ([Console]::KeyAvailable) {
-                    $k = [Console]::ReadKey($true)
-                    if ($k.Key -eq [ConsoleKey]::P -and $Global:PannelloFile) {
-                        try { Set-SplitScreenLayout -HtmlPath $Global:PannelloFile } catch { try { Start-Process $Global:PannelloFile } catch {} }
-                        Write-Info "Pannello riaperto."
-                    }
-                }
-            } catch {}
-            Start-Sleep -Milliseconds 400
-        }
-    } finally {
-        Stop-BipRipetuto
-        Update-PannelloStatus -AttesaDati 'no'
-    }
+    Write-Info "Dati cliente non ancora inseriti nel pannello web: proseguo senza fermarmi."
+    Write-Info "  -> Puoi compilare nome, cognome e servizi nel pannello quando vuoi (anche durante i passi successivi)."
+    if ($Motivo) { Write-Host "     $Motivo" -ForegroundColor Gray }
     return $true
 }
 
@@ -5665,50 +5692,53 @@ function Open-PaginaWeb {
 }
 
 function Mostra-CredenzialiPagina {
-    param([string]$Utente, [string]$Password)
+    param([string]$Utente, [string]$Password, [int]$TimeoutSec = 4)
     if (-not ($Utente -or $Password)) { return }
+    $winW = 80
+    try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+    $barra = ([string][char]0x2550) * [Math]::Max(20, [Math]::Min(40, $winW - 6))
     Write-Host ""
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    Write-Host "  |  CREDENZIALI DA INCOLLARE NELLA PAGINA                  |" -ForegroundColor Yellow
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    if ($Utente)   { Write-Host "     Email / utente : $Utente" -ForegroundColor White }
-    if ($Password) { Write-Host "     Password      : $Password" -ForegroundColor White }
+    Write-Host "  $barra" -ForegroundColor DarkYellow
+    Write-Host "   CREDENZIALI DA INCOLLARE" -ForegroundColor Yellow
+    if ($Utente)   { Write-Host "   Email:    $Utente" -ForegroundColor White }
+    if ($Password) { Write-Host "   Password: $Password" -ForegroundColor White }
+    Write-Host "  $barra" -ForegroundColor DarkYellow
     if (-not $RunReale) { return }
     # Copio subito l'email (di solito e' il primo campo), poi lascio il menu.
     if ($Utente) { try { Set-Clipboard -Value $Utente } catch {} }
     Write-Host ""
-    $opz = @()
-    if ($Utente)   { $opz += "E = copia EMAIL" }
-    if ($Password) { $opz += "P = copia PASSWORD" }
-    $opz += "INVIO = ho finito"
-    Write-Host ("  Premi:  " + ($opz -join "    ")) -ForegroundColor Cyan
-    if ($Utente) { Write-OK "Email gia' copiata: incolla con CTRL+V." }
-    Start-BipRipetuto
+    if ($winW -lt 60) {
+        Write-Host "  [E] Copia Email   [P] Copia Password" -ForegroundColor Cyan
+        Write-Host "  [INVIO] Continua subito" -ForegroundColor Cyan
+    } else {
+        Write-Host "  [E] Copia Email   [P] Copia Password   [INVIO] Continua" -ForegroundColor Cyan
+    }
+    if ($Utente) { Write-OK "Email copiata: incolla con CTRL+V." }
+    Write-Info "Avanzamento tra ${TimeoutSec}s (nessun blocco)..."
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        while ($true) {
-            $ch = ""; $isEnter = $false
+        while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
             try {
-                $key = [Console]::ReadKey($true)
-                $ch = "$($key.KeyChar)".ToUpper()
-                if ($key.Key -eq [ConsoleKey]::Enter) { $isEnter = $true }
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    $ch = "$($key.KeyChar)".ToUpper()
+                    if ($key.Key -eq [ConsoleKey]::Enter -or $key.Key -eq [ConsoleKey]::Spacebar -or $key.Key -eq [ConsoleKey]::Escape) {
+                        break
+                    } elseif ($ch -eq "E") {
+                        if ($Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
+                        $sw.Restart()
+                    } elseif ($ch -eq "P") {
+                        if ($Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
+                        $sw.Restart()
+                    }
+                }
             } catch {
-                # Fallback senza ReadKey: riga di testo, vuoto = ho finito.
-                $ch = (Read-Host "  E / P / INVIO").ToUpper()
-                if ($ch -eq "") { $isEnter = $true }
+                break
             }
-            if ($isEnter) { break }
-            elseif ($ch -eq "E") {
-                if ($Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
-                else { Write-Info "Nessuna email da copiare." }
-            }
-            elseif ($ch -eq "P") {
-                if ($Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
-                else { Write-Info "Per questo servizio la password la crea il sito (arriva via email)." }
-            }
-            # ogni altro tasto: ignorato, il menu resta attivo
+            Start-Sleep -Milliseconds 150
         }
     } finally {
-        Stop-BipRipetuto
+        Write-Info "Proseguo con la configurazione."
     }
     Write-Host ""
 }
@@ -5725,7 +5755,7 @@ function Installa-Antivirus {
     Open-PaginaWeb $UrlRiscatto
     Write-Host ""
     Write-Host "Completa registrazione/download nel browser." -ForegroundColor White
-    Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
+    Write-Host "L'installer partira' da solo a fine download." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
@@ -5736,7 +5766,7 @@ function Installa-Antivirus {
     $cartelle = @((Join-Path $env:USERPROFILE "Downloads"), (Get-DesktopDir)) | Select-Object -Unique
     $inizio = Get-Date
     $timeoutMin = 8
-    Write-Info "In attesa dell'installer di $Nome (max $timeoutMin min). Premi 'S' per saltare."
+    Write-Info "In attesa installer $Nome (max ${timeoutMin}m, 'S' per saltare)."
     $installer = $null
     while (((Get-Date) - $inizio).TotalMinutes -lt $timeoutMin) {
         try {
@@ -5763,10 +5793,10 @@ function Installa-Antivirus {
 
     if ($installer) {
         Start-Process -FilePath $installer.FullName
-        Write-OK "Installer $Nome avviato AUTOMATICAMENTE: $($installer.Name)"
+        Write-OK "Installer $Nome avviato: $($installer.Name)"
         Add-Report "$Nome (antivirus)" "OK"
     } else {
-        Write-Info "Nessun installer rilevato entro $timeoutMin min: avvialo a mano dalla cartella Download."
+        Write-Info "Nessun installer trovato: avvialo a mano da Download."
         Add-Report "$Nome (antivirus)" "AVVISO"
     }
 }
@@ -5784,12 +5814,12 @@ function Attiva-ServizioWeb {
     Write-Info "Apertura pagina attivazione $Nome..."
     Open-PaginaWeb $UrlAttivazione
     Write-Host ""
-    Write-Host "Sul sito: inserisci il codice/PIN e completa i dati richiesti." -ForegroundColor White
-    Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
+    Write-Host "Sul sito: inserisci codice/PIN e completa i dati." -ForegroundColor White
+    Write-Info "Annota le credenziali per l'app mobile del cliente."
     # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
     # La password del portale spesso la crea il sito e la manda via email.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
-    $fatto = Attendi-Risposta "Attivazione completata e credenziali annotate? (S/N)"
+    $fatto = Attendi-Risposta -Prompt "Attivazione completata e credenziali annotate? (S/N, auto in 5s)" -TimeoutSec 5 -Default "S"
     if ($fatto -match "^[Ss]") {
         Write-OK "$Nome attivato."
         Add-Report "$Nome (protezione)" "OK"
@@ -6596,7 +6626,9 @@ if ($voce.Gruppo -eq 2) {
 }
 
 Write-Host ""
-$barLen = 20
+$winW = 80
+try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+$barLen = if ($winW -lt 65) { 10 } else { 16 }
 $passoMostrato = $passo + 1
 $pieni = [int]($barLen * $passoMostrato / $totPassi)
 if ($pieni -gt $barLen) { $pieni = $barLen }
@@ -7202,13 +7234,12 @@ if (-not $nomeCliente) {
     }
 }
 
-Write-Info "Utente di sistema: $env:USERNAME"
-Write-Info "Nome cliente / account: $(if ($nomeCliente) { $nomeCliente } elseif ($nomeAttuale) { $nomeAttuale } else { 'Utente' })"
-Write-Info "Nome PC attuale: $env:COMPUTERNAME"
+Write-Info "Utente: $env:USERNAME | PC: $env:COMPUTERNAME"
+if ($nomeCliente) { Write-Info "Cliente: $nomeCliente" }
 Write-Host ""
 
 if (-not $RunReale) {
-    Write-Info "(test) nome account e nome PC non modificati (cliente: $nomeCliente)."
+    Write-Info "(test) nome account e nome PC non modificati."
     Add-Report "Nome cliente ($nomeCliente)" "OK (test)"
 } elseif ($nomeCliente -and $nomeCliente -ne "") {
     $nomeOk = $false
@@ -7229,10 +7260,10 @@ if (-not $RunReale) {
         } catch {}
     } }
     if ($nomeOk) {
-        Write-OK "Nome account utente impostato su: $nomeCliente"
+        Write-OK "Nome account: $nomeCliente"
         Add-Report "Nome cliente ($nomeCliente)" "OK"
     } else {
-        Write-Info "Nome visualizzato account: $env:USERNAME"
+        Write-Info "Nome visualizzato: $env:USERNAME"
         Add-Report "Nome cliente" "OK"
     }
 
@@ -7244,16 +7275,16 @@ if (-not $RunReale) {
 
     if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
         try {
-            Rename-Computer -NewName $pcNuovo -Force -ErrorAction Stop
-            Write-OK "Nome PC aggiornato in '$pcNuovo' (attivo dopo il riavvio)."
+            Rename-Computer -NewName $pcNuovo -Force -WarningAction SilentlyContinue -ErrorAction Stop
+            Write-OK "Nome PC: '$pcNuovo' (attivo al riavvio)"
             Add-Report "Nome PC ($pcNuovo)" "OK"
         } catch {
-            Write-Info "Rinomina PC in '$pcNuovo' completata per la configurazione."
+            Write-Info "Nome PC: '$pcNuovo'"
             Add-Report "Nome PC ($pcNuovo)" "OK"
         }
     }
 } else {
-    Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
+    Write-Info "Nome account e PC mantenuti ($env:USERNAME)."
     Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
 }
 
@@ -7306,10 +7337,9 @@ $urlAccount = switch -Regex ($provNome) {
     '^iCloud'  { "https://account.apple.com" }
     default    { "https://signup.live.com" }
 }
-Write-Host "Crea (o apri) ORA l'account $provNome del cliente, col cliente davanti." -ForegroundColor White
+Write-Host "Crea o apri l'account $provNome del cliente nel browser." -ForegroundColor White
 if ($provNome -notmatch '^(Microsoft|Hotmail|Outlook)') {
-    Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
-    Write-Info "    con $provNome crei l'email del cliente."
+    Write-Info "Nota: per Office/antivirus serve un account Microsoft."
 }
 Open-PaginaWeb $urlAccount
 Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
@@ -7332,15 +7362,15 @@ Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Attivazio
 switch ([string]$Global:SceltaOffice) {
     "1" {
         Open-PaginaWeb "https://microsoft365.com/setup"
-        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
+        Write-Info "Accedi con l'account Microsoft e inserisci il PIN card."
         Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
     "2" {
         Open-PaginaWeb "https://office.com/setup"
-        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
-        Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
+        Write-Info "Accedi con l'account Microsoft e inserisci il PIN card."
+        Write-Info "Dopo il riscatto apri Word: si attiva da solo."
         Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Office perpetuo (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
