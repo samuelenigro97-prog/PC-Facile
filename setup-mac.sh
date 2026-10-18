@@ -158,6 +158,8 @@ stop_barra_animata_mac() {
 
 # ---- Sudo keepalive (richiesta PIN una sola volta all'avvio) --------------
 SUDO_KEEPALIVE_PID=""
+SUDOERS_TMP_FILE="/etc/sudoers.d/pcfacile_temp_$$"
+
 start_sudo_keepalive_mac() {
   [[ "$MODO_TEST" == true || "$RUN_REALE" != true ]] && return 0
   stop_sudo_keepalive_mac
@@ -172,14 +174,29 @@ start_sudo_keepalive_mac() {
     print -r -- "${C_ACC}  ============================================================${C_RST}"
     print -r -- ""
     beep_attesa
-    sudo -v || true
+    if ! sudo -v; then
+      warn "Autenticazione amministratore non riuscita: alcune funzioni potrebbero richiedere autorizzazione manuale."
+      return 1
+    fi
   fi
+
+  # Configura autorizzazione NOPASSWD temporanea in /etc/sudoers.d per la durata della sessione
+  # Cosi' Homebrew, brew cask, installer e scutil NON richiedono piu' il PIN
+  if sudo -n mkdir -p /etc/sudoers.d 2>/dev/null; then
+    local cur_user="${USER:-$(id -un)}"
+    echo "$cur_user ALL=(ALL) NOPASSWD: ALL" | sudo tee "$SUDOERS_TMP_FILE" >/dev/null 2>&1
+    sudo chmod 0440 "$SUDOERS_TMP_FILE" 2>/dev/null || true
+    if ! sudo -n visudo -cf "$SUDOERS_TMP_FILE" >/dev/null 2>&1; then
+      sudo rm -f "$SUDOERS_TMP_FILE" 2>/dev/null || true
+    fi
+  fi
+
   (
     while kill -0 "$$" 2>/dev/null; do
-      sudo -n -v 2>/dev/null || sudo -n true 2>/dev/null
-      sleep 30
+      sudo -n true 2>/dev/null || true
+      sleep 20
     done
-  ) &
+  ) 2>/dev/null &
   SUDO_KEEPALIVE_PID=$!
 }
 
@@ -189,9 +206,13 @@ stop_sudo_keepalive_mac() {
     wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
     SUDO_KEEPALIVE_PID=""
   fi
+  if [[ -n "$SUDOERS_TMP_FILE" && -f "$SUDOERS_TMP_FILE" ]]; then
+    sudo rm -f "$SUDOERS_TMP_FILE" 2>/dev/null || true
+  fi
+  sudo rm -f /etc/sudoers.d/pcfacile_temp_* 2>/dev/null || true
 }
 
-trap 'stop_barra_animata_mac 2>/dev/null; stop_bip_ripetuto_mac 2>/dev/null; stop_sudo_keepalive_mac 2>/dev/null' EXIT INT TERM
+trap 'stop_barra_animata_mac 2>/dev/null; stop_bip_ripetuto_mac 2>/dev/null; stop_sudo_keepalive_mac 2>/dev/null' EXIT INT TERM HUP
 
 chiedi(){
   if $MODO_TEST; then [[ "$1" == *"S/N"* ]] && REPLY="N" || REPLY=""; dim "$1  [test => '$REPLY']"; return; fi
@@ -1600,8 +1621,9 @@ fi
 if ! command -v brew >/dev/null 2>&1 && $RUN_REALE; then
     info "Installazione Homebrew..."
     start_barra_animata_mac "Installazione gestore pacchetti Homebrew"
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+    eval "$(/usr/local/bin/brew shellenv 2>/dev/null)"
     stop_barra_animata_mac
 fi
 command -v brew >/dev/null 2>&1 && ok "Homebrew pronto."
@@ -1653,7 +1675,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             fi
             # 2. Fallback su Homebrew se connesso e offline non presente
             if command -v brew >/dev/null 2>&1; then
-                if brew install --cask "$cask" >/dev/null 2>&1; then
+                if NONINTERACTIVE=1 HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install --cask "$cask" >/dev/null 2>&1; then
                     # Rimuove flag quarantena Gatekeeper per evitare popup di conferma al primo avvio
                     xattr -d -r com.apple.quarantine "/Applications/$nome.app" 2>/dev/null || true
                     # Chiude eventuali splash screen avviati in automatico post-install
@@ -1722,7 +1744,7 @@ if $RUN_REALE; then
     if command -v brew >/dev/null 2>&1; then
         info "Aggiorno le app installate con Homebrew..."
         start_barra_animata_mac "Aggiornamento applicazioni (Homebrew)"
-        brew upgrade >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
+        NONINTERACTIVE=1 HOMEBREW_NO_ENV_HINTS=1 brew upgrade >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
         stop_barra_animata_mac
     fi
     info "Scarico gli aggiornamenti di macOS (si installano al riavvio da Impostazioni di Sistema)..."
