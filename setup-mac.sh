@@ -1242,47 +1242,31 @@ PYEOF
 }
 
 # Aspetta i dati del cliente dal pannello: si chiama SOLO all'inizio dei passi
-# manuali (la fase 1 non si ferma). Nessun timeout. INVIO nel terminale =
-# ripiego minimo: nome del cliente scritto qui (servizi: nessuno tranne Cyber).
+# Non si blocca mai: se i dati del cliente sono gia' arrivati dal pannello li usa,
+# altrimenti prosegue subito con valori predefiniti ("Cliente", "cliente@icloud.com").
+# L'operatore puo' compilare la scheda nel pannello in qualsiasi momento.
 attendi_credenziali_mac() {
     if $MODO_TEST; then DATI_RICEVUTI=true; NOME_CLIENTE="Rossi Mario"; return 0; fi
     $DATI_RICEVUTI && return 0
     if leggi_credenziali_salvate_mac; then return 0; fi
 
-    titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
-    print -r -- "${C_CYAN}  -> Compila i dati nel pannello (scheda Cliente, facoltativi).${C_RST}"
-    print -r -- "${C_OK}  -> Premi 'AVVIA INSTALLAZIONE': si riparte da solo.${C_RST}"
-    print -r -- "${C_DIM}     (Oppure premi INVIO qui per proseguire subito con valori predefiniti)${C_RST}"
+    titolo "DATI CLIENTE (PANNELLO OPERATORE)"
+    info "Dati cliente non inseriti nel pannello: proseguo senza fermarmi."
+    info "  -> Puoi compilare la scheda nel pannello in qualsiasi momento (valori predefiniti applicati)."
     print -r -- ""
-    beep_attesa
-    start_bip_ripetuto_mac
-    while true; do
-        if leggi_credenziali_salvate_mac; then
-            stop_bip_ripetuto_mac
-            ok "Dati cliente e servizi ricevuti dal pannello."
-            [[ -n "$NOME_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Cliente :${C_RST} $NOME_CLIENTE"
-            [[ -n "$TELEFONO_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Telefono:${C_RST} $TELEFONO_CLIENTE"
-            return 0
-        fi
-        if read -t 0.5 -r tasto 2>/dev/null; then
-            stop_bip_ripetuto_mac
-            chiedi_sempre "Cognome e nome del cliente:"
-            [[ -n "$REPLY" ]] && NOME_CLIENTE="$REPLY"
-            SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false
-            DATI_RICEVUTI=true
-            return 0
-        fi
-        sleep 0.5
-    done
+
+    [[ -z "$NOME_CLIENTE" || "$NOME_CLIENTE" == "Utente" ]] && NOME_CLIENTE="Cliente"
+    [[ -z "$CRED_ACCOUNT" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
+    [[ -z "$CRED_PASSWORD" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
+    DATI_RICEVUTI=true
+    return 0
 }
 
 invoke_auto_signup_mac() {
-    local nome_c="${1:-Utente}"
+    local nome_c="${1:-Cliente}"
     leggi_credenziali_salvate_mac
 
     titolo "PASSI MANUALI - ACCOUNT E SERVIZI DEL CLIENTE"
-    info "Per ogni servizio indicato nel pannello si apre la pagina giusta con i dati pronti."
-    print -r -- ""
 
     if $MODO_TEST; then
         ok "TEST: Automazione Browser Mac simulata con successo su Proton Mail e servizi."
@@ -1295,20 +1279,29 @@ invoke_auto_signup_mac() {
     if [[ -z "$nome_c" || "$nome_c" == "Utente" ]]; then
         if [[ -n "$NOME_CLIENTE" && "$NOME_CLIENTE" != "Utente" ]]; then
             nome_c="$NOME_CLIENTE"
-        elif ! $MODO_TEST; then
-            chiedi_sempre "Nome e Cognome del Cliente (es. Mario Rossi):"
-            [[ -n "$REPLY" ]] && nome_c="$REPLY"
-            NOME_CLIENTE="$nome_c"
+        else
+            nome_c="Cliente"
+            NOME_CLIENTE="Cliente"
         fi
     fi
 
     local email_proton="${EMAIL_CLIENTE:-${nome_c//[^a-zA-Z0-9]/}@proton.me}"
     local pass_gen="${PASS_CLIENTE:-$(password_cliente "$nome_c")}"
-    local do_proton="${SVC_PROTON:-true}"
+    local do_proton="${SVC_PROTON:-false}"
     local do_office="${SVC_OFFICE:-false}"
     local do_mcafee="${SVC_MCAFEE:-false}"
     local do_norton="${SVC_NORTON:-false}"
-    local do_cyber="${SVC_CYBER:-true}"
+    local do_cyber="${SVC_CYBER:-false}"
+
+    if ! $do_proton && ! $do_office && ! $do_mcafee && ! $do_norton && ! $do_cyber; then
+        info "Nessun servizio aggiuntivo selezionato nel pannello: proseguo direttamente."
+        update_pannello_mac_status 90 "Servizi e attivazioni" "Nessun servizio selezionato" false "servizi" "done" "Nessun servizio"
+        update_pannello_mac_status 93 "Unieuro Cyber Protection" "Non acquistato (saltato)" false "cyber" "skipped" "Non selezionato"
+        return 0
+    fi
+
+    info "Per ogni servizio indicato nel pannello si apre la pagina giusta con i dati pronti."
+    print -r -- ""
 
     # 1. CREAZIONE ACCOUNT PROTON MAIL (SE SELEZIONATO)
     if [[ "$do_proton" == "true" ]]; then
@@ -1334,7 +1327,10 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena sei nella casella di posta (o 'S' per saltare): "; read -r r_ok; stop_bip_ripetuto_mac
+        beep_attesa
+        print -n -- "   Premi INVIO o 'S' per saltare (auto in 5s): "
+        read -t 5 -r r_ok || r_ok=""
+        print -r -- ""
         if [[ "$r_ok" == [Ss]* ]]; then
             info "Creazione account Proton Mail saltata dall'operatore."
             add_report "Account Proton Mail" "SALTATO"
@@ -1364,7 +1360,10 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena associata la chiave Office (o 'S' per saltare): "; read -r r_off; stop_bip_ripetuto_mac
+        beep_attesa
+        print -n -- "   Premi INVIO o 'S' per saltare (auto in 5s): "
+        read -t 5 -r r_off || r_off=""
+        print -r -- ""
         if [[ "$r_off" == [Ss]* ]]; then
             info "Attivazione Office 365 saltata dall'operatore."
             add_report "Card Office 365" "SALTATO"
@@ -1394,7 +1393,10 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena attivato McAfee (o 'S' per saltare): "; read -r r_mc; stop_bip_ripetuto_mac
+        beep_attesa
+        print -n -- "   Premi INVIO o 'S' per saltare (auto in 5s): "
+        read -t 5 -r r_mc || r_mc=""
+        print -r -- ""
         if [[ "$r_mc" == [Ss]* ]]; then
             info "Attivazione McAfee saltata dall'operatore."
             add_report "Card McAfee" "SALTATO"
@@ -1424,7 +1426,10 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena attivato Norton (o 'S' per saltare): "; read -r r_no; stop_bip_ripetuto_mac
+        beep_attesa
+        print -n -- "   Premi INVIO o 'S' per saltare (auto in 5s): "
+        read -t 5 -r r_no || r_no=""
+        print -r -- ""
         if [[ "$r_no" == [Ss]* ]]; then
             info "Attivazione Norton saltata dall'operatore."
             add_report "Card Norton" "SALTATO"
@@ -1440,11 +1445,6 @@ invoke_auto_signup_mac() {
     if [[ "$do_cyber" == "true" ]]; then
         update_pannello_mac_status 91 "Unieuro Cyber Protection" "Configurazione portale Cyber Protection..." false "cyber" "running" "Portale Cyber Protection..."
         local tel="${TELEFONO_CLIENTE:-}"
-        if [[ -z "$tel" ]]; then
-            chiedi_sempre "Numero di Telefono/Cellulare Cliente per Cyber Protection (INVIO per saltare):"
-            [[ -n "$REPLY" ]] && tel="$REPLY"
-            TELEFONO_CLIENTE="$tel"
-        fi
 
         titolo "5. REGISTRAZIONE UNIEURO CYBER PROTECTION (MAC)"
         print -r -- "   ${C_TXT}Dati cliente pronti per l'attivazione Cyber Protection:${C_RST}"
@@ -1465,7 +1465,10 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; start_bip_ripetuto_mac; print -n -- "   Premi INVIO appena registrato Cyber Protection (o 'S' per saltare): "; read -r r_cyb; stop_bip_ripetuto_mac
+        beep_attesa
+        print -n -- "   Premi INVIO o 'S' per saltare (auto in 5s): "
+        read -t 5 -r r_cyb || r_cyb=""
+        print -r -- ""
         if [[ "$r_cyb" == [Ss]* ]]; then
             info "Cyber Protection saltato dall'operatore."
             add_report "Unieuro Cyber Protection" "SALTATO"
