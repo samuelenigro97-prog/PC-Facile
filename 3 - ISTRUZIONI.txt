@@ -13,6 +13,10 @@
    -> Fai doppio click su "2 - AVVIA PER MAC.command"
    -> Rileva automaticamente i file preinstallati sulla chiavetta e avvia il setup.
    -> Se la chiavetta non c'è, scarica e installa tutto da GitHub in automatico.
+   -> NOTA GATEKEEPER: Se macOS mostra l'avviso giallo ("Apple non è in grado di verificare..."):
+      1. Clicca "Fine".
+      2. Vai in Impostazioni di Sistema > Privacy e Sicurezza e clicca "Apri comunque".
+      (Oppure usa il METODO 2 da Terminale, che salta Gatekeeper al 100%).
 
 
 --- METODO 2: COMANDO RAPIDO DA TERMINALE (1-CLICK SENZA CHIAVETTA) ---
