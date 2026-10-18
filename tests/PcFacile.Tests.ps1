@@ -727,8 +727,8 @@ Describe 'Integrita file distribuiti' {
         $reale = (Get-FileHash (Join-Path $script:Radice 'setup-mac.sh') -Algorithm SHA256).Hash.ToLower()
         $reale | Should -Be $atteso
     }
-    It 'PC Facile.bat ha fine riga CRLF (come servito da GitHub raw)' {
-        $bytes = [System.IO.File]::ReadAllBytes((Join-Path $script:Radice 'PC Facile.bat'))
+    It '1 - AVVIA PER WINDOWS.bat ha fine riga CRLF (come servito da GitHub raw)' {
+        $bytes = [System.IO.File]::ReadAllBytes((Join-Path $script:Radice '1 - AVVIA PER WINDOWS.bat'))
         $lfTotali = @($bytes | Where-Object { $_ -eq 10 }).Count
         $crlf = 0
         for ($i = 1; $i -lt $bytes.Length; $i++) { if ($bytes[$i] -eq 10 -and $bytes[$i - 1] -eq 13) { $crlf++ } }
@@ -744,7 +744,7 @@ Describe 'manifest.txt (file della chiavetta)' {
     }
     It 'elenca tutti i file necessari alla chiavetta' {
         $nomi = $script:Voci | ForEach-Object { $_.Percorso }
-        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
+        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', 'setup-mac.sh', 'setup-mac.sh.sha256', '3 - ISTRUZIONI.txt')) {
             $nomi | Should -Contain $f
         }
     }
@@ -767,7 +767,7 @@ Describe 'manifest.txt (file della chiavetta)' {
 
 Describe 'Test-PercorsoManifestSicuro' {
     It 'accetta percorsi relativi normali' {
-        Test-PercorsoManifestSicuro 'PC Facile.bat' | Should -BeTrue
+        Test-PercorsoManifestSicuro '1 - AVVIA PER WINDOWS.bat' | Should -BeTrue
         Test-PercorsoManifestSicuro 'docs/index.html' | Should -BeTrue
     }
     It 'rifiuta assoluti, risalite e gli altri file della cartella wifi' {
@@ -869,23 +869,23 @@ Describe 'Invoke-AggiornamentoUSB' {
     }
 
     It 'usa la seconda sorgente se la prima non ha il file' {
-        Set-Content -LiteralPath (Join-Path $script:Remoto2 'PC Facile.command') -Value 'mac'
-        $h = Hash (Join-Path $script:Remoto2 'PC Facile.command')
-        "$h  PC Facile.command" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
+        Set-Content -LiteralPath (Join-Path $script:Remoto2 '2 - AVVIA PER MAC.command') -Value 'mac'
+        $h = Hash (Join-Path $script:Remoto2 '2 - AVVIA PER MAC.command')
+        "$h  2 - AVVIA PER MAC.command" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
         $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1, $script:Base2) -Scarica $script:Scarica
         $r.Aggiornati | Should -Be 1
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.command') -Raw).Trim() | Should -Be 'mac'
+        (Get-Content -LiteralPath (Join-Path $script:Usb '2 - AVVIA PER MAC.command') -Raw).Trim() | Should -Be 'mac'
     }
 
-    It 'non sovrascrive il launcher in esecuzione: prepara PC Facile.bat.nuovo' {
-        Set-Content -LiteralPath (Join-Path $script:Remoto1 'PC Facile.bat') -Value 'bat nuovo'
-        Set-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat') -Value 'bat vecchio'
-        $h = Hash (Join-Path $script:Remoto1 'PC Facile.bat')
-        "$h  PC Facile.bat" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
-        $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1) -Scarica $script:Scarica -LauncherInEsecuzione (Join-Path $script:Usb 'PC Facile.bat')
+    It 'non sovrascrive il launcher in esecuzione: prepara 1 - AVVIA PER WINDOWS.bat.nuovo' {
+        Set-Content -LiteralPath (Join-Path $script:Remoto1 '1 - AVVIA PER WINDOWS.bat') -Value 'bat nuovo'
+        Set-Content -LiteralPath (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat') -Value 'bat vecchio'
+        $h = Hash (Join-Path $script:Remoto1 '1 - AVVIA PER WINDOWS.bat')
+        "$h  1 - AVVIA PER WINDOWS.bat" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
+        $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1) -Scarica $script:Scarica -LauncherInEsecuzione (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat')
         $r.InAttesa | Should -Be 1
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat') -Raw).Trim() | Should -Be 'bat vecchio'
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat.nuovo') -Raw).Trim() | Should -Be 'bat nuovo'
+        (Get-Content -LiteralPath (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat') -Raw).Trim() | Should -Be 'bat vecchio'
+        (Get-Content -LiteralPath (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat.nuovo') -Raw).Trim() | Should -Be 'bat nuovo'
     }
 
     It 'senza manifest raggiungibile non modifica nulla' {
@@ -1079,9 +1079,9 @@ Describe 'Server locale del pannello (runspace in background)' {
 # Rilevamento McAfee nel launcher (solo Windows: esegue davvero cmd.exe).
 # Estraggo le subroutine :mcafee_rileva / :mcafee_voce da PC Facile.bat in un
 # .bat temporaneo e le lancio, senza avviare nessun disinstallatore.
-Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
+Describe '1 - AVVIA PER WINDOWS.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
     BeforeAll {
-        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile.bat'))
+        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) '1 - AVVIA PER WINDOWS.bat'))
         $i = $bat.IndexOf("`n:mcafee_rileva") + 1   # la definizione, non 'call :mcafee_rileva'
         $j = $bat.IndexOf("REM Avvia il disinstallatore ufficiale")
         $corpo = $bat.Substring($i, $j - $i)

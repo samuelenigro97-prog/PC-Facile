@@ -1,0 +1,20 @@
+=============================================================================
+  PC FACILE - GUIDA RAPIDA CHIAVETTA USB (WINDOWS & MAC)
+=============================================================================
+
+1. SU QUALSIASI PC WINDOWS:
+   -> Fai doppio click su "1 - AVVIA PER WINDOWS.bat"
+   -> Clicca su "Sì" al prompt di amministratore (UAC).
+   -> Tutto il resto si avvia in automatico.
+
+2. SU QUALSIASI APPLE MAC:
+   -> Fai doppio click su "2 - AVVIA PER MAC.command"
+   -> Si apre il Terminale e il Pannello Operatore in Safari.
+   -> Inserisci il PIN del Mac UNA SOLA VOLTA all'avvio (non lo chiederà mai più).
+
+3. FUNZIONAMENTO (OFFLINE & AUTO-AGGIORNANTE):
+   -> Con Internet: scarica e aggiorna sempre all'ultima versione disponibile.
+   -> Senza Internet: esegue direttamente i file completi presenti nella chiavetta.
+
+Tutti i file devono stare nella cartella principale (radice) della chiavetta USB!
+=============================================================================

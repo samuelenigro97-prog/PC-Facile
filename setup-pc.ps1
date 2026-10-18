@@ -3863,7 +3863,7 @@ function Invoke-PreparaUSBOffline {
     if (-not $Test) {
         # Il launcher che sta girando (se e' sulla stessa chiavetta) non va
         # sovrascritto: la sua nuova versione va in "PC Facile.bat.nuovo".
-        $launcherAttivo = if ($LauncherPath) { $LauncherPath } elseif ($TargetDir) { Join-Path $(if ($TargetDir -match '^[A-Za-z]:$') { "$TargetDir\" } else { $TargetDir }) 'PC Facile.bat' } else { $null }
+        $launcherAttivo = if ($LauncherPath) { $LauncherPath } elseif ($TargetDir) { Join-Path $(if ($TargetDir -match '^[A-Za-z]:$') { "$TargetDir\" } else { $TargetDir }) '1 - AVVIA PER WINDOWS.bat' } else { $null }
         try {
             $aggUsb = Invoke-AggiornamentoUSB -Destinazione $targetBase -LauncherInEsecuzione $launcherAttivo
             if ($launcherAttivo -and -not $LauncherPath) { Start-SostituzioneLauncherDifferita -Launcher $launcherAttivo }
@@ -3874,7 +3874,7 @@ function Invoke-PreparaUSBOffline {
     } else {
         try {
             if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "setup-pc.ps1"))) {
-                foreach ($nomeFile in @("setup-pc.ps1", "setup-pc.ps1.sha256", "PC Facile.bat", "PC Facile.command", "setup-mac.sh", "setup-mac.sh.sha256")) {
+                foreach ($nomeFile in @("setup-pc.ps1", "setup-pc.ps1.sha256", "1 - AVVIA PER WINDOWS.bat", "2 - AVVIA PER MAC.command", "setup-mac.sh", "setup-mac.sh.sha256", "3 - ISTRUZIONI.txt")) {
                     $src = Join-Path $PSScriptRoot $nomeFile
                     $dst = Join-Path $targetBase $nomeFile
                     if ((Test-Path -LiteralPath $src) -and ([System.IO.Path]::GetFullPath($src) -ne [System.IO.Path]::GetFullPath($dst))) {
