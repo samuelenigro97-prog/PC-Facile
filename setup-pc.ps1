@@ -495,9 +495,45 @@ function Restore-SilentElevation {
 function Beep-Attesa {
     if ($RunReale) { try { [console]::Beep(1000, 150) } catch {} }
 }
-# Melodia breve di "tutto finito" (due toni), a fine lavoro.
+# Melodia breve di "tutto finito" (due toni) e annuncio vocale a fine lavoro.
 function Beep-Completato {
-    if ($RunReale) { try { [console]::Beep(784, 160); [console]::Beep(1047, 260) } catch {} }
+    if ($RunReale) {
+        try { [console]::Beep(784, 160); [console]::Beep(1047, 260) } catch {}
+        try {
+            # Annuncio vocale asincrono (flag 1 = SVSFlagsAsync, non blocca l'esecuzione)
+            $voice = New-Object -ComObject SAPI.SpVoice
+            [void]$voice.Speak("Configurazione completata con successo!", 1)
+        } catch {}
+    }
+}
+
+# Espulsione sicura della chiavetta USB all'uscita per prevenire corruzioni
+function Eject-ChiavettaUSB {
+    param([string]$Path = $TargetDir)
+    if (-not $RunReale) { return }
+    try {
+        if ([string]::IsNullOrWhiteSpace($Path)) { return }
+        $root = [System.IO.Path]::GetPathRoot($Path)
+        if ([string]::IsNullOrWhiteSpace($root) -or $root.StartsWith("C:", [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+        $driveLetter = $root.TrimEnd('\')
+        # Cambia directory su C: per non bloccare il volume con la sessione PowerShell
+        Set-Location "$env:SystemDrive\"
+        $shell = New-Object -ComObject Shell.Application
+        $drives = $shell.Namespace(17) # ssfDRIVES
+        if ($drives) {
+            $driveItem = $drives.ParseName($driveLetter)
+            if ($driveItem) {
+                $ejectVerb = $driveItem.Verbs() | Where-Object { $_.Name -match 'Eject|Espelli' } | Select-Object -First 1
+                if ($ejectVerb) {
+                    $ejectVerb.DoIt()
+                    Write-OK "Chiavetta USB ($driveLetter) espulsa in modo sicuro. Puoi rimuoverla!"
+                    return
+                }
+            }
+        }
+    } catch {}
 }
 
 $Report = [System.Collections.ArrayList]::new()
@@ -8698,8 +8734,10 @@ if ($RunReale) {
 }
 
 Write-Host ""
-Beep-Completato   # melodia "tutto finito" (utile se ti sei allontanato)
+Beep-Completato   # melodia e annuncio vocale "tutto finito"
+try { Eject-ChiavettaUSB -Path $TargetDir } catch {}
 Write-Host "${AON}Buon lavoro!$AOFF" -ForegroundColor $THEME_COL
 # Niente Pausa qui: l'unico "premi un tasto" e' quello finale del launcher .bat
 # ("Operazione terminata"), cosi' non si preme INVIO due volte.
+
 

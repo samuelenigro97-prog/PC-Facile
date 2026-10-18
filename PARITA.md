@@ -61,3 +61,13 @@ allineati come flusso e funzioni.
 - **Icone e Prefissi di Stato**: Parità completa con `[OK]` (verde), `->` (arancio/giallo), `[X]` (rosso).
 - **Pulizia Pipeline**: Eliminati i residui booleani (`True`) su Windows causati da `ShowWindow` e chiamate di sistema.
 
+## Funzionalità Avanzate per Operatività di Negozio / Banco (Parità Completa)
+| Funzionalità | Windows (`setup-pc.ps1`) | Mac (`setup-mac.sh`) | Note |
+|---|---|---|---|
+| **QR Code Ricevuta Consegna** | Generato a fine lavoro nel banner `#qrConsegnaCard` con credenziali, profilo, Wi-Fi negozio e seriale hardware | Generato a fine lavoro nel banner `#qrConsegnaCard` con credenziali, profilo, Wi-Fi negozio e seriale Mac | Pari (libreria `QRCode` integrata) |
+| **Annuncio Vocale Fine Lavoro** | `Beep-Completato` con sintesi vocale asincrona SAPI (`SAPI.SpVoice`) in italiano | `beep_completato_mac` con sintesi vocale nativa (`say -v Alice`) in background | Pari |
+| **Espulsione Sicura Chiavetta USB** | `Eject-ChiavettaUSB` (rilascio directory e unmount via COM `Shell.Application`) | `eject_chiavetta_mac` (rilascio directory e `diskutil eject`) | Pari |
+| **Kit Offline Standalone** | `tools/Scarica-Pacchetti-Offline.bat` (`-PreparaUSB`, salva installer in `installers/`) | `tools/Scarica-Pacchetti-Offline.command` (`--prepara-usb`, salva installer in `installers/mac/`) | Pari |
+| **Dongle Hardware Zero-Clic** | `dongle/code.py` (RP2040 HID per avvio istantaneo via `Win+R`) | `dongle/code.py` (RP2040 HID per avvio istantaneo via Spotlight/Terminale) | Pari (supporto universale) |
+
+

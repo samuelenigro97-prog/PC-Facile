@@ -30,12 +30,13 @@ xattr -cr "${0:a:h}" 2>/dev/null || true
 # ---- Un solo flusso: doppio click su "PC Facile.command" = configura --------
 # Niente menu. --test (solo CI) e --diagnostica (manutenzione) non sono per
 # l'operatore; i vecchi --veloce/--auto sono accettati e ignorati.
-MODO="CONFIGURA"  # CONFIGURA | DIAGNOSTICA | TEST
+MODO="CONFIGURA"  # CONFIGURA | DIAGNOSTICA | TEST | PREPARA_USB
 MODO_TEST=false
 for arg in "$@"; do
   case "$arg" in
-    --test|-t)        MODO_TEST=true; MODO="TEST" ;;
-    --diagnostica|-d) [[ "$MODO" != "TEST" ]] && MODO="DIAGNOSTICA" ;;
+    --test|-t)                             MODO_TEST=true; MODO="TEST" ;;
+    --diagnostica|-d)                     [[ "$MODO" != "TEST" ]] && MODO="DIAGNOSTICA" ;;
+    --prepara-usb|-PreparaUSB|--offline|-o) [[ "$MODO" != "TEST" ]] && MODO="PREPARA_USB" ;;
   esac
 done
 
@@ -87,6 +88,39 @@ GH_REPORT_REPO="samuelenigro97-prog/pc-facile"
 RUN_REALE=false
 [[ "$MODO" == "CONFIGURA" ]] && RUN_REALE=true
 beep_attesa(){ $RUN_REALE && printf '\a'; }
+
+# Annuncio vocale asincrono di fine lavoro in italiano
+beep_completato_mac() {
+    $RUN_REALE || return 0
+    printf '\a'
+    (
+        local v_it=""
+        if say -v '?' 2>/dev/null | grep -qi 'it_IT'; then
+            v_it="$(say -v '?' 2>/dev/null | grep -i 'it_IT' | head -n1 | awk '{print $1}')"
+        fi
+        if [[ -n "$v_it" ]]; then
+            say -v "$v_it" "Configurazione completata con successo" 2>/dev/null || true
+        else
+            say "Configurazione completata con successo" 2>/dev/null || true
+        fi
+    ) >/dev/null 2>&1 &
+}
+
+# Espulsione sicura automatica della chiavetta USB all'uscita
+eject_chiavetta_mac() {
+    $RUN_REALE || return 0
+    local p="${0:a:h}"
+    if [[ "$p" =~ ^/Volumes/([^/]+) ]]; then
+        local vol_nome="${match[1]}"
+        local vol_path="/Volumes/$vol_nome"
+        cd "$HOME" 2>/dev/null || true
+        if diskutil eject "$vol_path" >/dev/null 2>&1; then
+            ok "Chiavetta USB ($vol_nome) espulsa in modo sicuro. Puoi rimuoverla!"
+        elif diskutil unmount "$vol_path" >/dev/null 2>&1; then
+            ok "Volume USB ($vol_nome) smontato. Puoi rimuovere la chiavetta!"
+        fi
+    fi
+}
 
 # ---- Controllo rete ---------------------------------------------------------
 test_rete(){ curl -s --head --max-time 5 https://www.apple.com >/dev/null 2>&1 || ping -c1 -t2 8.8.8.8 >/dev/null 2>&1; }
@@ -1757,8 +1791,68 @@ invoke_ai_agent_mac() {
     invoke_auto_signup_mac "$@"
 }
 
+prepara_usb_offline_mac() {
+    titolo "PREPARAZIONE CHIAVETTA USB OFFLINE (MAC)"
+    print -r -- "${C_TXT}  Questa funzione scarica i principali installer per macOS (.dmg / .pkg)${C_RST}"
+    print -r -- "${C_TXT}  direttamente sulla chiavetta USB (cartella 'installers/mac').${C_RST}"
+    print -r -- "${C_OK}  Cosi' per le prossime configurazioni dei clienti il setup funzionera'${C_RST}"
+    print -r -- "${C_OK}  al 100% OFFLINE e alla massima velocita' senza consumare banda!${C_RST}"
+    print -r -- ""
+
+    local script_dir="${0:a:h}"
+    local target_dir="$script_dir/installers/mac"
+    mkdir -p "$target_dir" 2>/dev/null || {
+        target_dir="$HOME/Desktop/installers/mac"
+        mkdir -p "$target_dir" 2>/dev/null
+    }
+    info "Cartella di destinazione: $target_dir"
+    print -r -- ""
+
+    typeset -a pacchetti
+    pacchetti=(
+        "Google Chrome|https://dl.google.com/chrome/mac/stable/accept_tos%3Dhttps%253A%252F%252Fwww.google.com%252Fchrome%252F%26_and_accept_tos%3Dhttps%253A%252F%252Fpolicies.google.com%252Fterms/googlechrome.pkg|googlechrome.pkg"
+        "VLC Media Player|https://get.videolan.org/vlc/3.0.21/macosx/vlc-3.0.21-universal.dmg|vlc-universal.dmg"
+        "The Unarchiver|https://dl.devmate.com/com.macpaw.site.theunarchiver/TheUnarchiver.dmg|TheUnarchiver.dmg"
+        "AnyDesk|https://download.anydesk.com/mac/anydesk.dmg|anydesk.dmg"
+        "WhatsApp Desktop|https://web.whatsapp.com/desktop/mac/files/WhatsApp.dmg|WhatsApp.dmg"
+    )
+
+    local tot=${#pacchetti[@]}
+    local idx=0
+    for p in "${pacchetti[@]}"; do
+        ((idx++))
+        local nome="${p%%|*}"
+        local resto="${p#*|}"
+        local url="${resto%%|*}"
+        local f_dest="${resto#*|}"
+        local path_dest="$target_dir/$f_dest"
+
+        print -r -- "${C_ACC}[$idx/$tot] Scaricamento $nome...${C_RST}"
+        if [[ -f "$path_dest" && -s "$path_dest" ]]; then
+            ok "$nome gia' presente in cache (${path_dest:t}). Salto."
+        else
+            if curl -fL --progress-bar "$url" -o "$path_dest"; then
+                ok "$nome scaricato con successo in $path_dest"
+            else
+                print -r -- "${C_INFO}   -> Download di $nome non riuscito da $url (verra' installato via rete al bisogno).${C_RST}"
+                rm -f "$path_dest" 2>/dev/null || true
+            fi
+        fi
+        print -r -- ""
+    done
+
+    ok "Download pacchetti offline per Mac completato!"
+    print -r -- "${C_TXT}  I pacchetti si trovano in: $target_dir${C_RST}"
+    beep_completato_mac
+}
+
 if [[ "$MODO" == "DIAGNOSTICA" ]]; then
   diagnostica_salute_mac
+  exit 0
+fi
+
+if [[ "$MODO" == "PREPARA_USB" ]]; then
+  prepara_usb_offline_mac
   exit 0
 fi
 
@@ -2536,6 +2630,7 @@ if $RUN_REALE && ! $MODO_TEST; then
                 ;;
             2)
                 info "Riavvio del Mac in corso..."
+                eject_chiavetta_mac
                 sudo shutdown -r now 2>/dev/null
                 break
                 ;;
@@ -2551,6 +2646,7 @@ if $RUN_REALE && ! $MODO_TEST; then
 fi
 
 print -r -- ""
-printf '\a'
+beep_completato_mac
+eject_chiavetta_mac
 print -r -- "${C_ACC}  Buon lavoro!${C_RST}"
 print -r -- ""
