@@ -137,7 +137,42 @@ stop_barra_animata_mac() {
   fi
 }
 
-trap 'stop_barra_animata_mac 2>/dev/null; stop_bip_ripetuto_mac 2>/dev/null' EXIT INT TERM
+# ---- Sudo keepalive (richiesta PIN una sola volta all'avvio) --------------
+SUDO_KEEPALIVE_PID=""
+start_sudo_keepalive_mac() {
+  [[ "$MODO_TEST" == true || "$RUN_REALE" != true ]] && return 0
+  stop_sudo_keepalive_mac
+  if ! sudo -n true 2>/dev/null; then
+    print -r -- ""
+    print -r -- "${C_ACC}  ============================================================${C_RST}"
+    print -r -- "${C_OK}   PERMESSI DI AMMINISTRAZIONE MAC (UNA SOLA VOLTA)${C_RST}"
+    print -r -- "${C_TXT}   Inserisci la password/PIN di questo Mac una sola volta.${C_RST}"
+    print -r -- "${C_CYAN}   Verra' mantenuta attiva in background per tutta la durata${C_RST}"
+    print -r -- "${C_CYAN}   del lavoro: NON ti verra' mai piu' richiesta durante${C_RST}"
+    print -r -- "${C_CYAN}   l'installazione di app (Adobe Reader), orario o sistema.${C_RST}"
+    print -r -- "${C_ACC}  ============================================================${C_RST}"
+    print -r -- ""
+    beep_attesa
+    sudo -v || true
+  fi
+  (
+    while kill -0 "$$" 2>/dev/null; do
+      sudo -n true 2>/dev/null
+      sleep 30
+    done
+  ) &
+  SUDO_KEEPALIVE_PID=$!
+}
+
+stop_sudo_keepalive_mac() {
+  if [[ -n "$SUDO_KEEPALIVE_PID" ]]; then
+    kill -9 "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+    wait "$SUDO_KEEPALIVE_PID" 2>/dev/null || true
+    SUDO_KEEPALIVE_PID=""
+  fi
+}
+
+trap 'stop_barra_animata_mac 2>/dev/null; stop_bip_ripetuto_mac 2>/dev/null; stop_sudo_keepalive_mac 2>/dev/null' EXIT INT TERM
 
 chiedi(){
   if $MODO_TEST; then [[ "$1" == *"S/N"* ]] && REPLY="N" || REPLY=""; dim "$1  [test => '$REPLY']"; return; fi
@@ -1438,21 +1473,13 @@ CRED_PASSWORD="Utente123!"
 DATI_RICEVUTI=false
 PROFILO_APP=""
 
-$RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
+if $RUN_REALE; then
+    start_sudo_keepalive_mac
+    open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
+fi
 
 titolo "FASE 1 di 3 - Programmi e lingua (automatico)"
 info "Intanto inserisci i dati del cliente nel pannello operatore."
-
-# Mantieni i privilegi amministratore (sudo) attivi per tutta la durata del setup.
-# In questo modo brew install (es. Adobe Reader .pkg) e i comandi di sistema non
-# bloccano il terminale chiedendo la password a meta' lavoro.
-if $RUN_REALE && ! $MODO_TEST; then
-    info "Verifica privilegi amministratore (sudo)..."
-    if ! sudo -n true 2>/dev/null; then
-        sudo -v || true
-    fi
-    while true; do sudo -n true; sleep 50; kill -0 "$$" || exit; done 2>/dev/null &
-fi
 
 # =============================================================================
 # PASSO 1: LINGUA & REGIONE ITALIANA
