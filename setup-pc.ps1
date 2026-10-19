@@ -8448,41 +8448,41 @@ if ($RunReale) {
     <title>Scheda Consegna PC - $clienteDisplay</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        body { background: #f1f5f9; color: #1e293b; padding: 24px; font-size: 13px; line-height: 1.5; }
+        body { background: #f1f5f9; color: #1e293b; padding: 16px; font-size: 12px; line-height: 1.45; }
         .sheet { max-width: 820px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #e2e8f0; }
-        .header { background: linear-gradient(135deg, #00122B 0%, #002B5C 100%); color: #fff; padding: 22px 28px; border-bottom: 4px solid #EE7203; display: flex; justify-content: space-between; align-items: center; }
+        .header { background: linear-gradient(135deg, #00122B 0%, #002B5C 100%); color: #fff; padding: 16px 22px; border-bottom: 4px solid #EE7203; display: flex; justify-content: space-between; align-items: center; }
         .header-brand { display: flex; align-items: center; gap: 14px; }
         .brand-logo { background: #EE7203; color: #fff; font-weight: 900; font-size: 18px; letter-spacing: 1.5px; padding: 6px 12px; border-radius: 6px; }
-        .header h1 { font-size: 20px; font-weight: 700; color: #fff; }
-        .header p { font-size: 12px; color: #cbd5e1; }
+        .header h1 { font-size: 19px; font-weight: 700; color: #fff; }
+        .header p { font-size: 11.5px; color: #cbd5e1; }
         .badge-brand { background: #EE7203; color: #fff; font-weight: 700; font-size: 12px; padding: 6px 12px; border-radius: 6px; }
-        .body { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+        .body { padding: 16px 22px; display: flex; flex-direction: column; gap: 11px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
         .card-cred { background: #fffaf5; border: 1.5px solid #EE7203; }
         .card-cred h3 { color: #EE7203; border-bottom: 1px solid #fed7aa; }
         .card-bitlocker { background: #fff7ed; border: 3px solid #dc2626; page-break-inside: avoid; break-inside: avoid; }
-        .bl-titolo { font-size: 16px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 6px; }
-        .bl-testo { font-size: 12px; color: #1e293b; }
-        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 10px 12px; margin: 10px 0; text-align: center; word-break: break-all; }
-        .card h3 { font-size: 14px; color: #00122B; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-        .info-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-        .info-table td { padding: 3px 0; }
+        .bl-titolo { font-size: 15px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 5px; }
+        .bl-testo { font-size: 11.5px; color: #1e293b; }
+        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 8px 10px; margin: 8px 0; text-align: center; word-break: break-all; }
+        .card h3 { font-size: 13px; color: #00122B; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .info-table td { padding: 2.5px 0; }
         .info-table td:first-child { width: 42%; color: #64748b; font-weight: 500; }
-        .app-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-        .app-badge { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 9px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; color: #1e293b; }
+        .app-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+        .app-badge { background: #fff; border: 1px solid #cbd5e1; border-radius: 5px; padding: 4px 8px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; color: #1e293b; }
         .app-badge strong { color: #00122B; }
-        .tips-list { font-size: 12px; color: #475569; padding-left: 18px; line-height: 1.6; }
-        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; }
-        .btn-print { background: #EE7203; color: #fff; border: none; font-weight: 700; font-size: 13px; padding: 8px 18px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(238,114,3,0.3); }
+        .tips-list { font-size: 11.5px; color: #475569; padding-left: 18px; line-height: 1.5; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 22px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: #64748b; }
+        .btn-print { background: #EE7203; color: #fff; border: none; font-weight: 700; font-size: 12px; padding: 6px 14px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 6px rgba(238,114,3,0.3); }
         .btn-print:hover { background: #d96300; }
         @media print {
-            @page { size: A4 portrait; margin: 10mm; }
-            body { background: #fff; padding: 0; font-size: 11.5px; }
+            @page { size: A4 portrait; margin: 8mm; }
+            body { background: #fff; padding: 0; font-size: 11px; }
             .sheet { box-shadow: none; max-width: 100%; border: none; }
-            .header { padding: 16px 20px; }
-            .body { padding: 16px 20px; gap: 12px; }
-            .card { padding: 12px; }
+            .header { padding: 12px 16px; }
+            .body { padding: 12px 16px; gap: 10px; }
+            .card { padding: 10px 12px; }
             .no-print { display: none !important; }
         }
     </style>
@@ -8523,7 +8523,6 @@ if ($RunReale) {
                         <tr><td>RAM:</td><td>$($hwInfo.RamGB) GB</td></tr>
                         <tr><td>Scheda Video:</td><td>$($hwInfo.Gpu)</td></tr>
                         <tr><td>Stato Disco / SSD:</td><td><strong>$($storageInfo.StatoCompleto)</strong></td></tr>
-                        $(if ($batteryInfo.Presente) { "<tr><td>Salute Batteria:</td><td><strong>$($batteryInfo.Descrizione)</strong></td></tr>" })
                         <tr><td>Lingua:</td><td>Italiano (it-IT)</td></tr>
                     </table>
                 </div>
