@@ -1574,11 +1574,6 @@ attendi_credenziali_mac() {
     $DATI_RICEVUTI && return 0
     if leggi_credenziali_salvate_mac; then return 0; fi
 
-    titolo "DATI CLIENTE (PANNELLO OPERATORE)"
-    info "Dati cliente non inseriti nel pannello: proseguo senza fermarmi."
-    info "  -> Puoi compilare la scheda nel pannello in qualsiasi momento (valori predefiniti applicati)."
-    print -r -- ""
-
     [[ -z "$NOME_CLIENTE" || "$NOME_CLIENTE" == "Utente" ]] && NOME_CLIENTE="Cliente"
     [[ -z "$CRED_ACCOUNT" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
     [[ -z "$CRED_PASSWORD" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"

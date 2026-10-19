@@ -1590,7 +1590,7 @@ function Open-PannelloOperatore {
         [string]$Password = ""
     )
     # Il pannello serve solo se il server locale risponde (unico canale):
-    # altrimenti i dati del cliente si chiedono in console (Wait-DatiCliente).
+    # se non disponibile i dati cliente procedono con valori provvisori non bloccanti.
     $serverOk = [bool](Start-LocalCredServer)
     $Global:PannelloDisponibile = $false
     $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
@@ -3177,6 +3177,8 @@ function Read-DatiClienteConsole {
 
 # Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
 # si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
+# Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
+# si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
 # prosegue senza fermarsi con credenziali provvisorie e l'operatore puo' compilare
 # la scheda nel pannello in QUALSIASI momento (i dati verranno acquisiti al volo
 # e inclusi nella scheda consegna / report finale).
@@ -3186,13 +3188,6 @@ function Wait-DatiCliente {
     if ($Global:DatiClienteRicevuti) { return $true }
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { return (Set-DatiCliente (Get-DatiClienteTest)) }
     if (Get-CredenzialiSalvatePannello) { return $true }
-    if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
-
-    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Dati cliente: puoi compilarli nel pannello web quando vuoi"
-    Write-Host ""
-    Write-Info "Dati cliente non ancora inseriti nel pannello web: proseguo senza fermarmi."
-    Write-Info "  -> Puoi compilare nome, cognome e servizi nel pannello quando vuoi (anche durante i passi successivi)."
-    if ($Motivo) { Write-Host "     $Motivo" -ForegroundColor Gray }
     return $true
 }
 
@@ -4896,7 +4891,7 @@ if ($RunReale) {
     try { [void](Connect-AutoWiFi -TargetDir $TargetDir) } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
     # Il pannello NON blocca: la fase 1 parte subito. I dati del cliente
     # arrivano dal pannello mentre la fase 1 lavora (Get-CredenzialiSalvatePannello
-    # a ogni passo); servono davvero solo da Office in poi (Wait-DatiCliente).
+    # a ogni passo); se non inseriti si usano valori provvisori senza alcun blocco.
     try { Open-PannelloOperatore } catch { Write-Info "Pannello Operatore: $_" }
 }
 
@@ -7047,11 +7042,9 @@ if ($voce.Gruppo -ne $gruppoMostrato) {
 # Dati del cliente dal pannello: arrivano quando l'operatore conferma (anche
 # durante la fase 1) e valgono dal passo successivo. Non blocca.
 [void](Get-CredenzialiSalvatePannello)
-# Passi manuali: la pulizia (niente domande, niente browser) parte in background
-# e, se non sono ancora arrivati, si aspettano i dati del cliente.
+# Passi manuali: la pulizia parte in background e si usano i dati disponibili.
 if ($voce.Gruppo -eq 2) {
     if (-not $Global:LavoriBg -and -not $Global:PuliziaFatta) { Start-LavoriInBackground }
-    [void](Wait-DatiCliente -Motivo "I passi manuali (nome, account, attivazioni) usano i dati del cliente.")
 }
 
 Write-Host ""
@@ -7461,9 +7454,9 @@ trap {
 Write-Titolo "Installazione App Office"
 Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Configurazione Office & Runtime" -Dettaglio "Configurazione icone Office e runtime..."
 
-# Quale suite dipende dalla card del cliente: la scelta arriva dal pannello
-# (se non e' ancora arrivata, qui la si aspetta: e' il primo passo che serve).
-[void](Wait-DatiCliente -Motivo "Office dipende dalla card del cliente: scegli la suite nel pannello.")
+# Quale suite dipende dalla card del cliente: se impostata nel pannello si usa subito,
+# altrimenti prosegue senza fermarsi con il controllo di Office gia' presente o default.
+[void](Get-CredenzialiSalvatePannello)
 $nomiOffice = @{ '1' = 'Microsoft 365 (card)'; '2' = 'Office perpetuo (card)'; '4' = 'LibreOffice'; '5' = 'nessuna' }
 $sceltaAtt = if ($Global:SceltaOffice) { [string]$Global:SceltaOffice } else { '5' }
 Write-Info "Suite Office scelta nel pannello: $($nomiOffice[$sceltaAtt])."

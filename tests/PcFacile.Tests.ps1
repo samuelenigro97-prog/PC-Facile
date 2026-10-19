@@ -962,8 +962,8 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
     It 'il server locale accetta solo il pannello aperto dallo script (niente GitHub Pages)' {
         $script:Src | Should -Not -Match 'github\.io'
     }
-    It 'Office e i passi manuali aspettano i dati del cliente (Wait-DatiCliente), la fase 1 no' {
-        $script:Src | Should -Match "Wait-DatiCliente -Motivo `"Office dipende"
+    It 'Office e i passi manuali non bloccano mai e non mostrano messaggi di attesa bloccanti' {
+        $script:Src | Should -Not -Match 'SERVONO I DATI DEL CLIENTE'
         $script:Src | Should -Match 'if \(\$voce\.Gruppo -eq 2\) \{'
     }
 }

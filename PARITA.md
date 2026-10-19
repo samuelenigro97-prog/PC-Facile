@@ -7,14 +7,14 @@ allineati come flusso e funzioni.
 | Passo / funzione            | Windows (`setup-pc.ps1`)                  | Mac (`setup-mac.sh`)                          | Note |
 |-----------------------------|-------------------------------------------|-----------------------------------------------|------|
 | Avvio unico (no menu)       | doppio click `PC Facile.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
-| Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (pulsante `AVVIA INSTALLAZIONE`, dati facoltativi non bloccanti); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (pulsante `AVVIA INSTALLAZIONE`, dati facoltativi non bloccanti); INVIO = default in console | canale diverso per limite tecnico |
+| Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (dati 100% facoltativi, nessun blocco console o attesa); prosegue trasparente con default se non compilati | pannello locale → file `pcfacile-cred.json` in Download (dati 100% facoltativi, nessun blocco console o attesa); prosegue trasparente con default se non compilati | pari |
 | Ordine                      | fase 1 app+lingua (+Office) · fase 2 manuali · fase 3 pulizia/driver/aggiornamenti per ultimi | fase 1 lingua/app · fase 2 nome+account/servizi · fase 3 aggiornamenti per ultimi | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
 | Sincronizzazione orario     | `w32tm` + W32Time auto + tzautoupdate     | `systemsetup -setusingnetworktime on` + sntp  | pari |
 | Nome cliente + host         | `Set-LocalUser` + `Rename-Computer`       | `scutil --set ComputerName/HostName`          | pari |
 | Punto di ripristino         | `Checkpoint-Computer`                     | `tmutil localsnapshot` (Time Machine)         | pari |
 | Account + credenziali       | Apre account.microsoft.com, genera cred   | Apre appleid.apple.com, genera cred           | pari |
-| Office                      | installa (winget) + riscatto card PIN sul web | — (su Mac Office si scarica da web, opzionale)| solo Win |
+| Office                      | installa se indicato nel pannello o crea icone/collegamenti (zero blocchi/attese dati) | — (su Mac Office si scarica da web, opzionale)| solo Win |
 | Pulizia / ottimizzazione    | AV prova + debloat OEM + config Windows   | config `defaults` (no debloat OEM: non esiste)| Mac = solo config |
 | Antivirus                   | McAfee/Norton                             | — (raramente su Mac; skip)                    | solo Win |
 | Unieuro Cyber Protection    | apre portale                              | apre portale (uguale)                         | pari |
