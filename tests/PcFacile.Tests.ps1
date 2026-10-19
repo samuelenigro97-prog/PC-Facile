@@ -26,7 +26,7 @@ BeforeAll {
         'Start-LocalCredServer', 'Stop-LocalCredServer',
         'Enable-SilentElevation', 'Restore-SilentElevation', 'Set-PreventSleep', 'Set-EdgeFirstRunPolicies',
         'New-WlanProfileXml', 'Connect-AutoWiFi', 'Save-StoreWiFiProfile',
-        'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb',
+        'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb', 'Mostra-CredenzialiPagina', 'Disable-ConsoleQuickEdit',
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
         'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Test-CartellaKitUSB',
@@ -430,6 +430,17 @@ Describe 'Dati cliente: un solo canale (server locale del pannello)' {
         $Global:DatiClienteRicevuti = $true
         Wait-DatiCliente | Should -BeTrue
     }
+    It 'Wait-DatiCliente e non bloccante: prosegue subito anche se i dati non sono ancora stati inseriti' {
+        $Global:DatiClienteRicevuti = $false
+        $Global:PannelloDisponibile = $true
+        Wait-DatiCliente -Motivo 'test non bloccante' | Should -BeTrue
+    }
+    It 'Mostra-CredenzialiPagina gestisce il timeout e non blocca' {
+        { Mostra-CredenzialiPagina -Utente 'test@outlook.it' -Password 'Test123!' -TimeoutSec 1 } | Should -Not -Throw
+    }
+    It 'Disable-ConsoleQuickEdit viene eseguito senza errori' {
+        { Disable-ConsoleQuickEdit } | Should -Not -Throw
+    }
 }
 
 Describe 'Enable-SilentElevation & Restore-SilentElevation' {
@@ -716,8 +727,8 @@ Describe 'Integrita file distribuiti' {
         $reale = (Get-FileHash (Join-Path $script:Radice 'setup-mac.sh') -Algorithm SHA256).Hash.ToLower()
         $reale | Should -Be $atteso
     }
-    It 'PC Facile.bat ha fine riga CRLF (come servito da GitHub raw)' {
-        $bytes = [System.IO.File]::ReadAllBytes((Join-Path $script:Radice 'PC Facile.bat'))
+    It '1 - AVVIA PER WINDOWS.bat ha fine riga CRLF (come servito da GitHub raw)' {
+        $bytes = [System.IO.File]::ReadAllBytes((Join-Path $script:Radice '1 - AVVIA PER WINDOWS.bat'))
         $lfTotali = @($bytes | Where-Object { $_ -eq 10 }).Count
         $crlf = 0
         for ($i = 1; $i -lt $bytes.Length; $i++) { if ($bytes[$i] -eq 10 -and $bytes[$i - 1] -eq 13) { $crlf++ } }
@@ -733,7 +744,7 @@ Describe 'manifest.txt (file della chiavetta)' {
     }
     It 'elenca tutti i file necessari alla chiavetta' {
         $nomi = $script:Voci | ForEach-Object { $_.Percorso }
-        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
+        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', 'setup-mac.sh', 'setup-mac.sh.sha256', '3 - ISTRUZIONI.txt')) {
             $nomi | Should -Contain $f
         }
     }
@@ -756,7 +767,7 @@ Describe 'manifest.txt (file della chiavetta)' {
 
 Describe 'Test-PercorsoManifestSicuro' {
     It 'accetta percorsi relativi normali' {
-        Test-PercorsoManifestSicuro 'PC Facile.bat' | Should -BeTrue
+        Test-PercorsoManifestSicuro '1 - AVVIA PER WINDOWS.bat' | Should -BeTrue
         Test-PercorsoManifestSicuro 'docs/index.html' | Should -BeTrue
     }
     It 'rifiuta assoluti, risalite e gli altri file della cartella wifi' {
@@ -858,23 +869,23 @@ Describe 'Invoke-AggiornamentoUSB' {
     }
 
     It 'usa la seconda sorgente se la prima non ha il file' {
-        Set-Content -LiteralPath (Join-Path $script:Remoto2 'PC Facile.command') -Value 'mac'
-        $h = Hash (Join-Path $script:Remoto2 'PC Facile.command')
-        "$h  PC Facile.command" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
+        Set-Content -LiteralPath (Join-Path $script:Remoto2 '2 - AVVIA PER MAC.command') -Value 'mac'
+        $h = Hash (Join-Path $script:Remoto2 '2 - AVVIA PER MAC.command')
+        "$h  2 - AVVIA PER MAC.command" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
         $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1, $script:Base2) -Scarica $script:Scarica
         $r.Aggiornati | Should -Be 1
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.command') -Raw).Trim() | Should -Be 'mac'
+        (Get-Content -LiteralPath (Join-Path $script:Usb '2 - AVVIA PER MAC.command') -Raw).Trim() | Should -Be 'mac'
     }
 
-    It 'non sovrascrive il launcher in esecuzione: prepara PC Facile.bat.nuovo' {
-        Set-Content -LiteralPath (Join-Path $script:Remoto1 'PC Facile.bat') -Value 'bat nuovo'
-        Set-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat') -Value 'bat vecchio'
-        $h = Hash (Join-Path $script:Remoto1 'PC Facile.bat')
-        "$h  PC Facile.bat" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
-        $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1) -Scarica $script:Scarica -LauncherInEsecuzione (Join-Path $script:Usb 'PC Facile.bat')
+    It 'non sovrascrive il launcher in esecuzione: prepara 1 - AVVIA PER WINDOWS.bat.nuovo' {
+        Set-Content -LiteralPath (Join-Path $script:Remoto1 '1 - AVVIA PER WINDOWS.bat') -Value 'bat nuovo'
+        Set-Content -LiteralPath (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat') -Value 'bat vecchio'
+        $h = Hash (Join-Path $script:Remoto1 '1 - AVVIA PER WINDOWS.bat')
+        "$h  1 - AVVIA PER WINDOWS.bat" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
+        $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1) -Scarica $script:Scarica -LauncherInEsecuzione (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat')
         $r.InAttesa | Should -Be 1
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat') -Raw).Trim() | Should -Be 'bat vecchio'
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat.nuovo') -Raw).Trim() | Should -Be 'bat nuovo'
+        (Get-Content -LiteralPath (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat') -Raw).Trim() | Should -Be 'bat vecchio'
+        (Get-Content -LiteralPath (Join-Path $script:Usb '1 - AVVIA PER WINDOWS.bat.nuovo') -Raw).Trim() | Should -Be 'bat nuovo'
     }
 
     It 'senza manifest raggiungibile non modifica nulla' {
@@ -951,18 +962,18 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
     It 'il server locale accetta solo il pannello aperto dallo script (niente GitHub Pages)' {
         $script:Src | Should -Not -Match 'github\.io'
     }
-    It 'Office e i passi manuali aspettano i dati del cliente (Wait-DatiCliente), la fase 1 no' {
-        $script:Src | Should -Match "Wait-DatiCliente -Motivo `"Office dipende"
+    It 'Office e i passi manuali non bloccano mai e non mostrano messaggi di attesa bloccanti' {
+        $script:Src | Should -Not -Match 'SERVONO I DATI DEL CLIENTE'
         $script:Src | Should -Match 'if \(\$voce\.Gruppo -eq 2\) \{'
     }
 }
 
 Describe 'Test-DatiClienteConfermati' {
-    It 'accetta solo dati con Conferma, cognome, nome e servizi' {
+    It 'accetta solo dati con Conferma e servizi (cognome e nome sono facoltativi)' {
         $ok = [pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = [pscustomobject]@{ Cyber = $true } }
         Test-DatiClienteConfermati $ok | Should -BeTrue
         Test-DatiClienteConfermati ([pscustomobject]@{ Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
-        Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = 'R'; Cognome = ''; Servizi = @{ Cyber = $true } }) | Should -BeFalse
+        Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = ''; Cognome = ''; Servizi = @{ Cyber = $true } }) | Should -BeTrue
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi' }) | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = 'true'; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
         Test-DatiClienteConfermati $null | Should -BeFalse
@@ -1034,12 +1045,21 @@ Describe 'Server locale del pannello (runspace in background)' {
         (Invoke-RichiestaPannello 'POST' '/cred' 'https://samuelenigro97-prog.github.io' '{"Conferma":true,"Nome":"A","Cognome":"B","Servizi":{}}').Codice | Should -Be 403
     }
 
-    It 'rifiuta dati senza Conferma o senza cognome, e non li mette in coda' {
+    It 'rifiuta dati senza Conferma o senza servizi, e non li mette in coda' {
         (Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Nome":"Mario","Cognome":"Rossi","Servizi":{"Cyber":true}}').Codice | Should -Be 400
-        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Conferma":true,"Nome":"R","Cognome":"","Servizi":{"Cyber":true}}'
+        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Conferma":true,"Nome":"R","Cognome":""}'
         $r.Codice | Should -Be 400
-        ($r.Corpo | ConvertFrom-Json).motivo | Should -Match 'cognome'
+        ($r.Corpo | ConvertFrom-Json).motivo | Should -Match 'servizi'
         $Global:PannelloSync.CodaCred.Count | Should -Be 0
+    }
+
+    It 'accetta dati con cognome o nome vuoti usando il fallback predefinito' {
+        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' '{"Conferma":true,"Nome":"","Cognome":"","Servizi":{"Cyber":true}}'
+        $r.Codice | Should -Be 200
+        ($r.Corpo | ConvertFrom-Json).ok | Should -BeTrue
+        $Global:PannelloSync.CodaCred.Count | Should -Be 1
+        $rimosso = $null
+        [void]$Global:PannelloSync.CodaCred.TryDequeue([ref]$rimosso)
     }
 
     It 'accetta i dati confermati e Get-CredenzialiSalvatePannello li applica (anche servizi)' {
@@ -1068,9 +1088,9 @@ Describe 'Server locale del pannello (runspace in background)' {
 # Rilevamento McAfee nel launcher (solo Windows: esegue davvero cmd.exe).
 # Estraggo le subroutine :mcafee_rileva / :mcafee_voce da PC Facile.bat in un
 # .bat temporaneo e le lancio, senza avviare nessun disinstallatore.
-Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
+Describe '1 - AVVIA PER WINDOWS.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
     BeforeAll {
-        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile.bat'))
+        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) '1 - AVVIA PER WINDOWS.bat'))
         $i = $bat.IndexOf("`n:mcafee_rileva") + 1   # la definizione, non 'call :mcafee_rileva'
         $j = $bat.IndexOf("REM Avvia il disinstallatore ufficiale")
         $corpo = $bat.Substring($i, $j - $i)
@@ -1143,8 +1163,9 @@ Describe 'Ordine dei passi e pannello' {
         [array]::IndexOf($script:Ids, 'app') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
         [array]::IndexOf($script:Ids, 'lingua') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
     }
-    It 'gli antivirus di prova si tolgono prima dell''antivirus definitivo' {
-        [array]::IndexOf($script:Ids, 'avprova') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'antivirus'))
+    It 'antivirus gestito in un blocco unico (Sicurezza & Antivirus)' {
+        $script:Ids | Should -Contain 'antivirus'
+        $script:Ids | Should -Not -Contain 'avprova'
     }
     It 'ogni passo ha un id unico e un task presente nel pannello (script e HTML)' {
         @($script:Ids | Sort-Object -Unique).Count | Should -Be $script:Ids.Count
@@ -1179,7 +1200,7 @@ Describe 'Controlli "gia'' fatto"' {
     It 'Test-PassoGiaFatto in modalita test non salta mai (si esercitano tutti i passi)' {
         $Global:Test = $true
         try {
-            foreach ($id in @('ripristino', 'avprova', 'lingua', 'officeattiva', 'antivirus', 'nome')) { Test-PassoGiaFatto -Id $id | Should -BeNullOrEmpty }
+            foreach ($id in @('ripristino', 'lingua', 'officeattiva', 'antivirus', 'nome')) { Test-PassoGiaFatto -Id $id | Should -BeNullOrEmpty }
         } finally { Remove-Variable -Name Test -Scope Global -ErrorAction SilentlyContinue }
     }
     It 'Test-LinguaItaliana, Test-OfficeInstallato e Get-AntivirusTerzi non lanciano errori' {

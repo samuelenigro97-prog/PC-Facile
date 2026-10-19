@@ -16,11 +16,11 @@ $radice = Split-Path $PSScriptRoot -Parent
 $fileKit = @(
     'setup-pc.ps1',
     'setup-pc.ps1.sha256',
-    'PC Facile.bat',
-    'PC Facile.command',
+    '1 - AVVIA PER WINDOWS.bat',
+    '2 - AVVIA PER MAC.command',
     'setup-mac.sh',
     'setup-mac.sh.sha256',
-    'LEGGIMI.md',
+    '3 - ISTRUZIONI.txt',
     'wifi/wifi.txt',
     'wifi/UNIEURO_EXPO.xml'
 )

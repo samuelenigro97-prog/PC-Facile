@@ -1,0 +1,50 @@
+=============================================================================
+  PC FACILE - GUIDA RAPIDA CHIAVETTA USB & TERMINALE (WINDOWS & MAC)
+=============================================================================
+
+--- METODO 1: DOPPIO CLICK (DALLA CHIAVETTA USB O CARTELLA) ---
+
+1. SU WINDOWS:
+   -> Fai doppio click su "1 - AVVIA PER WINDOWS.bat"
+   -> Se i file sono già preinstallati su chiavetta parte subito al 100% offline.
+   -> Se la chiavetta non c'è, scarica e installa tutto da GitHub in automatico.
+
+2. SU MAC:
+   -> Fai doppio click su "2 - AVVIA PER MAC.command"
+   -> Rileva automaticamente i file preinstallati sulla chiavetta e avvia il setup.
+   -> Se la chiavetta non c'è, scarica e installa tutto da GitHub in automatico.
+   -> NOTA GATEKEEPER: Se macOS mostra l'avviso giallo ("Apple non è in grado di verificare..."):
+      1. Clicca "Fine".
+      2. Vai in Impostazioni di Sistema > Privacy e Sicurezza e clicca "Apri comunque".
+      (Oppure usa il METODO 2 da Terminale, che salta Gatekeeper al 100%).
+
+
+--- METODO 2: COMANDO RAPIDO DA TERMINALE (1-CLICK SENZA CHIAVETTA) ---
+
+Se non hai la chiavetta o vuoi avviare direttamente dal Terminale di sistema:
+
+• PER MAC (apri Terminale e incolla):
+  for v in . /Volumes/*; do [[ -f "$v/setup-mac.sh" ]] && { zsh "$v/setup-mac.sh"; exit; }; [[ -f "$v/PC Facile/setup-mac.sh" ]] && { zsh "$v/PC Facile/setup-mac.sh"; exit; }; [[ -f "$v/PC-Facile-Kit-USB/setup-mac.sh" ]] && { zsh "$v/PC-Facile-Kit-USB/setup-mac.sh"; exit; }; done; wdev=$(networksetup -listallhardwareports 2>/dev/null | awk '/Wi-Fi/{getline; print $2}'); [[ -n "$wdev" ]] && { networksetup -setairportpower "$wdev" on 2>/dev/null; networksetup -setairportnetwork "$wdev" "UNIEURO_EXPO" "W1f1@Un13uro" 2>/dev/null; sleep 3; }; curl -fsSL https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-mac.sh | zsh
+
+• PER WINDOWS (apri PowerShell e incolla):
+  $u=(Get-ChildItem -Path ([System.IO.DriveInfo]::GetDrives()|Where-Object{$_.IsReady}|Select-Object -ExpandProperty RootDirectory) -Filter 'setup-pc.ps1' -Recurse -Depth 2 -ErrorAction SilentlyContinue|Select-Object -First 1).FullName; if($u){powershell -ExecutionPolicy Bypass -File $u}else{$w='UNIEURO_EXPO';$p='W1f1@Un13uro';try{if(@(Test-Connection 1.1.1.1 -Count 1 -Quiet -EA 0)-notcontains $true){$x='<?xml version=\"1.0\"?><WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>'+$w+'</name><SSIDConfig><SSID><name>'+$w+'</name></SSID></SSIDConfig><connectionType>ESS</connectionType><connectionMode>auto</connectionMode><MSM><security><authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>'+$p+'</keyMaterial></sharedKey></security></MSM></WLANProfile>';$t=$env:TEMP+'\w.xml';[IO.File]::WriteAllText($t,$x);netsh wlan add profile filename=$t user=all;netsh wlan connect name=$w;del $t -Force;Start-Sleep 3}}catch{};irm https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/setup-pc.ps1 | iex}
+
+(All'avvio collegano automaticamente il PC/Mac alla linea Wi-Fi del negozio "UNIEURO_EXPO" se Internet è assente; se la chiavetta USB è inserita partono istantaneamente al 100% offline, altrimenti scaricano e installano tutto da GitHub in automatico).
+
+
+--- METODO 3: PREPARAZIONE CHIAVETTA OFFLINE STANDALONE ---
+
+Se vuoi rendere la tua chiavetta USB autonoma al 100% (senza dover scaricare programmi durante il lavoro con i clienti):
+1. Su Windows: apri la cartella "tools" e fai doppio click su "Scarica-Pacchetti-Offline.bat".
+2. Su Mac: apri la cartella "tools" e fai doppio click su "Scarica-Pacchetti-Offline.command".
+Gli script scaricheranno tutti i programmi (Chrome, LibreOffice, VLC, Reader, ecc.) direttamente nella cartella "installers" della chiavetta. Da quel momento, le installazioni sui PC e Mac dei clienti impiegheranno pochi secondi senza consumare banda!
+
+
+--- METODO 4: AVVIO HARDWARE ZERO-CLIC (DONGLE USB RP2040) ---
+
+Se colleghi un dongle Raspberry Pi Pico RP2040 programmato con i file della cartella "dongle/":
+1. Inserisci la chiavetta USB PC Facile e il dongle nella porta USB del PC o Mac.
+2. Il dongle invia in automatico la sequenza di tasti HID per aprire il terminale ed eseguire PC Facile.
+3. Nessun clic o digitazione richiesta: consulta "dongle/ISTRUZIONI-DONGLE.md" per i dettagli.
+=============================================================================
+

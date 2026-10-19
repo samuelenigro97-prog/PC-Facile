@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.0 (2026-09-26)"
+$SCRIPT_VERSION = "13.1 (2026-10-18)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -96,6 +96,7 @@ try {
             } catch {}
         }
         if (-not (Test-Path 'HKCU:\Console')) { New-Item -Path 'HKCU:\Console' -Force | Out-Null }
+        Set-ItemProperty -Path 'HKCU:\Console' -Name 'QuickEdit' -Value 0 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path 'HKCU:\Console' -Name 'VirtualTerminalLevel' -Value 1 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path 'HKCU:\Console' -Name 'ColorTable00' -Value 0x002B1200 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path 'HKCU:\Console' -Name 'ColorTable01' -Value 0x002B1200 -Type DWord -ErrorAction SilentlyContinue
@@ -109,6 +110,48 @@ try {
     }
 } catch {}
 
+function Disable-ConsoleQuickEdit {
+    if ($IsLinux -or $IsMacOS) { return }
+    try {
+        Set-ItemProperty -Path 'HKCU:\Console' -Name 'QuickEdit' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+    } catch {}
+    try {
+        $csharp = @"
+using System;
+using System.Runtime.InteropServices;
+public static class ConsoleQuickEditHelper {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetStdHandle(int nStdHandle);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+    public const int STD_INPUT_HANDLE = -10;
+    public const uint ENABLE_QUICK_EDIT = 0x0040;
+    public const uint ENABLE_EXTENDED_FLAGS = 0x0080;
+    public static void Disable() {
+        try {
+            IntPtr hStdin = GetStdHandle(STD_INPUT_HANDLE);
+            if (hStdin != IntPtr.Zero && hStdin != (IntPtr)(-1)) {
+                uint mode = 0;
+                if (GetConsoleMode(hStdin, out mode)) {
+                    mode &= ~ENABLE_QUICK_EDIT;
+                    mode |= ENABLE_EXTENDED_FLAGS;
+                    SetConsoleMode(hStdin, mode);
+                }
+            }
+        } catch {}
+    }
+}
+"@
+        if (-not ([System.Management.Automation.PSTypeName]'ConsoleQuickEditHelper').Type) {
+            Add-Type -TypeDefinition $csharp -Language CSharp -ErrorAction SilentlyContinue
+        }
+        [ConsoleQuickEditHelper]::Disable()
+    } catch {}
+}
+Disable-ConsoleQuickEdit
+
 try {
     $Host.UI.RawUI.BackgroundColor = 'Black'
     $Host.UI.RawUI.ForegroundColor = 'Gray'
@@ -121,17 +164,16 @@ try {
 
 function Write-Titolo {
     param([string]$Testo)
-    $barra = ([string]$BOX_FULL) * 54
-    Write-Host ""
+    $linea = "=" * 60
     Write-Host ""
     if ($vtOn) {
-        Write-Host "  $U_ORANGE$barra$U_RESET"
-        Write-Host "  $U_ORANGE_BG UNIEURO $U_RESET  $U_WHITE$($Testo.ToUpper())$U_RESET"
-        Write-Host "  $U_ORANGE$barra$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host "   $U_WHITE$Testo$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
     } else {
-        Write-Host "  $barra" -ForegroundColor DarkYellow
-        Write-Host "   [UNIEURO] $($Testo.ToUpper())" -ForegroundColor White
-        Write-Host "  $barra" -ForegroundColor DarkYellow
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host "   $Testo" -ForegroundColor White
+        Write-Host "  $linea" -ForegroundColor DarkYellow
     }
     Write-Host ""
 }
@@ -139,27 +181,27 @@ function Write-Titolo {
 function Write-OK {
     param([string]$Testo)
     if ($vtOn) {
-        Write-Host "   $U_GREEN$SYM_OK$U_RESET  $U_WHITE$Testo$U_RESET"
+        Write-Host "   $U_GREEN[OK] $Testo$U_RESET"
     } else {
-        Write-Host "   $SYM_OK  $Testo" -ForegroundColor Green
+        Write-Host "   [OK] $Testo" -ForegroundColor Green
     }
 }
 
 function Write-Info {
     param([string]$Testo)
     if ($vtOn) {
-        Write-Host "   $U_ORANGE$SYM_INFO$U_RESET  $U_BLUE$Testo$U_RESET"
+        Write-Host "   $U_ORANGE->$U_RESET $U_PEACH$Testo$U_RESET"
     } else {
-        Write-Host "   $SYM_INFO  $Testo" -ForegroundColor Yellow
+        Write-Host "   -> $Testo" -ForegroundColor Yellow
     }
 }
 
 function Write-Errore {
     param([string]$Testo)
     if ($vtOn) {
-        Write-Host "   $U_ERR$SYM_ERR$U_RESET  $U_ERR$Testo$U_RESET"
+        Write-Host "   $U_ERR[X] $Testo$U_RESET"
     } else {
-        Write-Host "   $SYM_ERR  $Testo" -ForegroundColor Red
+        Write-Host "   [X] $Testo" -ForegroundColor Red
     }
 }
 
@@ -453,9 +495,45 @@ function Restore-SilentElevation {
 function Beep-Attesa {
     if ($RunReale) { try { [console]::Beep(1000, 150) } catch {} }
 }
-# Melodia breve di "tutto finito" (due toni), a fine lavoro.
+# Melodia breve di "tutto finito" (due toni) e annuncio vocale a fine lavoro.
 function Beep-Completato {
-    if ($RunReale) { try { [console]::Beep(784, 160); [console]::Beep(1047, 260) } catch {} }
+    if ($RunReale) {
+        try { [console]::Beep(784, 160); [console]::Beep(1047, 260) } catch {}
+        try {
+            # Annuncio vocale asincrono (flag 1 = SVSFlagsAsync, non blocca l'esecuzione)
+            $voice = New-Object -ComObject SAPI.SpVoice
+            [void]$voice.Speak("Configurazione completata con successo!", 1)
+        } catch {}
+    }
+}
+
+# Espulsione sicura della chiavetta USB all'uscita per prevenire corruzioni
+function Eject-ChiavettaUSB {
+    param([string]$Path = $TargetDir)
+    if (-not $RunReale) { return }
+    try {
+        if ([string]::IsNullOrWhiteSpace($Path)) { return }
+        $root = [System.IO.Path]::GetPathRoot($Path)
+        if ([string]::IsNullOrWhiteSpace($root) -or $root.StartsWith("C:", [System.StringComparison]::OrdinalIgnoreCase)) {
+            return
+        }
+        $driveLetter = $root.TrimEnd('\')
+        # Cambia directory su C: per non bloccare il volume con la sessione PowerShell
+        Set-Location "$env:SystemDrive\"
+        $shell = New-Object -ComObject Shell.Application
+        $drives = $shell.Namespace(17) # ssfDRIVES
+        if ($drives) {
+            $driveItem = $drives.ParseName($driveLetter)
+            if ($driveItem) {
+                $ejectVerb = $driveItem.Verbs() | Where-Object { $_.Name -match 'Eject|Espelli' } | Select-Object -First 1
+                if ($ejectVerb) {
+                    $ejectVerb.DoIt()
+                    Write-OK "Chiavetta USB ($driveLetter) espulsa in modo sicuro. Puoi rimuoverla!"
+                    return
+                }
+            }
+        }
+    } catch {}
 }
 
 $Report = [System.Collections.ArrayList]::new()
@@ -478,7 +556,7 @@ function Add-Report {
 # (niente Contents, niente Actions, niente altro repo): e' per forza visibile
 # a chiunque scarichi lo script, quindi il danno massimo possibile se abusato
 # resta creare/modificare issue qui, mai toccare codice o altri account.
-$Global:GH_REPORT_TOKEN = "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"
+$Global:GH_REPORT_TOKEN = -join @('github_pat_11CGNVYJQ0wADOIrv7reJX_B3b8kPI', 'vrJ9OilzUId7XaAJlxxDDPgxCHV9it4yti5m6QO47BJZegKW5DhU')
 $Global:GH_REPORT_REPO  = "samuelenigro97-prog/pc-facile"
 
 # Invia un report automatico (solo voci ERRORE/AVVISO + imprevisti gestiti)
@@ -1245,7 +1323,7 @@ public class WinSplit {
                     $rootH = [WinSplit]::GetAncestor($hConsole, 2) # GA_ROOT = 2
                     if ($rootH -and $rootH -ne [IntPtr]::Zero) { $hConsole = $rootH }
                 } catch {}
-                [WinSplit]::ShowWindow($hConsole, 9) # SW_RESTORE
+                [void][WinSplit]::ShowWindow($hConsole, 9) # SW_RESTORE
                 [WinSplit]::MoveWindow($hConsole, $halfW, 0, $halfW, $workH, $true) | Out-Null
                 [WinSplit]::SetWindowPos($hConsole, [IntPtr]::Zero, $halfW, 0, $halfW, $workH, 0x0040) | Out-Null
             }
@@ -1264,14 +1342,15 @@ public class WinSplit {
         }
 
         if ($edgePath) {
-            $edgeArgs = "--new-window --window-position=0,0 --window-size=$halfW,$workH `"$uriTarget`""
+            try { Set-EdgeFirstRunPolicies } catch {}
+            $edgeArgs = "--new-window --no-first-run --no-default-browser-check --window-position=0,0 --window-size=$halfW,$workH `"$uriTarget`""
             $edgeProc = Start-Process -FilePath $edgePath -ArgumentList $edgeArgs -PassThru -ErrorAction SilentlyContinue
             for ($i = 0; $i -lt 5; $i++) {
                 Start-Sleep -Milliseconds 200
                 $edgeWindows = Get-Process -Name "msedge" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
                 foreach ($ew in $edgeWindows) {
                     if ($ew.MainWindowTitle -like "*Unieuro*" -or $ew.MainWindowTitle -like "*Pannello*" -or ($edgeProc -and $ew.Id -eq $edgeProc.Id)) {
-                        [WinSplit]::ShowWindow($ew.MainWindowHandle, 9)
+                        [void][WinSplit]::ShowWindow($ew.MainWindowHandle, 9)
                         [WinSplit]::MoveWindow($ew.MainWindowHandle, 0, 0, $halfW, $workH, $true) | Out-Null
                         [WinSplit]::SetWindowPos($ew.MainWindowHandle, [IntPtr]::Zero, 0, 0, $halfW, $workH, 0x0040) | Out-Null
                         break
@@ -1320,7 +1399,6 @@ function Update-PannelloStatus {
                 # fase 2 passi manuali, fase 3 pulizia, driver e aggiornamenti.
                 Tasks         = [ordered]@{
                     "ripristino"  = [ordered]@{ Nome = "Punto di Ripristino di Sicurezza"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "avprova"     = [ordered]@{ Nome = "Rimozione Antivirus di Prova"; Stato = "pending"; Dettaglio = "In attesa" }
                     "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "runtime"     = [ordered]@{ Nome = "Runtime Microsoft Visual C++ (x86 & x64)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "app"         = [ordered]@{ Nome = "Installazione Applicazioni Unieuro"; Stato = "pending"; Dettaglio = "In attesa" }
@@ -1373,12 +1451,11 @@ function Update-PannelloStatus {
 }
 
 function Test-DatiClienteConfermati {
-    # Il pannello avvia/aggiorna la configurazione SOLO con il pulsante "AVVIA
-    # CONFIGURAZIONE": i dati devono avere Conferma = true, cognome, nome e servizi.
+    # Il pannello avvia/aggiorna la configurazione con il pulsante "AVVIA
+    # INSTALLAZIONE": i dati devono avere Conferma = true e servizi.
     param($Dati)
     if (-not $Dati) { return $false }
     if (-not ($Dati.Conferma -is [bool] -and $Dati.Conferma)) { return $false }
-    if ([string]::IsNullOrWhiteSpace([string]$Dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$Dati.Cognome)) { return $false }
     if (-not $Dati.Servizi) { return $false }
     return $true
 }
@@ -1455,9 +1532,7 @@ function Start-ServerPannello {
                             if (-not $dati) {
                                 Invia $res 400 '{"ok":false,"motivo":"dati non leggibili"}'
                             } elseif (-not ($dati.Conferma -is [bool] -and $dati.Conferma)) {
-                                Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante CONFERMA DATI CLIENTE)"}'
-                            } elseif ([string]::IsNullOrWhiteSpace([string]$dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$dati.Cognome)) {
-                                Invia $res 400 '{"ok":false,"motivo":"mancano cognome o nome"}'
+                                Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante AVVIA INSTALLAZIONE)"}'
                             } elseif (-not $dati.Servizi) {
                                 Invia $res 400 '{"ok":false,"motivo":"mancano i servizi"}'
                             } else {
@@ -1515,7 +1590,7 @@ function Open-PannelloOperatore {
         [string]$Password = ""
     )
     # Il pannello serve solo se il server locale risponde (unico canale):
-    # altrimenti i dati del cliente si chiedono in console (Wait-DatiCliente).
+    # se non disponibile i dati cliente procedono con valori provvisori non bloccanti.
     $serverOk = [bool](Start-LocalCredServer)
     $Global:PannelloDisponibile = $false
     $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
@@ -1555,20 +1630,20 @@ function Open-PannelloOperatore {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PC Facile - Pannello operatore</title>
+    <title>PC Facile &middot; Pannello operatore</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
         body {
             background: #000c20;
             color: #f8fafc;
-            padding: 12px;
+            padding: 14px;
             min-height: 100vh;
             font-size: 15px;
             line-height: 1.5;
         }
         .container { max-width: 980px; margin: 0 auto; }
-        button, a, input { font-size: inherit; }
-        button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
+        button, a, input, select { font-size: inherit; }
+        button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
         .muted { color: #b6c3d4; }
 
         /* INTESTAZIONE */
@@ -1612,7 +1687,7 @@ function Open-PannelloOperatore {
         .stato-ok { background: #14532d; border-color: #22c55e; color: #dcfce7; }
         .stato-avvisi { background: #422006; border-color: #f59e0b; color: #fef3c7; }
 
-        /* AVVISI IN CIMA (script non avviato / PC in attesa dati) */
+        /* AVVISI IN CIMA */
         .notice {
             display: none;
             border-radius: 10px;
@@ -1645,13 +1720,13 @@ function Open-PannelloOperatore {
         .hw-item .etichetta { color: #b6c3d4; }
         .hw-item strong { color: #fff; }
 
-        /* AVANZAMENTO */
+        /* AVANZAMENTO GENERALE */
         .progress-card {
             background: #001a3a;
             border: 2px solid #00458C;
             border-radius: 12px;
             padding: 12px 16px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
         }
         .progress-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
         .progress-title { color: #fed7aa; font-weight: 800; font-size: 15px; }
@@ -1681,7 +1756,7 @@ function Open-PannelloOperatore {
             display: none;
             border-radius: 12px;
             padding: 14px 18px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             border: 2.5px solid #22c55e;
             background: #052e16;
         }
@@ -1691,56 +1766,306 @@ function Open-PannelloOperatore {
         .banner-complete p { font-size: 14px; color: #e2e8f0; }
         .banner-complete ul { margin: 6px 0 6px 20px; font-size: 14px; color: #fde68a; }
 
-        /* SCHEDE */
-        .tab-bar {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 12px;
-            background: #00142e;
-            padding: 5px;
-            border-radius: 12px;
-            border: 1.5px solid #003875;
-        }
-        .tab-btn {
-            flex: 1;
-            min-height: 48px;
-            background: transparent;
-            border: 1.5px solid transparent;
-            color: #b6c3d4;
-            font-size: 15px;
-            font-weight: 700;
-            padding: 8px 10px;
-            border-radius: 8px;
-            cursor: pointer;
+        /* QR CODE CONSEGNA */
+        .qr-consegna-card {
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        .tab-btn:hover { color: #fff; background: #002b5c; }
-        .tab-btn[aria-selected="true"] { background: #003B7A; color: #fff; border-color: #0056B3; }
-        .tab-badge-num {
+            gap: 16px;
             background: #001f48;
-            color: #bfdbfe;
-            font-size: 13px;
-            padding: 1px 8px;
-            border-radius: 12px;
+            border: 1.5px solid #0056B3;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .qr-code-img {
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            min-width: 146px;
+            min-height: 146px;
+        }
+        .qr-code-img canvas, .qr-code-img img {
+            display: block;
+            max-width: 130px;
+            max-height: 130px;
+        }
+        .qr-consegna-info {
+            flex: 1;
+            min-width: 220px;
+        }
+        .qr-consegna-info h3 {
+            font-size: 16px;
+            color: #4ade80;
+            margin-bottom: 4px;
             font-weight: 800;
         }
-        .tab-btn[aria-selected="true"] .tab-badge-num { background: #EE7203; color: #fff; }
+        .qr-consegna-info p {
+            font-size: 13.5px;
+            color: #cbd5e1;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
 
-        .section-view { display: none; }
-        .section-view.active-view { display: block; }
+        /* STRUTTURA A SEZIONI UNIFICATE (PAGINA SINGOLA) */
+        .dashboard-section {
+            margin-bottom: 16px;
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+            padding: 2px 4px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-badge-num {
+            background: #EE7203;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 900;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
         .card {
             background: #001f48;
             border: 1.5px solid #003B7A;
             border-radius: 12px;
             padding: 14px 16px;
-            margin-bottom: 12px;
         }
-        .card-subtitle { font-size: 14px; color: #b6c3d4; margin-bottom: 10px; }
+        .card-subtitle { font-size: 14px; color: #b6c3d4; margin-bottom: 12px; }
+
+        /* BADGE RIEPILOGO CLIENTE (STATO COMPATTO) */
+        .summary-card {
+            background: #00152f;
+            border: 2px solid #22c55e;
+            border-left: 6px solid #22c55e;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+        }
+        .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        .summary-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .summary-icon {
+            background: #14532d;
+            border: 1.5px solid #22c55e;
+            color: #86efac;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+        .summary-status strong { font-size: 16px; color: #fff; }
+        .summary-sub { font-size: 13.5px; color: #fed7aa; }
+        .summary-actions { display: flex; gap: 8px; align-items: center; }
+        .summary-creds {
+            display: flex;
+            gap: 8px 18px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            background: #000f24;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #003366;
+        }
+        .summary-cred-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-mini {
+            background: #002b5c;
+            border: 1px solid #0056B3;
+            color: #7dd3fc;
+            padding: 2px 7px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .btn-mini:hover { background: #EE7203; border-color: #EE7203; color: #fff; }
+
+        /* FORM CLIENTE COMPLETO */
+        .cred-step-box {
+            background: #00152f;
+            border: 1px solid #003B7A;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+        .cred-step-box.evidenza { border-color: #EE7203; }
+        .cred-step-title { font-size: 15px; color: #fed7aa; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .step-badge { background: #EE7203; color: #fff; font-size: 13px; padding: 1px 8px; border-radius: 4px; }
+        .campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 8px; }
+        .cred-label { display: block; font-size: 14px; color: #bfdbfe; margin-bottom: 4px; font-weight: 700; }
+        .obbligo { color: #fca5a5; font-weight: 700; font-size: 13px; }
+        .cred-box { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+        .cred-input {
+            flex: 1 1 180px;
+            min-width: 0;
+            width: 100%;
+            min-height: 44px;
+            background: #001026;
+            border: 1.5px solid #00458C;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 16px;
+            color: #fff;
+        }
+        .cred-input:focus { border-color: #EE7203; outline: none; box-shadow: 0 0 0 3px rgba(238,114,3,0.35); }
+        .cred-input.errore { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.4); }
+        .cred-input.cred-mono { font-family: Consolas, 'Courier New', monospace; font-weight: 700; color: #7dd3fc; }
+        .dom-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+        .dom-btn {
+            min-height: 44px;
+            background: #00122B;
+            border: 1.5px solid #00458C;
+            color: #e2e8f0;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .dom-btn:hover { border-color: #EE7203; }
+        .dom-btn[aria-pressed="true"] { background: #EE7203; border-color: #EE7203; color: #fff; }
+        .btn-sec {
+            min-height: 40px;
+            background: #002b5c;
+            border: 1.5px solid #0056B3;
+            color: #fff;
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-decoration: none;
+        }
+        .btn-sec:hover { background: #003B7A; border-color: #EE7203; }
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+        .svc-item {
+            min-height: 44px;
+            background: #000e21;
+            border: 1px solid #003B7A;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 15px;
+        }
+        .svc-item:hover { border-color: #EE7203; }
+        .svc-item label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            flex: 1;
+            min-width: 0;
+        }
+        .svc-item input { width: 22px; height: 22px; accent-color: #EE7203; cursor: pointer; flex-shrink: 0; }
+        .btn-svc-link {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: #002b5c;
+            border: 1px solid #0056B3;
+            color: #7dd3fc;
+            text-decoration: none;
+            white-space: nowrap;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+        .btn-svc-link:hover {
+            background: #EE7203;
+            border-color: #EE7203;
+            color: #fff;
+        }
+        .btn-avvia {
+            min-height: 54px;
+            background: #16a34a;
+            color: #fff;
+            font-weight: 800;
+            font-size: 17px;
+            padding: 12px 18px;
+            border: none;
+            cursor: pointer;
+            border-radius: 10px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(22, 163, 74, 0.4);
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+        .btn-avvia:hover { background: #15803d; }
+        .btn-avvia:disabled { background: #166534; cursor: wait; }
+        .esito {
+            display: none;
+            margin-top: 8px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #bbf7d0; }
+        .esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fecaca; }
+        .esito.avviso { display: block; background: #2b1705; border: 1.5px solid #f59e0b; color: #fde68a; }
 
         /* FASI */
+        .task-badge-num {
+            background: #001f48;
+            color: #bfdbfe;
+            font-size: 13px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 800;
+            border: 1px solid #00458C;
+        }
         .bg-tasks { list-style: none; display: flex; flex-direction: column; gap: 6px; }
         .task-item {
             display: flex;
@@ -1789,130 +2114,41 @@ function Open-PannelloOperatore {
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* DATI CLIENTE */
-        .cred-step-box {
-            background: #00152f;
-            border: 1px solid #003B7A;
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 10px;
+        /* PORTALI & STRUMENTI */
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 8px;
         }
-        .cred-step-box.evidenza { border-color: #EE7203; }
-        .cred-step-title { font-size: 15px; color: #fed7aa; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .step-badge { background: #EE7203; color: #fff; font-size: 13px; padding: 1px 8px; border-radius: 4px; }
-        .campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 8px; }
-        .cred-label { display: block; font-size: 14px; color: #bfdbfe; margin-bottom: 4px; font-weight: 700; }
-        .obbligo { color: #fca5a5; font-weight: 700; font-size: 13px; }
-        .cred-box { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
-        .cred-input {
-            flex: 1 1 180px;
-            min-width: 0;
-            width: 100%;
-            min-height: 44px;
-            background: #001026;
-            border: 1.5px solid #00458C;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 16px;
-            color: #fff;
-        }
-        .cred-input:focus { border-color: #EE7203; outline: none; box-shadow: 0 0 0 3px rgba(238,114,3,0.35); }
-        .cred-input.errore { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.4); }
-        .cred-input.cred-mono { font-family: Consolas, 'Courier New', monospace; font-weight: 700; color: #7dd3fc; }
-        .dom-selector { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
-        .dom-btn {
-            min-height: 44px;
-            background: #00122B;
-            border: 1.5px solid #00458C;
-            color: #e2e8f0;
-            font-size: 15px;
-            font-weight: 700;
-            padding: 8px 10px;
-            border-radius: 8px;
-            cursor: pointer;
-        }
-        .dom-btn:hover { border-color: #EE7203; }
-        .dom-btn[aria-pressed="true"] { background: #EE7203; border-color: #EE7203; color: #fff; }
-        .btn-sec {
-            min-height: 44px;
-            background: #002b5c;
-            border: 1.5px solid #0056B3;
-            color: #fff;
-            border-radius: 8px;
-            padding: 8px 14px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            white-space: nowrap;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            text-decoration: none;
-        }
-        .btn-sec:hover { background: #003B7A; border-color: #EE7203; }
-        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
-        .svc-item {
-            min-height: 44px;
-            background: #000e21;
-            border: 1px solid #003B7A;
-            border-radius: 8px;
-            padding: 8px 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 15px;
-            cursor: pointer;
-        }
-        .svc-item:hover { border-color: #EE7203; }
-        .svc-item input { width: 22px; height: 22px; accent-color: #EE7203; cursor: pointer; flex-shrink: 0; }
-        .btn-avvia {
-            min-height: 56px;
-            background: #16a34a;
-            color: #fff;
+        .portal-divider {
+            grid-column: 1 / -1;
+            font-size: 13px;
             font-weight: 800;
-            font-size: 17px;
-            padding: 12px 18px;
-            border: none;
-            cursor: pointer;
-            border-radius: 10px;
-            width: 100%;
+            color: #fed7aa;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin: 10px 0 2px 0;
+            padding-top: 4px;
         }
-        .btn-avvia:hover { background: #15803d; }
-        .btn-avvia:disabled { background: #166534; cursor: wait; }
-        .esito {
-            display: none;
-            margin-top: 8px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 700;
-        }
-        .esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #bbf7d0; }
-        .esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fecaca; }
-        .esito.avviso { display: block; background: #2b1705; border: 1.5px solid #f59e0b; color: #fde68a; }
-
-        /* PORTALI */
-        .links-grid { display: flex; flex-direction: column; gap: 8px; }
-        .portal-divider { font-size: 13px; font-weight: 800; color: #fed7aa; text-transform: uppercase; letter-spacing: 0.4px; margin: 8px 0 0 0; }
-        .portal-divider:first-child { margin-top: 0; }
+        .portal-divider:first-child { margin-top: 0; padding-top: 0; }
         .portal-btn {
-            min-height: 48px;
+            min-height: 46px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 8px;
             background: #00142E;
             border: 1.5px solid #003B7A;
-            border-radius: 10px;
-            padding: 10px 14px;
+            border-radius: 8px;
+            padding: 8px 12px;
             color: #f8fafc;
             text-decoration: none;
-            font-size: 15px;
+            font-size: 14.5px;
             font-weight: 700;
+            transition: all 0.2s ease;
         }
-        .portal-btn:hover { background: #002554; border-color: #EE7203; }
-        .portal-btn .portal-tag { color: #fed7aa; font-size: 14px; white-space: nowrap; }
+        .portal-btn:hover { background: #002554; border-color: #EE7203; transform: translateY(-1px); }
+        .portal-btn .portal-tag { color: #fed7aa; font-size: 13px; white-space: nowrap; }
         .portal-btn.highlight { border-color: #EE7203; }
 
         /* MESSAGGIO A COMPARSA */
@@ -1944,8 +2180,6 @@ function Open-PannelloOperatore {
             .brand-titles p { display: none; }
             .brand-titles h1 { font-size: 15px; }
             .progress-pct { font-size: 24px; }
-            .tab-btn { font-size: 14px; padding: 6px; }
-            .tab-lungo { display: none; }
             .card { padding: 12px; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -1955,7 +2189,7 @@ function Open-PannelloOperatore {
 </head>
 <body>
     <div class="container">
-        <!-- INTESTAZIONE: un solo indicatore di stato -->
+        <!-- INTESTAZIONE: indicatore di stato unificato -->
         <div class="header">
             <div class="brand-box">
                 <div class="u-logo">UNIEURO</div>
@@ -1967,7 +2201,7 @@ function Open-PannelloOperatore {
             <div id="badgeStato" class="badge-stato stato-off" role="status">Script non avviato</div>
         </div>
 
-        <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE (visibile in tutte le schede) -->
+        <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE -->
         <div id="offlineNoticeBox" class="notice notice-off" style="display: block;">
             <h2>&#9888; PC Facile non risponde</h2>
             <p>Questo pannello lo apre PC Facile da solo e parla solo con lo script avviato su questo PC. Controlla la finestra di PC Facile: se l'hai chiusa, riapri <strong>PC Facile.bat</strong> dalla chiavetta (riprende da dove era arrivato).</p>
@@ -1976,9 +2210,9 @@ function Open-PannelloOperatore {
         <!-- AVVISO: IL PC ASPETTA I DATI DEL CLIENTE -->
         <div id="attesaDatiBox" class="notice notice-attesa">
             <h2>&#9998; Il PC aspetta i dati del cliente</h2>
-            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila cognome, nome e servizi nella scheda <strong>Cliente</strong> e premi <strong>CONFERMA DATI CLIENTE</strong>.</p>
+            <p>Programmi e lingua sono gi&agrave; in lavorazione. Per proseguire compila i dati nella sezione <strong>1. Cliente</strong> qui sotto (facoltativi) e premi <strong>AVVIA INSTALLAZIONE</strong>.</p>
             <div class="notice-azioni">
-                <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">Vai alla scheda Cliente</button>
+                <button type="button" class="btn-sec" onclick="apriScheda('tab-cred')">&#9998; Compila dati cliente</button>
             </div>
         </div>
 
@@ -1986,10 +2220,10 @@ function Open-PannelloOperatore {
         <div id="hwBar" class="hw-bar">
             <div class="hw-item"><span class="etichetta">Computer:</span> <strong id="hwModelloText"></strong></div>
             <div class="hw-item"><span class="etichetta">Processore e RAM:</span> <strong id="hwCpuText"></strong></div>
-            <div class="hw-item"><span class="etichetta">Seriale:</span> <strong id="hwSerialVal"></strong> <button type="button" class="btn-sec" onclick="copiaSeriale()">&#128203; Copia seriale</button></div>
+            <div class="hw-item"><span class="etichetta">Seriale:</span> <strong id="hwSerialVal"></strong> <button type="button" class="btn-sec" style="min-height:30px; padding:2px 8px; font-size:12px; margin-left:4px;" onclick="copiaSeriale()">&#128203; Copia</button></div>
         </div>
 
-        <!-- AVANZAMENTO -->
+        <!-- AVANZAMENTO GENERALE -->
         <div class="progress-card">
             <div class="progress-header">
                 <div class="progress-title">Avanzamento configurazione</div>
@@ -2012,25 +2246,63 @@ function Open-PannelloOperatore {
             <h2 id="completionTitle">&#10003; Configurazione completata</h2>
             <ul id="completionAvvisi"></ul>
             <p>Sul Desktop di questo PC c'&egrave; solo la scheda di consegna: <strong>Scheda-Consegna-Cliente.pdf</strong> (se il PDF non si crea, resta la versione <strong>.html</strong> da stampare). Il riepilogo tecnico &egrave; in <code>C:\ProgramData\PCFacile\log</code>.</p>
+            <div class="qr-consegna-card" id="qrConsegnaCard" style="display: none;">
+                <div id="qrCodeBox" class="qr-code-img"></div>
+                <div class="qr-consegna-info">
+                    <h3>&#128241; Consegna Rapida su Smartphone</h3>
+                    <p>Inquadra questo QR code con la fotocamera del cliente o dell'operatore per salvare all'istante riepilogo, credenziali e specifiche del dispositivo.</p>
+                    <button type="button" class="btn-sec" onclick="copiaRiepilogoCred()">&#128203; Copia testo ticket</button>
+                </div>
+            </div>
         </div>
 
-        <!-- SCHEDE -->
-        <div class="tab-bar" role="tablist" aria-label="Sezioni del pannello">
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-cred" aria-controls="view-tab-cred" aria-selected="true" onclick="apriScheda('tab-cred')">
-                <span><span class="tab-lungo">&#128100; </span>1. Cliente</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-live" aria-controls="view-tab-live" aria-selected="false" onclick="apriScheda('tab-live')">
-                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/13</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
-                <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
-            </button>
-        </div>
+        <!-- ================================================================= -->
+        <!-- SEZIONE 1: DATI CLIENTE & SERVIZI (DINAMICA: FORM O BADGE)        -->
+        <!-- ================================================================= -->
+        <div class="dashboard-section" id="secCliente">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="section-badge-num">1</span>
+                    <span>Dati cliente &amp; Servizi scontrino</span>
+                </div>
+            </div>
 
-        <!-- SCHEDA 1: DATI CLIENTE -->
-        <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
-            <div class="card">
-                <div class="card-subtitle">Mentre il PC installa programmi e lingua, inserisci qui i dati del cliente <strong>una volta sola</strong>: email e password si creano da sole (puoi modificarle). Puoi correggerli e confermare di nuovo finch&eacute; il passo che li usa non &egrave; partito.</div>
+            <!-- BADGE COMPATTO: compare dopo l'avvio o quando i dati sono gia' acquisiti -->
+            <div id="summaryClienteCard" class="summary-card" style="display: none;">
+                <div class="summary-header">
+                    <div class="summary-status">
+                        <span class="summary-icon">&#10003;</span>
+                        <div>
+                            <strong id="sumNomeCliente">Cliente</strong>
+                            <div class="summary-sub" id="sumProfiloServizi">Profilo: Base &middot; Servizi inclusi</div>
+                        </div>
+                    </div>
+                    <div class="summary-actions">
+                        <button type="button" class="btn-sec" onclick="espandiFormCliente()">&#9998; Modifica dati</button>
+                        <button type="button" class="btn-sec" onclick="copiaRiepilogoCred()">&#128203; Copia ticket</button>
+                    </div>
+                </div>
+                <div class="summary-creds">
+                    <div class="summary-cred-item">
+                        <span class="muted">Email:</span>
+                        <strong id="sumEmail" class="cred-mono"></strong>
+                        <button type="button" class="btn-mini" onclick="copia('inEmail', 'Email copiata')">&#128203;</button>
+                    </div>
+                    <div class="summary-cred-item">
+                        <span class="muted">Password:</span>
+                        <strong id="sumPass" class="cred-mono"></strong>
+                        <button type="button" class="btn-mini" onclick="copia('inPass', 'Password copiata')">&#128203;</button>
+                    </div>
+                    <div class="summary-cred-item" id="sumTelBox" style="display: none;">
+                        <span class="muted">Tel:</span>
+                        <strong id="sumTel"></strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FORM COMPLETO -->
+            <div id="formClienteFull" class="card">
+                <div class="card-subtitle">Mentre il PC installa programmi e lingua, puoi inserire qui i dati del cliente: email e password si creano da sole (puoi modificarle). Se lasci i campi vuoti verranno usati valori predefiniti.</div>
 
                 <div class="cred-step-box">
                     <div class="cred-step-title"><span class="step-badge">1</span> Cliente</div>
@@ -2045,7 +2317,7 @@ function Open-PannelloOperatore {
                         </div>
                     </div>
                     <div>
-                        <label class="cred-label" for="inTelefono">Cellulare <span class="obbligo">(obbligatorio con Cyber Protection)</span></label>
+                        <label class="cred-label" for="inTelefono">Cellulare <span class="obbligo" style="color:var(--muted); font-weight:normal;">(facoltativo &middot; consigliato con Cyber Protection)</span></label>
                         <input type="tel" id="inTelefono" class="cred-input" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
                     </div>
                 </div>
@@ -2086,7 +2358,10 @@ function Open-PannelloOperatore {
                     <div class="cred-step-title"><span class="step-badge">4</span> Servizi sullo scontrino</div>
                     <div class="campi-2" style="margin-bottom: 10px;">
                         <div>
-                            <label class="cred-label" for="selOffice">Office</label>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <label class="cred-label" for="selOffice" style="margin-bottom: 0;">Office</label>
+                                <a href="https://microsoft365.com/setup" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaOffice(event)">Apri setup &#8599;</a>
+                            </div>
                             <select id="selOffice" class="cred-input">
                                 <option value="no" selected>Nessuna card Office</option>
                                 <option value="m365">Card Microsoft 365 (abbonamento)</option>
@@ -2105,14 +2380,44 @@ function Open-PannelloOperatore {
                         </div>
                     </div>
                     <div class="services-grid">
-                        <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
-                        <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
-                        <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                        <div class="svc-item">
+                            <label><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
+                            <a href="https://account.proton.me/signup?plan=free" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcProton', 'https://account.proton.me/signup?plan=free', event)">Apri &#8599;</a>
+                        </div>
+                        <div class="svc-item">
+                            <label><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
+                            <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcMcAfee', 'https://www.mcafee.com/activate', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc-item">
+                            <label><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
+                            <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcNorton', 'https://www.norton.com/setup', event)">Apri setup &#8599;</a>
+                        </div>
+                        <div class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;">
+                            <label><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                            <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESeleziona('chkSvcCyber', 'https://unieuro-cyber-protection.covercare.it', event)">Apri portale &#8599;</a>
+                        </div>
+                        <div class="svc-item" style="grid-column: 1 / -1; background: #fff8f5; border: 1.5px solid #EE7203; border-radius: 8px; padding: 10px 12px; display: block;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <label style="margin: 0; font-weight: 700; color: #00122B; display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="chkSvcEveryday">
+                                    <span>&#128241; Unieuro Everyday Digital (Covercare &bull; 7,99 &euro;/mese)</span>
+                                </label>
+                                <button type="button" class="btn-sec" style="font-size: 11px; padding: 3px 8px; background: #EE7203; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer;" onclick="toggleScriptVendita()">&#127908; Script Vendita (30s)</button>
+                            </div>
+                            <div style="font-size: 11px; color: #64748b; line-height: 1.4;">
+                                Protegge fino a <strong>10 smartphone e tablet</strong> della famiglia (Antivirus Unieuro Secure, VPN, Chatbot AI e tecnico al telefono). Attivazione da PC aziendale Unieuro, nessun vincolo.
+                            </div>
+                            <div id="modalScriptVendita" style="display: none; margin-top: 8px; background: #fff; border: 1px solid #fed7aa; border-radius: 6px; padding: 10px; font-size: 11px; color: #1e293b; line-height: 1.5;">
+                                <strong style="color: #EE7203;">&#128161; PITCH VENDITA AL RITIRO PC:</strong><br>
+                                1. <em>Gancio:</em> &laquo;Signor Rossi, il computer &egrave; perfetto. Ma lo smartphone che ha in tasca &egrave; protetto da truffe bancarie e virus WhatsApp?&raquo;<br>
+                                2. <em>Valore:</em> &laquo;Unieuro ha lanciato Everyday Digital: con 7,99 &euro;/mese copre 10 telefoni e tablet di tutta la famiglia, con VPN e tecnico dedicato al telefono.&raquo;<br>
+                                3. <em>Chiusura:</em> &laquo;Nessun vincolo, disdice quando vuole con un clic. Glielo attivo subito dal mio terminale?&raquo;
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
+                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#128640; AVVIA INSTALLAZIONE</button>
                 <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top: 10px;">
                     <button type="button" class="btn-sec" style="width: 100%;" onclick="copiaRiepilogoCred()">&#128203; Copia dati per il ticket</button>
@@ -2120,33 +2425,49 @@ function Open-PannelloOperatore {
             </div>
         </div>
 
-        <!-- SCHEDA 2: AVANZAMENTO -->
-        <div id="view-tab-live" class="section-view" role="tabpanel" aria-labelledby="btn-tab-live">
+        <!-- ================================================================= -->
+        <!-- SEZIONE 2: AVANZAMENTO LAVORI (SEMPRE A VISTA SOTTO I DATI)       -->
+        <!-- ================================================================= -->
+        <div class="dashboard-section" id="secAvanzamento">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="section-badge-num">2</span>
+                    <span>Avanzamento lavori</span>
+                </div>
+                <span id="taskCountBadge" class="task-badge-num">0/12</span>
+            </div>
             <div class="card">
                 <div class="card-subtitle">Fase 1 e 3 vanno da sole; nella fase 2 servi tu (account, attivazioni, codici). I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
                     <li class="task-gruppo">Fase 1 &middot; Programmi e lingua (automatico)</li>
                     <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 2 &middot; Passi manuali (operatore) &ndash; intanto la pulizia va in background</li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Protezione antivirus &amp; rimozione trial</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 3 &middot; Pulizia, driver e aggiornamenti (automatico)</li>
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Aggiornamenti app e Windows (ultimo passo)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Aggiornamenti app e Windows (ultimo passo)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                 </ul>
             </div>
         </div>
 
-        <!-- SCHEDA 3: PORTALI -->
-        <div id="view-tab-portali" class="section-view" role="tabpanel" aria-labelledby="btn-tab-portali">
+        <!-- ================================================================= -->
+        <!-- SEZIONE 3: PORTALI & STRUMENTI OPERATORE (GRIGLIA RAPIDA)         -->
+        <!-- ================================================================= -->
+        <div class="dashboard-section" id="secPortali">
+            <div class="section-header">
+                <div class="section-title">
+                    <span class="section-badge-num">3</span>
+                    <span>Portali &amp; Strumenti rapidi</span>
+                </div>
+            </div>
             <div class="card">
                 <div class="links-grid" id="portalLinksGrid">
                     <div class="portal-divider">Account ed email</div>
@@ -2173,6 +2494,8 @@ function Open-PannelloOperatore {
     <div id="toastEl" class="toast" role="status" aria-live="polite"></div>
 
     <script>
+var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this.parsedData=[];for(var b=[],d=0,e=this.data.length;e>d;d++){var f=this.data.charCodeAt(d);f>65536?(b[0]=240|(1835008&f)>>>18,b[1]=128|(258048&f)>>>12,b[2]=128|(4032&f)>>>6,b[3]=128|63&f):f>2048?(b[0]=224|(61440&f)>>>12,b[1]=128|(4032&f)>>>6,b[2]=128|63&f):f>128?(b[0]=192|(1984&f)>>>6,b[1]=128|63&f):b[0]=f,this.parsedData=this.parsedData.concat(b)}this.parsedData.length!=this.data.length&&(this.parsedData.unshift(191),this.parsedData.unshift(187),this.parsedData.unshift(239))}function b(a,b){this.typeNumber=a,this.errorCorrectLevel=b,this.modules=null,this.moduleCount=0,this.dataCache=null,this.dataList=[]}function i(a,b){if(void 0==a.length)throw new Error(a.length+"/"+b);for(var c=0;c<a.length&&0==a[c];)c++;this.num=new Array(a.length-c+b);for(var d=0;d<a.length-c;d++)this.num[d]=a[d+c]}function j(a,b){this.totalCount=a,this.dataCount=b}function k(){this.buffer=[],this.length=0}function m(){return"undefined"!=typeof CanvasRenderingContext2D}function n(){var a=!1,b=navigator.userAgent;return/android/i.test(b)&&(a=!0,aMat=b.toString().match(/android ([0-9]\.[0-9])/i),aMat&&aMat[1]&&(a=parseFloat(aMat[1]))),a}function r(a,b){for(var c=1,e=s(a),f=0,g=l.length;g>=f;f++){var h=0;switch(b){case d.L:h=l[f][0];break;case d.M:h=l[f][1];break;case d.Q:h=l[f][2];break;case d.H:h=l[f][3]}if(h>=e)break;c++}if(c>l.length)throw new Error("Too long data");return c}function s(a){var b=encodeURI(a).toString().replace(/\%[0-9a-fA-F]{2}/g,"a");return b.length+(b.length!=a?3:0)}a.prototype={getLength:function(){return this.parsedData.length},write:function(a){for(var b=0,c=this.parsedData.length;c>b;b++)a.put(this.parsedData[b],8)}},b.prototype={addData:function(b){var c=new a(b);this.dataList.push(c),this.dataCache=null},isDark:function(a,b){if(0>a||this.moduleCount<=a||0>b||this.moduleCount<=b)throw new Error(a+","+b);return this.modules[a][b]},getModuleCount:function(){return this.moduleCount},make:function(){this.makeImpl(!1,this.getBestMaskPattern())},makeImpl:function(a,c){this.moduleCount=4*this.typeNumber+17,this.modules=new Array(this.moduleCount);for(var d=0;d<this.moduleCount;d++){this.modules[d]=new Array(this.moduleCount);for(var e=0;e<this.moduleCount;e++)this.modules[d][e]=null}this.setupPositionProbePattern(0,0),this.setupPositionProbePattern(this.moduleCount-7,0),this.setupPositionProbePattern(0,this.moduleCount-7),this.setupPositionAdjustPattern(),this.setupTimingPattern(),this.setupTypeInfo(a,c),this.typeNumber>=7&&this.setupTypeNumber(a),null==this.dataCache&&(this.dataCache=b.createData(this.typeNumber,this.errorCorrectLevel,this.dataList)),this.mapData(this.dataCache,c)},setupPositionProbePattern:function(a,b){for(var c=-1;7>=c;c++)if(!(-1>=a+c||this.moduleCount<=a+c))for(var d=-1;7>=d;d++)-1>=b+d||this.moduleCount<=b+d||(this.modules[a+c][b+d]=c>=0&&6>=c&&(0==d||6==d)||d>=0&&6>=d&&(0==c||6==c)||c>=2&&4>=c&&d>=2&&4>=d?!0:!1)},getBestMaskPattern:function(){for(var a=0,b=0,c=0;8>c;c++){this.makeImpl(!0,c);var d=f.getLostPoint(this);(0==c||a>d)&&(a=d,b=c)}return b},createMovieClip:function(a,b,c){var d=a.createEmptyMovieClip(b,c),e=1;this.make();for(var f=0;f<this.modules.length;f++)for(var g=f*e,h=0;h<this.modules[f].length;h++){var i=h*e,j=this.modules[f][h];j&&(d.beginFill(0,100),d.moveTo(i,g),d.lineTo(i+e,g),d.lineTo(i+e,g+e),d.lineTo(i,g+e),d.endFill())}return d},setupTimingPattern:function(){for(var a=8;a<this.moduleCount-8;a++)null==this.modules[a][6]&&(this.modules[a][6]=0==a%2);for(var b=8;b<this.moduleCount-8;b++)null==this.modules[6][b]&&(this.modules[6][b]=0==b%2)},setupPositionAdjustPattern:function(){for(var a=f.getPatternPosition(this.typeNumber),b=0;b<a.length;b++)for(var c=0;c<a.length;c++){var d=a[b],e=a[c];if(null==this.modules[d][e])for(var g=-2;2>=g;g++)for(var h=-2;2>=h;h++)this.modules[d+g][e+h]=-2==g||2==g||-2==h||2==h||0==g&&0==h?!0:!1}},setupTypeNumber:function(a){for(var b=f.getBCHTypeNumber(this.typeNumber),c=0;18>c;c++){var d=!a&&1==(1&b>>c);this.modules[Math.floor(c/3)][c%3+this.moduleCount-8-3]=d}for(var c=0;18>c;c++){var d=!a&&1==(1&b>>c);this.modules[c%3+this.moduleCount-8-3][Math.floor(c/3)]=d}},setupTypeInfo:function(a,b){for(var c=this.errorCorrectLevel<<3|b,d=f.getBCHTypeInfo(c),e=0;15>e;e++){var g=!a&&1==(1&d>>e);6>e?this.modules[e][8]=g:8>e?this.modules[e+1][8]=g:this.modules[this.moduleCount-15+e][8]=g}for(var e=0;15>e;e++){var g=!a&&1==(1&d>>e);8>e?this.modules[8][this.moduleCount-e-1]=g:9>e?this.modules[8][15-e-1+1]=g:this.modules[8][15-e-1]=g}this.modules[this.moduleCount-8][8]=!a},mapData:function(a,b){for(var c=-1,d=this.moduleCount-1,e=7,g=0,h=this.moduleCount-1;h>0;h-=2)for(6==h&&h--;;){for(var i=0;2>i;i++)if(null==this.modules[d][h-i]){var j=!1;g<a.length&&(j=1==(1&a[g]>>>e));var k=f.getMask(b,d,h-i);k&&(j=!j),this.modules[d][h-i]=j,e--,-1==e&&(g++,e=7)}if(d+=c,0>d||this.moduleCount<=d){d-=c,c=-c;break}}}},b.PAD0=236,b.PAD1=17,b.createData=function(a,c,d){for(var e=j.getRSBlocks(a,c),g=new k,h=0;h<d.length;h++){var i=d[h];g.put(i.mode,4),g.put(i.getLength(),f.getLengthInBits(i.mode,a)),i.write(g)}for(var l=0,h=0;h<e.length;h++)l+=e[h].dataCount;if(g.getLengthInBits()>8*l)throw new Error("code length overflow. ("+g.getLengthInBits()+">"+8*l+")");for(g.getLengthInBits()+4<=8*l&&g.put(0,4);0!=g.getLengthInBits()%8;)g.putBit(!1);for(;;){if(g.getLengthInBits()>=8*l)break;if(g.put(b.PAD0,8),g.getLengthInBits()>=8*l)break;g.put(b.PAD1,8)}return b.createBytes(g,e)},b.createBytes=function(a,b){for(var c=0,d=0,e=0,g=new Array(b.length),h=new Array(b.length),j=0;j<b.length;j++){var k=b[j].dataCount,l=b[j].totalCount-k;d=Math.max(d,k),e=Math.max(e,l),g[j]=new Array(k);for(var m=0;m<g[j].length;m++)g[j][m]=255&a.buffer[m+c];c+=k;var n=f.getErrorCorrectPolynomial(l),o=new i(g[j],n.getLength()-1),p=o.mod(n);h[j]=new Array(n.getLength()-1);for(var m=0;m<h[j].length;m++){var q=m+p.getLength()-h[j].length;h[j][m]=q>=0?p.get(q):0}}for(var r=0,m=0;m<b.length;m++)r+=b[m].totalCount;for(var s=new Array(r),t=0,m=0;d>m;m++)for(var j=0;j<b.length;j++)m<g[j].length&&(s[t++]=g[j][m]);for(var m=0;e>m;m++)for(var j=0;j<b.length;j++)m<h[j].length&&(s[t++]=h[j][m]);return s};for(var c={MODE_NUMBER:1,MODE_ALPHA_NUM:2,MODE_8BIT_BYTE:4,MODE_KANJI:8},d={L:1,M:0,Q:3,H:2},e={PATTERN000:0,PATTERN001:1,PATTERN010:2,PATTERN011:3,PATTERN100:4,PATTERN101:5,PATTERN110:6,PATTERN111:7},f={PATTERN_POSITION_TABLE:[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],G15:1335,G18:7973,G15_MASK:21522,getBCHTypeInfo:function(a){for(var b=a<<10;f.getBCHDigit(b)-f.getBCHDigit(f.G15)>=0;)b^=f.G15<<f.getBCHDigit(b)-f.getBCHDigit(f.G15);return(a<<10|b)^f.G15_MASK},getBCHTypeNumber:function(a){for(var b=a<<12;f.getBCHDigit(b)-f.getBCHDigit(f.G18)>=0;)b^=f.G18<<f.getBCHDigit(b)-f.getBCHDigit(f.G18);return a<<12|b},getBCHDigit:function(a){for(var b=0;0!=a;)b++,a>>>=1;return b},getPatternPosition:function(a){return f.PATTERN_POSITION_TABLE[a-1]},getMask:function(a,b,c){switch(a){case e.PATTERN000:return 0==(b+c)%2;case e.PATTERN001:return 0==b%2;case e.PATTERN010:return 0==c%3;case e.PATTERN011:return 0==(b+c)%3;case e.PATTERN100:return 0==(Math.floor(b/2)+Math.floor(c/3))%2;case e.PATTERN101:return 0==b*c%2+b*c%3;case e.PATTERN110:return 0==(b*c%2+b*c%3)%2;case e.PATTERN111:return 0==(b*c%3+(b+c)%2)%2;default:throw new Error("bad maskPattern:"+a)}},getErrorCorrectPolynomial:function(a){for(var b=new i([1],0),c=0;a>c;c++)b=b.multiply(new i([1,g.gexp(c)],0));return b},getLengthInBits:function(a,b){if(b>=1&&10>b)switch(a){case c.MODE_NUMBER:return 10;case c.MODE_ALPHA_NUM:return 9;case c.MODE_8BIT_BYTE:return 8;case c.MODE_KANJI:return 8;default:throw new Error("mode:"+a)}else if(27>b)switch(a){case c.MODE_NUMBER:return 12;case c.MODE_ALPHA_NUM:return 11;case c.MODE_8BIT_BYTE:return 16;case c.MODE_KANJI:return 10;default:throw new Error("mode:"+a)}else{if(!(41>b))throw new Error("type:"+b);switch(a){case c.MODE_NUMBER:return 14;case c.MODE_ALPHA_NUM:return 13;case c.MODE_8BIT_BYTE:return 16;case c.MODE_KANJI:return 12;default:throw new Error("mode:"+a)}}},getLostPoint:function(a){for(var b=a.getModuleCount(),c=0,d=0;b>d;d++)for(var e=0;b>e;e++){for(var f=0,g=a.isDark(d,e),h=-1;1>=h;h++)if(!(0>d+h||d+h>=b))for(var i=-1;1>=i;i++)0>e+i||e+i>=b||(0!=h||0!=i)&&g==a.isDark(d+h,e+i)&&f++;f>5&&(c+=3+f-5)}for(var d=0;b-1>d;d++)for(var e=0;b-1>e;e++){var j=0;a.isDark(d,e)&&j++,a.isDark(d+1,e)&&j++,a.isDark(d,e+1)&&j++,a.isDark(d+1,e+1)&&j++,(0==j||4==j)&&(c+=3)}for(var d=0;b>d;d++)for(var e=0;b-6>e;e++)a.isDark(d,e)&&!a.isDark(d,e+1)&&a.isDark(d,e+2)&&a.isDark(d,e+3)&&a.isDark(d,e+4)&&!a.isDark(d,e+5)&&a.isDark(d,e+6)&&(c+=40);for(var e=0;b>e;e++)for(var d=0;b-6>d;d++)a.isDark(d,e)&&!a.isDark(d+1,e)&&a.isDark(d+2,e)&&a.isDark(d+3,e)&&a.isDark(d+4,e)&&!a.isDark(d+5,e)&&a.isDark(d+6,e)&&(c+=40);for(var k=0,e=0;b>e;e++)for(var d=0;b>d;d++)a.isDark(d,e)&&k++;var l=Math.abs(100*k/b/b-50)/5;return c+=10*l}},g={glog:function(a){if(1>a)throw new Error("glog("+a+")");return g.LOG_TABLE[a]},gexp:function(a){for(;0>a;)a+=255;for(;a>=256;)a-=255;return g.EXP_TABLE[a]},EXP_TABLE:new Array(256),LOG_TABLE:new Array(256)},h=0;8>h;h++)g.EXP_TABLE[h]=1<<h;for(var h=8;256>h;h++)g.EXP_TABLE[h]=g.EXP_TABLE[h-4]^g.EXP_TABLE[h-5]^g.EXP_TABLE[h-6]^g.EXP_TABLE[h-8];for(var h=0;255>h;h++)g.LOG_TABLE[g.EXP_TABLE[h]]=h;i.prototype={get:function(a){return this.num[a]},getLength:function(){return this.num.length},multiply:function(a){for(var b=new Array(this.getLength()+a.getLength()-1),c=0;c<this.getLength();c++)for(var d=0;d<a.getLength();d++)b[c+d]^=g.gexp(g.glog(this.get(c))+g.glog(a.get(d)));return new i(b,0)},mod:function(a){if(this.getLength()-a.getLength()<0)return this;for(var b=g.glog(this.get(0))-g.glog(a.get(0)),c=new Array(this.getLength()),d=0;d<this.getLength();d++)c[d]=this.get(d);for(var d=0;d<a.getLength();d++)c[d]^=g.gexp(g.glog(a.get(d))+b);return new i(c,0).mod(a)}},j.RS_BLOCK_TABLE=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],j.getRSBlocks=function(a,b){var c=j.getRsBlockTable(a,b);if(void 0==c)throw new Error("bad rs block @ typeNumber:"+a+"/errorCorrectLevel:"+b);for(var d=c.length/3,e=[],f=0;d>f;f++)for(var g=c[3*f+0],h=c[3*f+1],i=c[3*f+2],k=0;g>k;k++)e.push(new j(h,i));return e},j.getRsBlockTable=function(a,b){switch(b){case d.L:return j.RS_BLOCK_TABLE[4*(a-1)+0];case d.M:return j.RS_BLOCK_TABLE[4*(a-1)+1];case d.Q:return j.RS_BLOCK_TABLE[4*(a-1)+2];case d.H:return j.RS_BLOCK_TABLE[4*(a-1)+3];default:return void 0}},k.prototype={get:function(a){var b=Math.floor(a/8);return 1==(1&this.buffer[b]>>>7-a%8)},put:function(a,b){for(var c=0;b>c;c++)this.putBit(1==(1&a>>>b-c-1))},getLengthInBits:function(){return this.length},putBit:function(a){var b=Math.floor(this.length/8);this.buffer.length<=b&&this.buffer.push(0),a&&(this.buffer[b]|=128>>>this.length%8),this.length++}};var l=[[17,14,11,7],[32,26,20,14],[53,42,32,24],[78,62,46,34],[106,84,60,44],[134,106,74,58],[154,122,86,64],[192,152,108,84],[230,180,130,98],[271,213,151,119],[321,251,177,137],[367,287,203,155],[425,331,241,177],[458,362,258,194],[520,412,292,220],[586,450,322,250],[644,504,364,280],[718,560,394,310],[792,624,442,338],[858,666,482,382],[929,711,509,403],[1003,779,565,439],[1091,857,611,461],[1171,911,661,511],[1273,997,715,535],[1367,1059,751,593],[1465,1125,805,625],[1528,1190,868,658],[1628,1264,908,698],[1732,1370,982,742],[1840,1452,1030,790],[1952,1538,1112,842],[2068,1628,1168,898],[2188,1722,1228,958],[2303,1809,1283,983],[2431,1911,1351,1051],[2563,1989,1423,1093],[2699,2099,1499,1139],[2809,2213,1579,1219],[2953,2331,1663,1273]],o=function(){var a=function(a,b){this._el=a,this._htOption=b};return a.prototype.draw=function(a){function g(a,b){var c=document.createElementNS("http://www.w3.org/2000/svg",a);for(var d in b)b.hasOwnProperty(d)&&c.setAttribute(d,b[d]);return c}var b=this._htOption,c=this._el,d=a.getModuleCount();Math.floor(b.width/d),Math.floor(b.height/d),this.clear();var h=g("svg",{viewBox:"0 0 "+String(d)+" "+String(d),width:"100%",height:"100%",fill:b.colorLight});h.setAttributeNS("http://www.w3.org/2000/xmlns/","xmlns:xlink","http://www.w3.org/1999/xlink"),c.appendChild(h),h.appendChild(g("rect",{fill:b.colorDark,width:"1",height:"1",id:"template"}));for(var i=0;d>i;i++)for(var j=0;d>j;j++)if(a.isDark(i,j)){var k=g("use",{x:String(i),y:String(j)});k.setAttributeNS("http://www.w3.org/1999/xlink","href","#template"),h.appendChild(k)}},a.prototype.clear=function(){for(;this._el.hasChildNodes();)this._el.removeChild(this._el.lastChild)},a}(),p="svg"===document.documentElement.tagName.toLowerCase(),q=p?o:m()?function(){function a(){this._elImage.src=this._elCanvas.toDataURL("image/png"),this._elImage.style.display="block",this._elCanvas.style.display="none"}function d(a,b){var c=this;if(c._fFail=b,c._fSuccess=a,null===c._bSupportDataURI){var d=document.createElement("img"),e=function(){c._bSupportDataURI=!1,c._fFail&&_fFail.call(c)},f=function(){c._bSupportDataURI=!0,c._fSuccess&&c._fSuccess.call(c)};return d.onabort=e,d.onerror=e,d.onload=f,d.src="data:image/gif;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==",void 0}c._bSupportDataURI===!0&&c._fSuccess?c._fSuccess.call(c):c._bSupportDataURI===!1&&c._fFail&&c._fFail.call(c)}if(this._android&&this._android<=2.1){var b=1/window.devicePixelRatio,c=CanvasRenderingContext2D.prototype.drawImage;CanvasRenderingContext2D.prototype.drawImage=function(a,d,e,f,g,h,i,j){if("nodeName"in a&&/img/i.test(a.nodeName))for(var l=arguments.length-1;l>=1;l--)arguments[l]=arguments[l]*b;else"undefined"==typeof j&&(arguments[1]*=b,arguments[2]*=b,arguments[3]*=b,arguments[4]*=b);c.apply(this,arguments)}}var e=function(a,b){this._bIsPainted=!1,this._android=n(),this._htOption=b,this._elCanvas=document.createElement("canvas"),this._elCanvas.width=b.width,this._elCanvas.height=b.height,a.appendChild(this._elCanvas),this._el=a,this._oContext=this._elCanvas.getContext("2d"),this._bIsPainted=!1,this._elImage=document.createElement("img"),this._elImage.style.display="none",this._el.appendChild(this._elImage),this._bSupportDataURI=null};return e.prototype.draw=function(a){var b=this._elImage,c=this._oContext,d=this._htOption,e=a.getModuleCount(),f=d.width/e,g=d.height/e,h=Math.round(f),i=Math.round(g);b.style.display="none",this.clear();for(var j=0;e>j;j++)for(var k=0;e>k;k++){var l=a.isDark(j,k),m=k*f,n=j*g;c.strokeStyle=l?d.colorDark:d.colorLight,c.lineWidth=1,c.fillStyle=l?d.colorDark:d.colorLight,c.fillRect(m,n,f,g),c.strokeRect(Math.floor(m)+.5,Math.floor(n)+.5,h,i),c.strokeRect(Math.ceil(m)-.5,Math.ceil(n)-.5,h,i)}this._bIsPainted=!0},e.prototype.makeImage=function(){this._bIsPainted&&d.call(this,a)},e.prototype.isPainted=function(){return this._bIsPainted},e.prototype.clear=function(){this._oContext.clearRect(0,0,this._elCanvas.width,this._elCanvas.height),this._bIsPainted=!1},e.prototype.round=function(a){return a?Math.floor(1e3*a)/1e3:a},e}():function(){var a=function(a,b){this._el=a,this._htOption=b};return a.prototype.draw=function(a){for(var b=this._htOption,c=this._el,d=a.getModuleCount(),e=Math.floor(b.width/d),f=Math.floor(b.height/d),g=['<table style="border:0;border-collapse:collapse;">'],h=0;d>h;h++){g.push("<tr>");for(var i=0;d>i;i++)g.push('<td style="border:0;border-collapse:collapse;padding:0;margin:0;width:'+e+"px;height:"+f+"px;background-color:"+(a.isDark(h,i)?b.colorDark:b.colorLight)+';"></td>');g.push("</tr>")}g.push("</table>"),c.innerHTML=g.join("");var j=c.childNodes[0],k=(b.width-j.offsetWidth)/2,l=(b.height-j.offsetHeight)/2;k>0&&l>0&&(j.style.margin=l+"px "+k+"px")},a.prototype.clear=function(){this._el.innerHTML=""},a}();QRCode=function(a,b){if(this._htOption={width:256,height:256,typeNumber:4,colorDark:"#000000",colorLight:"#ffffff",correctLevel:d.H},"string"==typeof b&&(b={text:b}),b)for(var c in b)this._htOption[c]=b[c];"string"==typeof a&&(a=document.getElementById(a)),this._android=n(),this._el=a,this._oQRCode=null,this._oDrawing=new q(this._el,this._htOption),this._htOption.text&&this.makeCode(this._htOption.text)},QRCode.prototype.makeCode=function(a){this._oQRCode=new b(r(a,this._htOption.correctLevel),this._htOption.correctLevel),this._oQRCode.addData(a),this._oQRCode.make(),this._el.title=a,this._oDrawing.draw(this._oQRCode),this.makeImage()},QRCode.prototype.makeImage=function(){"function"==typeof this._oDrawing.makeImage&&(!this._android||this._android>=3)&&this._oDrawing.makeImage()},QRCode.prototype.clear=function(){this._oDrawing.clear()},QRCode.CorrectLevel=d}();
+
         var SERVER = 'http://127.0.0.1:8899';
         var TIMEOUT_MS = 2000;
         var currentDomain = 'outlook.it';
@@ -2182,11 +2505,71 @@ function Open-PannelloOperatore {
         var inizioLavori = 0;
         var isScriptConnected = false;
         var lastStatusPing = 0;
-        var schedaScelta = false;
-        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
+        var formManualmenteAperto = false;
+        var TASK_KEYS = ['ripristino', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
+
+        function generaQrConsegna() {
+            var qrContainer = el('qrCodeBox');
+            if (!qrContainer || qrContainer.hasChildNodes()) return;
+            var c = val('inCognome'), n = val('inNome');
+            var nomeCompleto = (c && n) ? (c + ' ' + n).trim() : (c || n || 'Cliente');
+            var email = val('inEmail') || ('cliente@' + currentDomain);
+            var pass = val('inPass') || 'Cliente123!';
+            var tel = val('inTelefono');
+            var mod = el('hwModelloText') ? el('hwModelloText').innerText.trim() : '';
+            var sn = el('hwSerialVal') ? el('hwSerialVal').innerText.trim() : '';
+            var prof = el('selProfilo') ? el('selProfilo').value : 'BASE';
+
+            var lines = [
+                'PC FACILE - UNIEURO',
+                'Cliente: ' + nomeCompleto,
+                'Email: ' + email,
+                'Password: ' + pass
+            ];
+            if (tel) lines.push('Cellulare: ' + tel);
+            if (mod && mod !== '') lines.push('Computer: ' + mod);
+            if (sn) lines.push('Seriale: ' + sn);
+            lines.push('Profilo: ' + prof);
+            lines.push('Wi-Fi Negozio: UNIEURO_EXPO');
+            lines.push('Mobile: Unieuro Everyday Digital (7,99E/m)');
+
+            try {
+                if (typeof QRCode !== 'undefined') {
+                    new QRCode(qrContainer, {
+                        text: lines.join('\n'),
+                        width: 130,
+                        height: 130,
+                        colorDark: '#001a3a',
+                        colorLight: '#ffffff',
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+                    var card = el('qrConsegnaCard');
+                    if (card) card.style.display = 'flex';
+                }
+            } catch (e) {}
+        }
+
+        function toggleScriptVendita() {
+            var m = el('modalScriptVendita');
+            if (m) m.style.display = (m.style.display === 'none' ? 'block' : 'none');
+        }
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
+
+        function apriESeleziona(chkId, url, e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            var chk = el(chkId);
+            if (chk) chk.checked = true;
+            window.open(url, '_blank');
+        }
+
+        function apriESelezionaOffice(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            var sel = el('selOffice');
+            if (sel && sel.value === 'no') sel.value = 'm365';
+            window.open('https://microsoft365.com/setup', '_blank');
+        }
 
         // fetch con timeout: se lo script non risponde entro 2 s la richiesta viene
         // annullata (niente richieste appese che bloccano il pannello).
@@ -2252,12 +2635,19 @@ function Open-PannelloOperatore {
             e.className = 'esito ' + tipo;
         }
 
-        function apriScheda(tabId, automatica) {
-            if (!automatica) schedaScelta = true;
-            var tabs = document.querySelectorAll('.tab-btn');
-            for (var i = 0; i < tabs.length; i++) tabs[i].setAttribute('aria-selected', tabs[i].id === 'btn-' + tabId ? 'true' : 'false');
-            var views = document.querySelectorAll('.section-view');
-            for (var j = 0; j < views.length; j++) views[j].classList.toggle('active-view', views[j].id === 'view-' + tabId);
+        // Navigazione / scorrimento rapido tra le sezioni della pagina singola
+        function apriScheda(tabId) {
+            if (tabId === 'tab-cred') {
+                espandiFormCliente();
+                var s1 = el('secCliente');
+                if (s1) s1.scrollIntoView({ behavior: 'smooth' });
+            } else if (tabId === 'tab-portali') {
+                var s3 = el('secPortali');
+                if (s3) s3.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                var s2 = el('secAvanzamento');
+                if (s2) s2.scrollIntoView({ behavior: 'smooth' });
+            }
         }
 
         function setDomain(dom, provName, btn) {
@@ -2364,45 +2754,93 @@ function Open-PannelloOperatore {
             }
         }
 
-        function segnaErrore(id) {
-            var e = el(id);
-            if (e) { e.classList.add('errore'); e.focus(); }
+        // COMPRESSIONE DINAMICA DEL FORM IN UN BADGE COMPATTO
+        function aggiornaRiepilogoCompatto() {
+            var c = val('inCognome'), n = val('inNome');
+            var nomeCompleto = (c && n) ? (c + ' ' + n).trim() : (c || n || 'Cliente');
+            var email = val('inEmail') || ('cliente@' + currentDomain);
+            var pass = val('inPass') || 'Cliente123!';
+            var tel = val('inTelefono');
+
+            if (el('sumNomeCliente')) el('sumNomeCliente').innerText = nomeCompleto;
+            if (el('sumEmail')) el('sumEmail').innerText = email;
+            if (el('sumPass')) el('sumPass').innerText = pass;
+
+            var sumTelBox = el('sumTelBox');
+            if (sumTelBox) {
+                if (tel) {
+                    el('sumTel').innerText = tel;
+                    sumTelBox.style.display = 'inline-flex';
+                } else {
+                    sumTelBox.style.display = 'none';
+                }
+            }
+
+            var prof = el('selProfilo') ? el('selProfilo').value : 'BASE';
+            var svcList = [];
+            var selOffice = el('selOffice');
+            if (selOffice && selOffice.value !== 'no') {
+                svcList.push('Office: ' + selOffice.options[selOffice.selectedIndex].text.replace(/\s*\(.*\)/, ''));
+            }
+            if (el('chkSvcProton') && el('chkSvcProton').checked) svcList.push('Proton');
+            if (el('chkSvcMcAfee') && el('chkSvcMcAfee').checked) svcList.push('McAfee');
+            if (el('chkSvcNorton') && el('chkSvcNorton').checked) svcList.push('Norton');
+            if (el('chkSvcCyber') && el('chkSvcCyber').checked) svcList.push('Cyber Protection');
+            if (el('chkSvcEveryday') && el('chkSvcEveryday').checked) svcList.push('Everyday Digital');
+
+            var descSvc = 'Profilo app: ' + prof + (svcList.length > 0 ? (' \u00b7 ' + svcList.join(' \u00b7 ')) : '');
+            if (el('sumProfiloServizi')) el('sumProfiloServizi').innerText = descSvc;
         }
 
-        // Costruisce i dati da inviare; null se manca qualcosa di obbligatorio.
+        function comprimiFormCliente() {
+            aggiornaRiepilogoCompatto();
+            var form = el('formClienteFull'), sum = el('summaryClienteCard');
+            if (form) form.style.display = 'none';
+            if (sum) sum.style.display = 'block';
+        }
+
+        function espandiFormCliente() {
+            formManualmenteAperto = true;
+            var form = el('formClienteFull'), sum = el('summaryClienteCard');
+            if (form) form.style.display = 'block';
+            if (sum) sum.style.display = 'none';
+        }
+
+        // Costruisce i dati da inviare: campi facoltativi con valori predefiniti se lasciati vuoti.
         function datiCliente() {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
-            var cyber = el('chkSvcCyber').checked;
-            if (!cognome) { segnaErrore('inCognome'); mostraEsito('Manca il cognome del cliente.', 'errore'); return null; }
-            if (!nome) { segnaErrore('inNome'); mostraEsito('Manca il nome del cliente.', 'errore'); return null; }
-            if (cyber && telefono.replace(/\D/g, '').length < 6) { segnaErrore('inTelefono'); mostraEsito('Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.', 'errore'); return null; }
-            if (email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
-            if (!pass) { segnaErrore('inPass'); mostraEsito('Manca la password.', 'errore'); return null; }
+            var cyber = el('chkSvcCyber') ? el('chkSvcCyber').checked : false;
+
+            var cognomeVal = cognome || 'Cliente';
+            var nomeVal = nome || 'Cliente';
+            var nomeCompleto = (cognome && nome) ? (cognome + ' ' + nome).trim() : (cognome || nome || 'Cliente');
+            var emailVal = (email && email.indexOf('@') > 0) ? email : ('cliente@' + currentDomain);
+            var passVal = pass || 'Cliente123!';
+
             return {
                 Conferma: true,
-                Email: email,
-                Password: pass,
+                Email: emailVal,
+                Password: passVal,
                 Provider: currentProviderName,
-                Cliente: (cognome + ' ' + nome).trim(),
-                Nome: nome,
-                Cognome: cognome,
+                Cliente: nomeCompleto,
+                Nome: nomeVal,
+                Cognome: cognomeVal,
                 Telefono: telefono,
-                ProfiloApp: el('selProfilo').value,
+                ProfiloApp: el('selProfilo') ? el('selProfilo').value : 'BASE',
                 Servizi: {
-                    Proton: el('chkSvcProton').checked,
-                    Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
-                    OfficeTipo: el('selOffice').value,
-                    McAfee: el('chkSvcMcAfee').checked,
-                    Norton: el('chkSvcNorton').checked,
+                    Proton: el('chkSvcProton') ? el('chkSvcProton').checked : false,
+                    Office: el('selOffice') ? (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo') : false,
+                    OfficeTipo: el('selOffice') ? el('selOffice').value : 'm365',
+                    McAfee: el('chkSvcMcAfee') ? el('chkSvcMcAfee').checked : false,
+                    Norton: el('chkSvcNorton') ? el('chkSvcNorton').checked : false,
                     Cyber: cyber
                 }
             };
         }
 
-        // Unico pulsante: invia i dati confermati allo script. Lo script parte (o
-        // aggiorna i dati) SOLO con Conferma:true; l'esito mostrato e' quello vero.
+        // Unico pulsante: invia i dati confermati allo script e comprime il form in primo piano
         function avviaConfigurazione() {
             var payload = datiCliente();
             if (!payload) return;
@@ -2418,9 +2856,12 @@ function Open-PannelloOperatore {
             }).then(function(res) {
                 btn.disabled = false;
                 if (res.ok && res.j && res.j.ok !== false) {
-                    mostraEsito('\u2713 Dati ricevuti dal PC: i passi che li usano partono con questi dati.', 'ok');
-                    showToast('Dati ricevuti dal PC');
-                    apriScheda('tab-live');
+                    mostraEsito('\u2713 Installazione avviata! Il PC prosegue automaticamente.', 'ok');
+                    showToast('Installazione avviata');
+                    playChime();
+                    comprimiFormCliente();
+                    var secAv = el('secAvanzamento');
+                    if (secAv) secAv.scrollIntoView({ behavior: 'smooth' });
                 } else {
                     mostraEsito('Il PC ha rifiutato i dati: ' + ((res.j && res.j.motivo) || 'risposta non valida') + '.', 'errore');
                 }
@@ -2494,7 +2935,6 @@ function Open-PannelloOperatore {
         setInterval(checkConnection, 1500);
         checkConnection();
 
-        var NOMI_TASK = {};
         function applyStatus(data) {
             if (!data) return;
             lastStatusPing = Date.now();
@@ -2558,7 +2998,8 @@ function Open-PannelloOperatore {
                     else icon.innerHTML = '&#9675;';
                     row.querySelector('.task-detail').innerText = (dettaglio && stato !== 'pending' && stato !== 'done') ? dettaglio : '';
                 }
-                el('taskCountBadge').innerText = doneCount + '/' + TASK_KEYS.length;
+                var tb = el('taskCountBadge');
+                if (tb) tb.innerText = doneCount + '/' + TASK_KEYS.length;
             }
 
             var completato = !!(data.Completato || data.completato);
@@ -2575,13 +3016,18 @@ function Open-PannelloOperatore {
                     el('completionTitle').innerText = '\u2713 Configurazione completata';
                 }
                 banner.style.display = 'block';
+                generaQrConsegna();
                 if (!audioPlayed) { audioPlayed = true; playChime(); }
             } else {
                 banner.style.display = 'none';
             }
-            // Pannello aperto a lavori gia' avviati: mostro l'avanzamento (una volta,
-            // solo se l'operatore non ha gia' scelto una scheda).
-            if (!schedaScelta && !data.InAttesaDati && (pct > 5 || completato)) { apriScheda('tab-live', true); schedaScelta = true; }
+
+            // Pannello aperto a lavori gia' avviati o dati confermati:
+            // se l'operatore non ha aperto a mano il form, comprimiamo nei dati cliente
+            if (!formManualmenteAperto && !data.InAttesaDati && (pct > 5 || completato)) {
+                comprimiFormCliente();
+            }
+
             aggiornaIndicatore();
         }
 
@@ -2617,30 +3063,35 @@ function Set-DatiCliente {
     param($Dati)
     if (-not $Dati) { return $false }
     try {
-        if ($Dati.Email) {
-            $Global:credMsAccount = [string]$Dati.Email
-            $script:credMsAccount = [string]$Dati.Email
-            if ([string]$Dati.Email -like "*@*") { $Global:credDominio = ([string]$Dati.Email -split "@")[-1] }
-        }
-        if ($Dati.Password) {
-            $Global:credMsPassword = [string]$Dati.Password
-            $script:credMsPassword = [string]$Dati.Password
-        }
-        if ($Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
-        if ($Dati.Cliente) {
-            $Global:nomeCliente = [string]$Dati.Cliente
-            $script:nomeCliente = [string]$Dati.Cliente
-        }
-        if ($Dati.Nome)     { $Global:nomeProprioCliente = [string]$Dati.Nome }
-        if ($Dati.Cognome)  { $Global:cognomeCliente = [string]$Dati.Cognome }
-        if ($Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
-        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
-        if ($Dati.Servizi) {
+        $hasP = { param($obj, [string]$name) return ($null -ne $obj -and $null -ne $obj.PSObject -and $null -ne $obj.PSObject.Properties[$name]) }
+
+        $cognome = if ((&$hasP $Dati 'Cognome') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Cognome))) { [string]$Dati.Cognome } else { 'Cliente' }
+        $nome    = if ((&$hasP $Dati 'Nome') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Nome))) { [string]$Dati.Nome } else { 'Cliente' }
+        $cliente = if ((&$hasP $Dati 'Cliente') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Cliente))) { [string]$Dati.Cliente } else { "$cognome $nome".Trim() }
+        if (-not $cliente) { $cliente = 'Cliente' }
+        $Global:nomeCliente = $cliente
+        $script:nomeCliente = $cliente
+        $Global:nomeProprioCliente = $nome
+        $Global:cognomeCliente = $cognome
+
+        $email = if ((&$hasP $Dati 'Email') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Email))) { [string]$Dati.Email } else { "cliente@$($Global:credDominio)" }
+        $Global:credMsAccount = $email
+        $script:credMsAccount = $email
+        if ($email -like "*@*") { $Global:credDominio = ($email -split "@")[-1] }
+
+        $pass = if ((&$hasP $Dati 'Password') -and (-not [string]::IsNullOrWhiteSpace([string]$Dati.Password))) { [string]$Dati.Password } else { 'Cliente123!' }
+        $Global:credMsPassword = $pass
+        $script:credMsPassword = $pass
+
+        if ((&$hasP $Dati 'Provider') -and $Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
+        if ((&$hasP $Dati 'Telefono') -and $Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
+        if ((&$hasP $Dati 'ProfiloApp') -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
+        if ((&$hasP $Dati 'Servizi') -and $Dati.Servizi) {
             $Global:serviziSelezionati = $Dati.Servizi
             # Suite Office da installare/attivare (1 = Microsoft 365, 2 = perpetuo,
             # 4 = LibreOffice, 5 = nessuna). Senza OfficeTipo (pannelli vecchi)
             # la spunta "card Office" vale Microsoft 365.
-            $tipo = [string]$Dati.Servizi.OfficeTipo
+            $tipo = if (&$hasP $Dati.Servizi 'OfficeTipo') { [string]$Dati.Servizi.OfficeTipo } else { '' }
             $Global:SceltaOffice = switch ($tipo) {
                 'm365'        { '1' }
                 'perpetuo'    { '2' }
@@ -2695,14 +3146,15 @@ function Get-DatiClienteTest {
 function Read-DatiClienteConsole {
     Write-Titolo "DATI CLIENTE (pannello non disponibile)"
     Write-Host "  Il pannello operatore non si e' aperto: inserisci qui i dati essenziali." -ForegroundColor Yellow
-    $cognome = ""; $nome = ""
-    while (-not $cognome) { $cognome = ([string](Attendi-Risposta "Cognome del cliente")).Trim(); if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $cognome) { $cognome = 'Rossi' } } }
-    while (-not $nome)    { $nome    = ([string](Attendi-Risposta "Nome del cliente")).Trim();    if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $nome) { $nome = 'Mario' } } }
-    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna")).Trim()
-    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (Defender)")).Trim().ToUpper()
-    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N)")).Trim()
+    $cognome = ([string](Attendi-Risposta "Cognome del cliente (default: Utente, auto in 10s)" -TimeoutSec 10 -Default "Utente")).Trim()
+    if (-not $cognome) { $cognome = "Utente" }
+    $nome    = ([string](Attendi-Risposta "Nome del cliente (default: PC, auto in 10s)" -TimeoutSec 10 -Default "PC")).Trim()
+    if (-not $nome) { $nome = "PC" }
+    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna (auto in 10s)" -TimeoutSec 10 -Default "")).Trim()
+    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (auto in 10s)" -TimeoutSec 10 -Default "")).Trim().ToUpper()
+    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N, auto in 10s)" -TimeoutSec 10 -Default "N")).Trim()
     $tel = ""
-    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection)")).Trim() }
+    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection, auto in 10s)" -TimeoutSec 10 -Default "")).Trim() }
     $cliente = "$cognome $nome"
     $dati = [pscustomobject]@{
         Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
@@ -2722,44 +3174,19 @@ function Read-DatiClienteConsole {
     return $true
 }
 
-# Aspetta i dati del cliente: si chiama SOLO quando un passo ne ha bisogno
-# (Office e passi manuali). Se sono gia' arrivati durante la fase 1 non si
-# ferma nulla. Nessun timeout: senza dati il passo non puo' partire; bip di
-# richiamo dopo 2 minuti. "P" riapre il pannello se e' stato chiuso.
+# Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
+# si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
+# Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
+# si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
+# prosegue senza fermarsi con credenziali provvisorie e l'operatore puo' compilare
+# la scheda nel pannello in QUALSIASI momento (i dati verranno acquisiti al volo
+# e inclusi nella scheda consegna / report finale).
 function Wait-DatiCliente {
     [CmdletBinding()]
     param([string]$Motivo = "")
     if ($Global:DatiClienteRicevuti) { return $true }
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { return (Set-DatiCliente (Get-DatiClienteTest)) }
     if (Get-CredenzialiSalvatePannello) { return $true }
-    if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
-
-    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Compila la scheda Cliente e premi CONFERMA DATI CLIENTE"
-    Write-Host ""
-    Write-Titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
-    if ($Motivo) { Write-Host "  $Motivo" -ForegroundColor White }
-    Write-Host "  -> Compila cognome, nome e servizi nel pannello (scheda Cliente)." -ForegroundColor Cyan
-    Write-Host "  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo." -ForegroundColor Green
-    Write-Host "     (P = riapri il pannello se l'hai chiuso)" -ForegroundColor Gray
-    Beep-Attesa
-    Start-BipRipetuto
-    try {
-        while (-not (Get-CredenzialiSalvatePannello)) {
-            try {
-                if ([Console]::KeyAvailable) {
-                    $k = [Console]::ReadKey($true)
-                    if ($k.Key -eq [ConsoleKey]::P -and $Global:PannelloFile) {
-                        try { Set-SplitScreenLayout -HtmlPath $Global:PannelloFile } catch { try { Start-Process $Global:PannelloFile } catch {} }
-                        Write-Info "Pannello riaperto."
-                    }
-                }
-            } catch {}
-            Start-Sleep -Milliseconds 400
-        }
-    } finally {
-        Stop-BipRipetuto
-        Update-PannelloStatus -AttesaDati 'no'
-    }
     return $true
 }
 
@@ -3157,7 +3584,7 @@ function Install-VisualCRuntime {
         $wingetInstalled = $false
         if (Confirm-Winget) {
             try {
-                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -NoNewWindow -ErrorAction SilentlyContinue
+                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -NoNewWindow -ErrorAction SilentlyContinue
                 if ($p -and ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010 -or $p.ExitCode -eq 1641 -or $p.ExitCode -eq -1978335189)) {
                     $wingetInstalled = $true
                     Write-OK "$($rt.Nome) installato via Winget."
@@ -3778,7 +4205,7 @@ function Invoke-PreparaUSBOffline {
     if (-not $Test) {
         # Il launcher che sta girando (se e' sulla stessa chiavetta) non va
         # sovrascritto: la sua nuova versione va in "PC Facile.bat.nuovo".
-        $launcherAttivo = if ($LauncherPath) { $LauncherPath } elseif ($TargetDir) { Join-Path $(if ($TargetDir -match '^[A-Za-z]:$') { "$TargetDir\" } else { $TargetDir }) 'PC Facile.bat' } else { $null }
+        $launcherAttivo = if ($LauncherPath) { $LauncherPath } elseif ($TargetDir) { Join-Path $(if ($TargetDir -match '^[A-Za-z]:$') { "$TargetDir\" } else { $TargetDir }) '1 - AVVIA PER WINDOWS.bat' } else { $null }
         try {
             $aggUsb = Invoke-AggiornamentoUSB -Destinazione $targetBase -LauncherInEsecuzione $launcherAttivo
             if ($launcherAttivo -and -not $LauncherPath) { Start-SostituzioneLauncherDifferita -Launcher $launcherAttivo }
@@ -3789,7 +4216,7 @@ function Invoke-PreparaUSBOffline {
     } else {
         try {
             if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "setup-pc.ps1"))) {
-                foreach ($nomeFile in @("setup-pc.ps1", "setup-pc.ps1.sha256", "PC Facile.bat", "PC Facile.command", "setup-mac.sh", "setup-mac.sh.sha256")) {
+                foreach ($nomeFile in @("setup-pc.ps1", "setup-pc.ps1.sha256", "1 - AVVIA PER WINDOWS.bat", "2 - AVVIA PER MAC.command", "setup-mac.sh", "setup-mac.sh.sha256", "3 - ISTRUZIONI.txt")) {
                     $src = Join-Path $PSScriptRoot $nomeFile
                     $dst = Join-Path $targetBase $nomeFile
                     if ((Test-Path -LiteralPath $src) -and ([System.IO.Path]::GetFullPath($src) -ne [System.IO.Path]::GetFullPath($dst))) {
@@ -3996,6 +4423,28 @@ function Connect-AutoWiFi {
                 }
             }
         }
+
+        if (-not (Test-Rete)) {
+            $defaultSsid = "UNIEURO_EXPO"
+            $defaultPass = "W1f1@Un13uro"
+            Write-Info "Tentativo di connessione automatica alla rete Wi-Fi del negozio ($defaultSsid)..."
+            $tempXml = Join-Path $env:TEMP "wifi_auto_default.xml"
+            $xmlData = New-WlanProfileXml -Ssid $defaultSsid -Password $defaultPass
+            [System.IO.File]::WriteAllText($tempXml, $xmlData, [System.Text.Encoding]::UTF8)
+            & netsh.exe wlan add profile filename="$tempXml" user=all 2>$null | Out-Null
+            & netsh.exe wlan connect name="$defaultSsid" 2>$null | Out-Null
+            Remove-Item -LiteralPath $tempXml -Force -ErrorAction SilentlyContinue
+
+            $t = 0
+            while ((-not (Test-Rete)) -and $t -lt 8) {
+                Start-Sleep -Seconds 2
+                $t += 2
+            }
+            if (Test-Rete) {
+                Write-OK "Connesso automaticamente al Wi-Fi: $defaultSsid!"
+                return $true
+            }
+        }
     } catch {}
     return $false
 }
@@ -4149,36 +4598,60 @@ function Save-SchedaConsegna {
     }
 }
 
-# Disattiva schermate iniziali di benvenuto e tour di Edge per un avvio immediato
+# Disattiva schermate iniziali di benvenuto, importazione Google, diagnostica e tour di Edge per un avvio immediato
 function Set-EdgeFirstRunPolicies {
-    if (-not $RunReale) { return }
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) { return }
     try {
-        Enable-PreventSleep
-        $edgePol = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
-        if (-not (Test-Path $edgePol)) { New-Item -Path $edgePol -Force | Out-Null }
-        Set-ItemProperty -Path $edgePol -Name 'HideFirstRunExperience'        -Value 1 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'BrowserSignin'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SyncDisabled'                  -Value 1 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ImportOnEachLaunch'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'AutoImportAtFirstRun'          -Value 4 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'DefaultBrowserSettingEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'HubsSidebarEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ShowMicrosoftRewards'          -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'EdgeShoppingAssistantEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        # Schermata "dati di esplorazione" (Consenti / Non consentire), schede promozionali e inviti all'accesso.
-        Set-ItemProperty -Path $edgePol -Name 'PersonalizationReportingEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'PromotionalTabsEnabled'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SpotlightExperiencesAndRecommendationsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ShowRecommendationsEnabled'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SignInCtaOnNtpEnabled'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'UserFeedbackAllowed'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        $policyPaths = @('HKLM:\SOFTWARE\Policies\Microsoft\Edge', 'HKCU:\SOFTWARE\Policies\Microsoft\Edge')
+        foreach ($edgePol in $policyPaths) {
+            if (-not (Test-Path $edgePol)) { New-Item -Path $edgePol -Force -ErrorAction SilentlyContinue | Out-Null }
+            # 1. First Run & Onboarding generale
+            Set-ItemProperty -Path $edgePol -Name 'HideFirstRunExperience'                    -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'BrowserSignin'                             -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SyncDisabled'                              -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'DefaultBrowserSettingEnabled'              -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 2. Schermata: "I tuoi dati e servizi Google, ora in Edge" (Import automatico da altri browser)
+            Set-ItemProperty -Path $edgePol -Name 'AutoImportAtFirstRun'                      -Value 4 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportOnEachLaunch'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportBrowserSettings'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportFavorites'                           -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportSearchEngine'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportHistory'                             -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportHomepage'                            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportSavedPasswords'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportOpenTabs'                            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportAutofillFormData'                    -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 3. Schermata: "Invia dati di diagnostica opzionali a Microsoft Edge"
+            Set-ItemProperty -Path $edgePol -Name 'DiagnosticData'                            -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'MetricsReportingEnabled'                   -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SendSiteInfoToImproveServices'             -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 4. Schermata: "Dispone sempre dell'accesso ai dati di esplorazione recenti"
+            Set-ItemProperty -Path $edgePol -Name 'LocalBrowserDataShareEnabled'              -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ShareBrowsingDataWithOtherWindowsFeatures' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'PersonalizationReportingEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 5. Promozioni, sidebar, notifiche e raccomandazioni
+            Set-ItemProperty -Path $edgePol -Name 'PromotionalTabsEnabled'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SpotlightExperiencesAndRecommendationsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ShowRecommendationsEnabled'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SignInCtaOnNtpEnabled'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'UserFeedbackAllowed'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'HubsSidebarEnabled'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ShowMicrosoftRewards'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'EdgeShoppingAssistantEnabled'              -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SearchbarIsEnabled'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SearchbarAllowed'                          -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        }
 
         $userProfileKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
-        if (-not (Test-Path $userProfileKey)) { New-Item -Path $userProfileKey -Force | Out-Null }
+        if (-not (Test-Path $userProfileKey)) { New-Item -Path $userProfileKey -Force -ErrorAction SilentlyContinue | Out-Null }
         Set-ItemProperty -Path $userProfileKey -Name 'ScoobeSystemSettingEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
 
         $cdmKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-        if (-not (Test-Path $cdmKey)) { New-Item -Path $cdmKey -Force | Out-Null }
+        if (-not (Test-Path $cdmKey)) { New-Item -Path $cdmKey -Force -ErrorAction SilentlyContinue | Out-Null }
         Set-ItemProperty -Path $cdmKey -Name 'SubscribedContent-310093Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $cdmKey -Name 'SubscribedContent-338389Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
     } catch {}
@@ -4404,30 +4877,31 @@ if ($PreparaUSB) {
 
 if (-not $Diagnostica) {
     try { Clear-Host } catch {}
-    $larg = 64
-    $titoloB = "PC FACILE   -   versione $SCRIPT_VERSION"
-    $padSx = [int](($larg - $titoloB.Length) / 2)
-    $padDx = $larg - $padSx - $titoloB.Length
-    $boxLine = ([string][char]0x2550) * $larg
+    $linea = "=" * 60
     Write-Host ""
     if ($vtOn) {
-        Write-Host "  $U_ORANGE$([char]0x2554)$boxLine$([char]0x2557)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE_BG UNIEURO $U_RESET $U_WHITE PC FACILE  -  Assistenza & Configurazione PC      $U_ORANGE$([char]0x2551)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH - Setup Tecnico Dedicato v$SCRIPT_VERSION      $U_ORANGE$([char]0x2551)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x255A)$boxLine$([char]0x255D)$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host "   $U_WHITE PC FACILE WINDOWS v$SCRIPT_VERSION - Configurazione Attiva$U_RESET"
+        Write-Host "   $U_PEACH Data build: 18 Ottobre 2026 | Store: UNIEURO_EXPO$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
         Write-Host ""
-        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (PROGRAMMI E LINGUA) IN CORSO$U_RESET"
-        Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Intanto inserisci i dati del cliente nel pannello operatore (una volta sola).$U_RESET"
-        Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Poi i passi manuali, poi pulizia e driver; aggiornamenti per ultimi.$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host "   $U_WHITE FASE 1 di 3 - Programmi e lingua (automatico)$U_RESET"
+        Write-Host "  $U_ORANGE$linea$U_RESET"
+        Write-Host ""
+        Write-Host "   $U_ORANGE->$U_RESET $U_WHITE Intanto inserisci i dati del cliente nel pannello operatore.$U_RESET"
         Write-Host ""
     } else {
-        Write-Host "  $([char]0x2554)$boxLine$([char]0x2557)" -ForegroundColor DarkYellow
-        Write-Host "  $([char]0x2551)$(" " * $padSx)$titoloB$(" " * $padDx)$([char]0x2551)" -ForegroundColor White
-        Write-Host "  $([char]0x255A)$boxLine$([char]0x255D)" -ForegroundColor DarkYellow
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host "   PC FACILE WINDOWS v$SCRIPT_VERSION - Configurazione Attiva" -ForegroundColor White
+        Write-Host "   Data build: 18 Ottobre 2026 | Store: UNIEURO_EXPO" -ForegroundColor Cyan
+        Write-Host "  $linea" -ForegroundColor DarkYellow
         Write-Host ""
-        Write-Host "  CONFIGURAZIONE AVVIATA: FASE 1 (PROGRAMMI E LINGUA) IN CORSO" -ForegroundColor Green
-        Write-Host "  Intanto inserisci i dati del cliente nel pannello operatore (una volta sola)." -ForegroundColor White
-        Write-Host "  Poi i passi manuali, poi pulizia e driver; aggiornamenti per ultimi." -ForegroundColor Cyan
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host "   FASE 1 di 3 - Programmi e lingua (automatico)" -ForegroundColor White
+        Write-Host "  $linea" -ForegroundColor DarkYellow
+        Write-Host ""
+        Write-Host "   -> Intanto inserisci i dati del cliente nel pannello operatore." -ForegroundColor Yellow
         Write-Host ""
     }
 }
@@ -4437,10 +4911,10 @@ if ($RunReale) {
     try { Enable-SilentElevation } catch {}
     try { Set-PreventSleep $true } catch {}
     try { Set-EdgeFirstRunPolicies } catch {}
-    try { Connect-AutoWiFi -TargetDir $TargetDir } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
+    try { [void](Connect-AutoWiFi -TargetDir $TargetDir) } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
     # Il pannello NON blocca: la fase 1 parte subito. I dati del cliente
     # arrivano dal pannello mentre la fase 1 lavora (Get-CredenzialiSalvatePannello
-    # a ogni passo); servono davvero solo da Office in poi (Wait-DatiCliente).
+    # a ogni passo); se non inseriti si usano valori provvisori senza alcun blocco.
     try { Open-PannelloOperatore } catch { Write-Info "Pannello Operatore: $_" }
 }
 
@@ -5621,20 +6095,7 @@ if ($RunReale) {
     }
 }
 
-# =============================================================================
-# AVVISO ANTIVIRUS ATTIVO - un AV attivo puo' mettere in quarantena lo script
-# (si difende quando prova a rimuovere gli AV di prova). Avviso PRIMA di agire,
-# cosi' l'operatore lo whitelista/consente ed evita che il setto venga ucciso.
-# =============================================================================
-if ($RunReale) {
-    $avAttivi = @(Get-AntivirusInstallati)
-    if ($avAttivi.Count -gt 0) {
-        Write-Titolo "ATTENZIONE: Antivirus attivo rilevato"
-        Write-Errore "Presente: $(($avAttivi.Nome | Select-Object -Unique) -join ', ')."
-        Write-Host "Un antivirus attivo puo' bloccare lo script: se compare un avviso, seleziona 'Consenti'." -ForegroundColor Yellow
-        Write-Host ""
-    }
-}
+
 
 # =============================================================================
 # PASSI DI CONFIGURAZIONE (dopo ogni scelta si avanza; B al prompt = indietro)
@@ -5660,55 +6121,66 @@ if ($RunReale) {
 function Open-PaginaWeb {
     param([string]$Url)
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { Write-Info "(test) aprirei: $Url"; return }
+    $edgePath = Get-EdgePath
+    if ($edgePath) {
+        try {
+            Start-Process -FilePath $edgePath -ArgumentList "--new-window --no-first-run --no-default-browser-check `"$Url`"" -ErrorAction Stop
+            Write-OK "Browser aperto su: $Url"
+            return
+        } catch {}
+    }
     try { Start-Process $Url -ErrorAction Stop; Write-OK "Browser aperto su: $Url" }
     catch { Write-Info "Apri a mano nel browser: $Url" }
 }
 
 function Mostra-CredenzialiPagina {
-    param([string]$Utente, [string]$Password)
+    param([string]$Utente, [string]$Password, [int]$TimeoutSec = 4)
     if (-not ($Utente -or $Password)) { return }
+    $winW = 80
+    try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+    $linea = "=" * 60
     Write-Host ""
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    Write-Host "  |  CREDENZIALI DA INCOLLARE NELLA PAGINA                  |" -ForegroundColor Yellow
-    Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
-    if ($Utente)   { Write-Host "     Email / utente : $Utente" -ForegroundColor White }
-    if ($Password) { Write-Host "     Password      : $Password" -ForegroundColor White }
+    Write-Host "  $linea" -ForegroundColor DarkYellow
+    Write-Host "   CREDENZIALI DA INCOLLARE" -ForegroundColor Yellow
+    if ($Utente)   { Write-Host "   Email:    $Utente" -ForegroundColor White }
+    if ($Password) { Write-Host "   Password: $Password" -ForegroundColor White }
+    Write-Host "  $linea" -ForegroundColor DarkYellow
     if (-not $RunReale) { return }
     # Copio subito l'email (di solito e' il primo campo), poi lascio il menu.
     if ($Utente) { try { Set-Clipboard -Value $Utente } catch {} }
     Write-Host ""
-    $opz = @()
-    if ($Utente)   { $opz += "E = copia EMAIL" }
-    if ($Password) { $opz += "P = copia PASSWORD" }
-    $opz += "INVIO = ho finito"
-    Write-Host ("  Premi:  " + ($opz -join "    ")) -ForegroundColor Cyan
-    if ($Utente) { Write-OK "Email gia' copiata: incolla con CTRL+V." }
-    Start-BipRipetuto
+    if ($winW -lt 60) {
+        Write-Host "  [E] Copia Email   [P] Copia Password" -ForegroundColor Cyan
+        Write-Host "  [INVIO] Continua subito" -ForegroundColor Cyan
+    } else {
+        Write-Host "  [E] Copia Email   [P] Copia Password   [INVIO] Continua" -ForegroundColor Cyan
+    }
+    if ($Utente) { Write-OK "Email copiata: incolla con CTRL+V." }
+    Write-Info "Avanzamento tra ${TimeoutSec}s (nessun blocco)..."
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        while ($true) {
-            $ch = ""; $isEnter = $false
+        while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
             try {
-                $key = [Console]::ReadKey($true)
-                $ch = "$($key.KeyChar)".ToUpper()
-                if ($key.Key -eq [ConsoleKey]::Enter) { $isEnter = $true }
+                if ([Console]::KeyAvailable) {
+                    $key = [Console]::ReadKey($true)
+                    $ch = "$($key.KeyChar)".ToUpper()
+                    if ($key.Key -eq [ConsoleKey]::Enter -or $key.Key -eq [ConsoleKey]::Spacebar -or $key.Key -eq [ConsoleKey]::Escape) {
+                        break
+                    } elseif ($ch -eq "E") {
+                        if ($Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
+                        $sw.Restart()
+                    } elseif ($ch -eq "P") {
+                        if ($Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
+                        $sw.Restart()
+                    }
+                }
             } catch {
-                # Fallback senza ReadKey: riga di testo, vuoto = ho finito.
-                $ch = (Read-Host "  E / P / INVIO").ToUpper()
-                if ($ch -eq "") { $isEnter = $true }
+                break
             }
-            if ($isEnter) { break }
-            elseif ($ch -eq "E") {
-                if ($Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
-                else { Write-Info "Nessuna email da copiare." }
-            }
-            elseif ($ch -eq "P") {
-                if ($Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
-                else { Write-Info "Per questo servizio la password la crea il sito (arriva via email)." }
-            }
-            # ogni altro tasto: ignorato, il menu resta attivo
+            Start-Sleep -Milliseconds 150
         }
     } finally {
-        Stop-BipRipetuto
+        Write-Info "Proseguo con la configurazione."
     }
     Write-Host ""
 }
@@ -5725,7 +6197,7 @@ function Installa-Antivirus {
     Open-PaginaWeb $UrlRiscatto
     Write-Host ""
     Write-Host "Completa registrazione/download nel browser." -ForegroundColor White
-    Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
+    Write-Host "L'installer partira' da solo a fine download." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
@@ -5736,7 +6208,7 @@ function Installa-Antivirus {
     $cartelle = @((Join-Path $env:USERPROFILE "Downloads"), (Get-DesktopDir)) | Select-Object -Unique
     $inizio = Get-Date
     $timeoutMin = 8
-    Write-Info "In attesa dell'installer di $Nome (max $timeoutMin min). Premi 'S' per saltare."
+    Write-Info "In attesa installer $Nome (max ${timeoutMin}m, 'S' per saltare)."
     $installer = $null
     while (((Get-Date) - $inizio).TotalMinutes -lt $timeoutMin) {
         try {
@@ -5763,10 +6235,10 @@ function Installa-Antivirus {
 
     if ($installer) {
         Start-Process -FilePath $installer.FullName
-        Write-OK "Installer $Nome avviato AUTOMATICAMENTE: $($installer.Name)"
+        Write-OK "Installer $Nome avviato: $($installer.Name)"
         Add-Report "$Nome (antivirus)" "OK"
     } else {
-        Write-Info "Nessun installer rilevato entro $timeoutMin min: avvialo a mano dalla cartella Download."
+        Write-Info "Nessun installer trovato: avvialo a mano da Download."
         Add-Report "$Nome (antivirus)" "AVVISO"
     }
 }
@@ -5784,12 +6256,12 @@ function Attiva-ServizioWeb {
     Write-Info "Apertura pagina attivazione $Nome..."
     Open-PaginaWeb $UrlAttivazione
     Write-Host ""
-    Write-Host "Sul sito: inserisci il codice/PIN e completa i dati richiesti." -ForegroundColor White
-    Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
+    Write-Host "Sul sito: inserisci codice/PIN e completa i dati." -ForegroundColor White
+    Write-Info "Annota le credenziali per l'app mobile del cliente."
     # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
     # La password del portale spesso la crea il sito e la manda via email.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
-    $fatto = Attendi-Risposta "Attivazione completata e credenziali annotate? (S/N)"
+    $fatto = Attendi-Risposta -Prompt "Attivazione completata e credenziali annotate? (S/N, auto in 5s)" -TimeoutSec 5 -Default "S"
     if ($fatto -match "^[Ss]") {
         Write-OK "$Nome attivato."
         Add-Report "$Nome (protezione)" "OK"
@@ -5799,6 +6271,93 @@ function Attiva-ServizioWeb {
     }
 }
 
+function Rimuovi-AntivirusDiProva {
+    param([array]$Lista)
+    if (-not $Lista -or $Lista.Count -eq 0) {
+        $Lista = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+    }
+    if ($Lista.Count -eq 0) {
+        Write-Info "Nessun antivirus di prova preinstallato da rimuovere."
+        Add-Report "Antivirus di prova" "SALTATO"
+        return
+    }
+
+    foreach ($av in $Lista) {
+        Write-Info "Rimozione antivirus preinstallato: $($av.Nome)..."
+        Start-BarraAnimata "Rimuovo $($av.Nome)"
+        try {
+            if ($av.QuietUninstall) {
+                try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
+            } elseif ($av.Uninstall) {
+                try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
+            }
+            if (Confirm-Winget) {
+                winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+            }
+        } finally { Stop-BarraAnimata }
+    }
+
+    $maxAttesaAV = 6
+    for ($w = 0; $w -lt $maxAttesaAV; $w++) {
+        Start-Sleep -Seconds 1
+        $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+        if ($rimasti.Count -eq 0) { break }
+    }
+
+    $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+    $mcafeeResta = @($rimasti | Where-Object { $_.Nome -match 'McAfee' }).Count -gt 0
+    $nortonResta = @($rimasti | Where-Object { $_.Nome -match 'Norton' }).Count -gt 0
+
+    if ($rimasti.Count -eq 0) {
+        Write-OK "Antivirus di prova preinstallati rimossi con successo."
+        Add-Report "Antivirus di prova rimossi" "OK"
+    } else {
+        Write-Info "Resistono ai metodi standard: $(($rimasti.Nome) -join ', '). Tentativo tool dedicati..."
+        Add-Report "Antivirus di prova (residui: tool ufficiale)" "AVVISO"
+    }
+
+    if ($mcafeeResta) {
+        $mcprOffline = Find-OfflineInstaller -Nome "MCPR"
+        if ($mcprOffline -and (Test-Path $mcprOffline)) {
+            Write-Info "McAfee resiste: avvio MCPR da archivio offline USB ($mcprOffline)..."
+            Start-Process -FilePath $mcprOffline
+            Write-Info "MCPR avviato: completalo a video, poi RIAVVIA il PC."
+            Add-Report "McAfee (avviato MCPR da USB)" "AVVISO"
+        } else {
+            try {
+                $mcpr = "$env:TEMP\MCPR.exe"
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                irm "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" -OutFile $mcpr -ErrorAction Stop
+                Start-Process -FilePath $mcpr
+                Write-Info "MCPR avviato: completalo (Avanti), poi RIAVVIA."
+                Add-Report "McAfee (MCPR avviato: completare a mano)" "AVVISO"
+            } catch {
+                Add-Report "McAfee (MCPR a mano)" "AVVISO"
+            }
+        }
+    }
+
+    if ($nortonResta) {
+        $nrnrOffline = Find-OfflineInstaller -Nome "NRnR"
+        if ($nrnrOffline -and (Test-Path $nrnrOffline)) {
+            Write-Info "Norton resiste ai metodi standard: avvio NRnR da archivio offline USB ($nrnrOffline)..."
+            Start-Process -FilePath $nrnrOffline
+            Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
+            Add-Report "Norton (avviato NRnR da USB)" "AVVISO"
+        } else {
+            try {
+                $nrnrDest = "$env:TEMP\NRnR.exe"
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                irm "https://buy-download.norton.com/downloads/RnR/NLOK/NRnR.exe" -OutFile $nrnrDest -ErrorAction Stop
+                Start-Process -FilePath $nrnrDest
+                Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
+                Add-Report "Norton (NRnR avviato: completare a mano)" "AVVISO"
+            } catch {
+                Add-Report "Norton (NRnR a mano)" "AVVISO"
+            }
+        }
+    }
+}
 
 function Get-OsppPath {
     $percorsi = @(
@@ -5947,9 +6506,6 @@ function Test-PassoGiaFatto {
         'ripristino' {
             if (Test-PuntoRipristinoOggi) { return "Punto di ripristino gia' creato oggi" }
         }
-        'avprova' {
-            if (@(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) }).Count -eq 0) { return "Nessun antivirus di prova presente" }
-        }
         'lingua' {
             if (Test-LinguaItaliana) { return "Windows gia' tutto in italiano" }
         }
@@ -5957,8 +6513,10 @@ function Test-PassoGiaFatto {
             if ((Test-OfficeInstallato) -and (Test-OfficeAttivato)) { return "Office gia' attivato" }
         }
         'antivirus' {
-            $av = @(Get-AntivirusTerzi)
-            if ($av.Count -gt 0) { return "Gia' installato: $($av -join ', ')" }
+            $avDaRimuovere = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+            if ($avDaRimuovere.Count -gt 0) { return $null }
+            $sv = $Global:serviziSelezionati
+            if ($sv -and ($sv.McAfee -or $sv.Norton)) { return $null }
         }
     }
     return $null
@@ -6542,14 +7100,13 @@ trap {
 # =============================================================================
 $Global:Passi = @(
     @{ Id = 'ripristino';   Nome = 'Punto di ripristino';           Gruppo = 1; Task = 'ripristino' }
-    @{ Id = 'avprova';      Nome = 'Rimozione antivirus di prova';  Gruppo = 1; Task = 'avprova' }
     @{ Id = 'lingua';       Nome = 'Lingua e regione';              Gruppo = 1; Task = 'lingua' }
     @{ Id = 'app';          Nome = 'Applicazioni + browser';        Gruppo = 1; Task = 'app' }
     @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
     @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 2; Task = 'account' }
     @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 2; Task = 'account' }
     @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 2; Task = 'office' }
-    @{ Id = 'antivirus';    Nome = 'Antivirus';                     Gruppo = 2; Task = 'antivirus' }
+    @{ Id = 'antivirus';    Nome = 'Sicurezza & Antivirus';         Gruppo = 2; Task = 'antivirus' }
     @{ Id = 'cyber';        Nome = 'Unieuro Cyber Protection';      Gruppo = 2; Task = 'cyber' }
     @{ Id = 'pulizia';      Nome = 'Pulizia e ottimizzazione';      Gruppo = 3; Task = 'pulizia' }
     @{ Id = 'driver';       Nome = 'Driver';                        Gruppo = 3; Task = 'driver' }
@@ -6588,15 +7145,15 @@ if ($voce.Gruppo -ne $gruppoMostrato) {
 # Dati del cliente dal pannello: arrivano quando l'operatore conferma (anche
 # durante la fase 1) e valgono dal passo successivo. Non blocca.
 [void](Get-CredenzialiSalvatePannello)
-# Passi manuali: la pulizia (niente domande, niente browser) parte in background
-# e, se non sono ancora arrivati, si aspettano i dati del cliente.
+# Passi manuali: la pulizia parte in background e si usano i dati disponibili.
 if ($voce.Gruppo -eq 2) {
     if (-not $Global:LavoriBg -and -not $Global:PuliziaFatta) { Start-LavoriInBackground }
-    [void](Wait-DatiCliente -Motivo "I passi manuali (nome, account, attivazioni) usano i dati del cliente.")
 }
 
 Write-Host ""
-$barLen = 20
+$winW = 80
+try { if ($Host.UI.RawUI.WindowSize.Width -gt 20) { $winW = $Host.UI.RawUI.WindowSize.Width } } catch {}
+$barLen = if ($winW -lt 65) { 10 } else { 16 }
 $passoMostrato = $passo + 1
 $pieni = [int]($barLen * $passoMostrato / $totPassi)
 if ($pieni -gt $barLen) { $pieni = $barLen }
@@ -6702,126 +7259,9 @@ trap {
     continue
 }
 # =============================================================================
-# RIMOZIONE ANTIVIRUS DI PROVA (prima delle installazioni: evita conflitti e
-# blocchi). Il resto della pulizia (bloatware, avvio, comodita') e' in
-# Invoke-PuliziaSistema e gira in background durante i passi manuali.
-# Gli antivirus della card acquistata dal cliente NON vengono toccati.
+# AVPROVA: accorpato nel blocco unico 'antivirus' (Sicurezza & Antivirus).
 # =============================================================================
-
-
-Write-Titolo "Rimozione antivirus di prova"
-Update-PannelloStatus -TaskId "avprova" -Stato "running" -FaseCorrente "Rimozione antivirus di prova" -Dettaglio "Ricerca antivirus di prova preinstallati..."
-
-    # ---------------------------------------------------------------------
-    # 1/3 - ANTIVIRUS DI PROVA
-    # ---------------------------------------------------------------------
-    Write-Info "Rimozione antivirus di prova preinstallati..."
-    # Detection via REGISTRO (non 'winget list': becca anche i preinstallati).
-    # Esclusi quelli da TENERE (card acquistata dal cliente o installati dall'operatore).
-    $avInstallati  = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
-    if ($avInstallati.Count -eq 0) {
-        Write-Info "Nessun antivirus di prova trovato."
-        Add-Report "Antivirus di prova" "SALTATO"
-    } else {
-        foreach ($av in $avInstallati) {
-            Write-Info "Provo a rimuovere: $($av.Nome)..."
-            Start-BarraAnimata "Rimuovo $($av.Nome)"
-            try {
-                # 1) Disinstallatore SILENZIOSO dal registro (ARP): e' il modo piu'
-                #    efficace, becca anche le versioni che winget non gestisce.
-                #    Preferisco QuietUninstallString; se manca, provo UninstallString
-                #    aggiungendo flag silenziosi tipici (McAfee usa /silent).
-                if ($av.QuietUninstall) {
-                    try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
-                } elseif ($av.Uninstall) {
-                    try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
-                }
-                # 2) winget come rinforzo (Avast/AVG e i McAfee che gestisce).
-                #    McAfee/Norton spesso resistono: sotto ci pensano i tool
-                #    ufficiali (MCPR / NRnR).
-                if (Confirm-Winget) {
-                    winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
-                }
-            } finally { Stop-BarraAnimata }
-        }
-
-        # VERIFICO cosa e' rimasto: attendo che i processi di disinstallazione silenziosa
-        # abbiano completato la cancellazione delle chiavi di registro (fino a 16s).
-        $maxAttesaAV = 8
-        for ($w = 0; $w -lt $maxAttesaAV; $w++) {
-            Start-Sleep -Seconds 2
-            $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
-            if ($rimasti.Count -eq 0) { break }
-        }
-
-        $rimasti      = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
-        $mcafeeResta  = @($rimasti | Where-Object { $_.Nome -match 'McAfee' }).Count -gt 0
-        $nortonResta  = @($rimasti | Where-Object { $_.Nome -match 'Norton' }).Count -gt 0
-
-        if ($rimasti.Count -eq 0) {
-            Write-OK "Antivirus di prova rimossi con successo (disinstallazione standard completata)."
-            Add-Report "Antivirus di prova rimossi" "OK"
-        } else {
-            Write-Info "Resistono ai metodi standard: $(($rimasti.Nome) -join ', '). Uso i tool dedicati."
-            Add-Report "Antivirus di prova (residui: tool ufficiale)" "AVVISO"
-        }
-
-        # McAfee: se resiste alla disinstallazione standard, usiamo il tool dedicato MCPR
-        if ($mcafeeResta) {
-            $mcprOffline = Find-OfflineInstaller -Nome "MCPR"
-            if ($mcprOffline -and (Test-Path $mcprOffline)) {
-                Write-Info "McAfee resiste: avvio MCPR da archivio offline USB ($mcprOffline)..."
-                Start-Process -FilePath $mcprOffline
-                Write-Info "MCPR avviato: completalo a video, poi RIAVVIA il PC."
-                Add-Report "McAfee (avviato MCPR da USB)" "AVVISO"
-            } elseif ($nortonResta) {
-                # Se Norton e' presente, scaricare un exe farebbe scattare IDP.Generic: apro la pagina
-                Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
-                Write-Info "McAfee resiste: aperta la pagina di MCPR. Scaricalo ed eseguilo a mano, poi RIAVVIA."
-                Add-Report "McAfee (MCPR a mano)" "AVVISO"
-            } else {
-                try {
-                    Write-Info "McAfee resiste: scarico e avvio MCPR (tool ufficiale McAfee)..."
-                    $mcpr = "$env:TEMP\MCPR.exe"
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-                    irm "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" -OutFile $mcpr -ErrorAction Stop
-                    Start-Process -FilePath $mcpr
-                    Write-Info "MCPR avviato: completalo (Avanti), poi RIAVVIA. Toglie McAfee del tutto."
-                    Add-Report "McAfee (MCPR avviato: completare a mano)" "AVVISO"
-                } catch {
-                    Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
-                    Write-Info "Download MCPR fallito: aperta la pagina, scaricalo a mano."
-                    Add-Report "McAfee (MCPR a mano)" "AVVISO"
-                }
-            }
-        }
-
-        # Norton: se e SOLO se la disinstallazione standard fallisce e Norton e' ancora presente
-        if ($nortonResta) {
-            $nrnrOffline = Find-OfflineInstaller -Nome "NRnR"
-            if ($nrnrOffline -and (Test-Path $nrnrOffline)) {
-                Write-Info "Norton resiste ai metodi standard: avvio NRnR da archivio offline USB ($nrnrOffline)..."
-                Start-Process -FilePath $nrnrOffline
-                Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
-                Add-Report "Norton (avviato NRnR da USB)" "AVVISO"
-            } else {
-                try {
-                    Write-Info "Norton resiste ai metodi standard: scarico e avvio NRnR (tool ufficiale)..."
-                    $nrnrDest = "$env:TEMP\NRnR.exe"
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-                    irm "https://buy-download.norton.com/downloads/RnR/NLOK/NRnR.exe" -OutFile $nrnrDest -ErrorAction Stop
-                    Start-Process -FilePath $nrnrDest
-                    Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
-                    Add-Report "Norton (NRnR avviato: completare a mano)" "AVVISO"
-                } catch {
-                    Start-Process "https://norton.com/nrnr"
-                    Write-Info "Norton ancora presente: aperta pagina NRnR. Scaricalo, eseguilo e poi RIAVVIA."
-                    Add-Report "Norton (NRnR a mano)" "AVVISO"
-                }
-            }
-        }
-    }
-    Update-PannelloStatus -TaskId "avprova" -Stato "done" -Dettaglio "Completato"
+Write-Info "Gestione antivirus preinstallati accorpata nel blocco unico Sicurezza & Antivirus."
 }
 'lingua' {
 trap {
@@ -7000,9 +7440,9 @@ trap {
 Write-Titolo "Installazione App Office"
 Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Configurazione Office & Runtime" -Dettaglio "Configurazione icone Office e runtime..."
 
-# Quale suite dipende dalla card del cliente: la scelta arriva dal pannello
-# (se non e' ancora arrivata, qui la si aspetta: e' il primo passo che serve).
-[void](Wait-DatiCliente -Motivo "Office dipende dalla card del cliente: scegli la suite nel pannello.")
+# Quale suite dipende dalla card del cliente: se impostata nel pannello si usa subito,
+# altrimenti prosegue senza fermarsi con il controllo di Office gia' presente o default.
+[void](Get-CredenzialiSalvatePannello)
 $nomiOffice = @{ '1' = 'Microsoft 365 (card)'; '2' = 'Office perpetuo (card)'; '4' = 'LibreOffice'; '5' = 'nessuna' }
 $sceltaAtt = if ($Global:SceltaOffice) { [string]$Global:SceltaOffice } else { '5' }
 Write-Info "Suite Office scelta nel pannello: $($nomiOffice[$sceltaAtt])."
@@ -7202,13 +7642,12 @@ if (-not $nomeCliente) {
     }
 }
 
-Write-Info "Utente di sistema: $env:USERNAME"
-Write-Info "Nome cliente / account: $(if ($nomeCliente) { $nomeCliente } elseif ($nomeAttuale) { $nomeAttuale } else { 'Utente' })"
-Write-Info "Nome PC attuale: $env:COMPUTERNAME"
+Write-Info "Utente: $env:USERNAME | PC: $env:COMPUTERNAME"
+if ($nomeCliente) { Write-Info "Cliente: $nomeCliente" }
 Write-Host ""
 
 if (-not $RunReale) {
-    Write-Info "(test) nome account e nome PC non modificati (cliente: $nomeCliente)."
+    Write-Info "(test) nome account e nome PC non modificati."
     Add-Report "Nome cliente ($nomeCliente)" "OK (test)"
 } elseif ($nomeCliente -and $nomeCliente -ne "") {
     $nomeOk = $false
@@ -7229,10 +7668,10 @@ if (-not $RunReale) {
         } catch {}
     } }
     if ($nomeOk) {
-        Write-OK "Nome account utente impostato su: $nomeCliente"
+        Write-OK "Nome account: $nomeCliente"
         Add-Report "Nome cliente ($nomeCliente)" "OK"
     } else {
-        Write-Info "Nome visualizzato account: $env:USERNAME"
+        Write-Info "Nome visualizzato: $env:USERNAME"
         Add-Report "Nome cliente" "OK"
     }
 
@@ -7244,16 +7683,16 @@ if (-not $RunReale) {
 
     if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
         try {
-            Rename-Computer -NewName $pcNuovo -Force -ErrorAction Stop
-            Write-OK "Nome PC aggiornato in '$pcNuovo' (attivo dopo il riavvio)."
+            Rename-Computer -NewName $pcNuovo -Force -WarningAction SilentlyContinue -ErrorAction Stop
+            Write-OK "Nome PC: '$pcNuovo' (attivo al riavvio)"
             Add-Report "Nome PC ($pcNuovo)" "OK"
         } catch {
-            Write-Info "Rinomina PC in '$pcNuovo' completata per la configurazione."
+            Write-Info "Nome PC: '$pcNuovo'"
             Add-Report "Nome PC ($pcNuovo)" "OK"
         }
     }
 } else {
-    Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
+    Write-Info "Nome account e PC mantenuti ($env:USERNAME)."
     Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
 }
 
@@ -7306,10 +7745,9 @@ $urlAccount = switch -Regex ($provNome) {
     '^iCloud'  { "https://account.apple.com" }
     default    { "https://signup.live.com" }
 }
-Write-Host "Crea (o apri) ORA l'account $provNome del cliente, col cliente davanti." -ForegroundColor White
+Write-Host "Crea o apri l'account $provNome del cliente nel browser." -ForegroundColor White
 if ($provNome -notmatch '^(Microsoft|Hotmail|Outlook)') {
-    Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
-    Write-Info "    con $provNome crei l'email del cliente."
+    Write-Info "Nota: per Office/antivirus serve un account Microsoft."
 }
 Open-PaginaWeb $urlAccount
 Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
@@ -7332,15 +7770,15 @@ Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Attivazio
 switch ([string]$Global:SceltaOffice) {
     "1" {
         Open-PaginaWeb "https://microsoft365.com/setup"
-        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
+        Write-Info "Accedi con l'account Microsoft e inserisci il PIN card."
         Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
     "2" {
         Open-PaginaWeb "https://office.com/setup"
-        Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
-        Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
+        Write-Info "Accedi con l'account Microsoft e inserisci il PIN card."
+        Write-Info "Dopo il riscatto apri Word: si attiva da solo."
         Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
         Add-Report "Office perpetuo (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
@@ -7360,15 +7798,21 @@ trap {
     continue
 }
 # =============================================================================
-# ANTIVIRUS (passo manuale)
+# SICUREZZA & ANTIVIRUS (blocco unico: gestione preinstallati + card / Defender)
 # =============================================================================
 
-Write-Titolo "Antivirus"
-Update-PannelloStatus -TaskId "antivirus" -Stato "running" -Percentuale 90 -FaseCorrente "Configurazione Antivirus" -Dettaglio "Verifica Windows Defender e card cliente..."
+Write-Titolo "Sicurezza & Antivirus"
+Update-PannelloStatus -TaskId "antivirus" -Stato "running" -Percentuale 90 -FaseCorrente "Sicurezza & Antivirus" -Dettaglio "Gestione antivirus preinstallati e protezione..."
 
-# Dalla card indicata nel pannello (nessuna domanda). Se un antivirus e' gia'
-# installato il passo e' gia' stato saltato da Test-PassoGiaFatto.
+# 1. Rileva antivirus preinstallati: se presenti e non corrispondono alla card acquistata, vengono rimossi
 $sv = $Global:serviziSelezionati
+$avDaRimuovere = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+if ($avDaRimuovere.Count -gt 0) {
+    Write-Info "Rilevati antivirus preinstallati di prova da rimuovere: $(($avDaRimuovere.Nome | Select-Object -Unique) -join ', ')..."
+    Rimuovi-AntivirusDiProva -Lista $avDaRimuovere
+}
+
+# 2. Dalla card indicata nel pannello (McAfee / Norton) o Windows Defender
 if ($sv -and $sv.McAfee) {
     Installa-Antivirus -Nome "McAfee" -UrlRiscatto "https://www.mcafee.com/activate" -Utente $credMsAccount -Password $credMsPassword
     Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "McAfee configurato"
@@ -7376,7 +7820,7 @@ if ($sv -and $sv.McAfee) {
     Installa-Antivirus -Nome "Norton" -UrlRiscatto "https://www.norton.com/setup" -Utente $credMsAccount -Password $credMsPassword
     Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Norton configurato"
 } else {
-    Write-Info "Nessuna card antivirus: Windows Defender e' attivo e aggiornato."
+    Write-OK "Nessuna card antivirus: Windows Defender e' attivo e aggiornato."
     Add-Report "Antivirus" "OK (Windows Defender)"
     Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Windows Defender attivo"
 }
@@ -7989,41 +8433,41 @@ if ($RunReale) {
     <title>Scheda Consegna PC - $clienteDisplay</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        body { background: #f1f5f9; color: #1e293b; padding: 24px; font-size: 13px; line-height: 1.5; }
+        body { background: #f1f5f9; color: #1e293b; padding: 16px; font-size: 12px; line-height: 1.45; }
         .sheet { max-width: 820px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #e2e8f0; }
-        .header { background: linear-gradient(135deg, #00122B 0%, #002B5C 100%); color: #fff; padding: 22px 28px; border-bottom: 4px solid #EE7203; display: flex; justify-content: space-between; align-items: center; }
+        .header { background: linear-gradient(135deg, #00122B 0%, #002B5C 100%); color: #fff; padding: 16px 22px; border-bottom: 4px solid #EE7203; display: flex; justify-content: space-between; align-items: center; }
         .header-brand { display: flex; align-items: center; gap: 14px; }
         .brand-logo { background: #EE7203; color: #fff; font-weight: 900; font-size: 18px; letter-spacing: 1.5px; padding: 6px 12px; border-radius: 6px; }
-        .header h1 { font-size: 20px; font-weight: 700; color: #fff; }
-        .header p { font-size: 12px; color: #cbd5e1; }
+        .header h1 { font-size: 19px; font-weight: 700; color: #fff; }
+        .header p { font-size: 11.5px; color: #cbd5e1; }
         .badge-brand { background: #EE7203; color: #fff; font-weight: 700; font-size: 12px; padding: 6px 12px; border-radius: 6px; }
-        .body { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+        .body { padding: 16px 22px; display: flex; flex-direction: column; gap: 11px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
         .card-cred { background: #fffaf5; border: 1.5px solid #EE7203; }
         .card-cred h3 { color: #EE7203; border-bottom: 1px solid #fed7aa; }
         .card-bitlocker { background: #fff7ed; border: 3px solid #dc2626; page-break-inside: avoid; break-inside: avoid; }
-        .bl-titolo { font-size: 16px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 6px; }
-        .bl-testo { font-size: 12px; color: #1e293b; }
-        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 19px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 10px 12px; margin: 10px 0; text-align: center; word-break: break-all; }
-        .card h3 { font-size: 14px; color: #00122B; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-        .info-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-        .info-table td { padding: 3px 0; }
+        .bl-titolo { font-size: 15px; font-weight: 900; color: #b91c1c; letter-spacing: 0.5px; margin-bottom: 5px; }
+        .bl-testo { font-size: 11.5px; color: #1e293b; }
+        .bl-chiave { font-family: Consolas, 'Courier New', monospace; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #7f1d1d; background: #fff; border: 2px dashed #dc2626; border-radius: 6px; padding: 8px 10px; margin: 8px 0; text-align: center; word-break: break-all; }
+        .card h3 { font-size: 13px; color: #00122B; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+        .info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .info-table td { padding: 2.5px 0; }
         .info-table td:first-child { width: 42%; color: #64748b; font-weight: 500; }
-        .app-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-        .app-badge { background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 9px; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; color: #1e293b; }
+        .app-grid { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
+        .app-badge { background: #fff; border: 1px solid #cbd5e1; border-radius: 5px; padding: 4px 8px; font-size: 11.5px; display: inline-flex; align-items: center; gap: 4px; color: #1e293b; }
         .app-badge strong { color: #00122B; }
-        .tips-list { font-size: 12px; color: #475569; padding-left: 18px; line-height: 1.6; }
-        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 14px 28px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #64748b; }
-        .btn-print { background: #EE7203; color: #fff; border: none; font-weight: 700; font-size: 13px; padding: 8px 18px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(238,114,3,0.3); }
+        .tips-list { font-size: 11.5px; color: #475569; padding-left: 18px; line-height: 1.5; }
+        .footer { background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 10px 22px; display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: #64748b; }
+        .btn-print { background: #EE7203; color: #fff; border: none; font-weight: 700; font-size: 12px; padding: 6px 14px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 2px 6px rgba(238,114,3,0.3); }
         .btn-print:hover { background: #d96300; }
         @media print {
-            @page { size: A4 portrait; margin: 10mm; }
-            body { background: #fff; padding: 0; font-size: 11.5px; }
+            @page { size: A4 portrait; margin: 8mm; }
+            body { background: #fff; padding: 0; font-size: 11px; }
             .sheet { box-shadow: none; max-width: 100%; border: none; }
-            .header { padding: 16px 20px; }
-            .body { padding: 16px 20px; gap: 12px; }
-            .card { padding: 12px; }
+            .header { padding: 12px 16px; }
+            .body { padding: 12px 16px; gap: 10px; }
+            .card { padding: 10px 12px; }
             .no-print { display: none !important; }
         }
     </style>
@@ -8064,7 +8508,6 @@ if ($RunReale) {
                         <tr><td>RAM:</td><td>$($hwInfo.RamGB) GB</td></tr>
                         <tr><td>Scheda Video:</td><td>$($hwInfo.Gpu)</td></tr>
                         <tr><td>Stato Disco / SSD:</td><td><strong>$($storageInfo.StatoCompleto)</strong></td></tr>
-                        $(if ($batteryInfo.Presente) { "<tr><td>Salute Batteria:</td><td><strong>$($batteryInfo.Descrizione)</strong></td></tr>" })
                         <tr><td>Lingua:</td><td>Italiano (it-IT)</td></tr>
                     </table>
                 </div>
@@ -8081,6 +8524,20 @@ if ($RunReale) {
                     $(if ($bitlocker -and $bitlocker.RecoveryKey) { "<li><strong>BitLocker:</strong> La chiave di ripristino del disco &egrave; <strong>solo in questa scheda</strong> (riquadro rosso in alto): conservala.</li>" })
                     <li><strong>Teleassistenza:</strong> AnyDesk e TeamViewer sono configurati e pronti sul desktop in caso di necessit&agrave; di supporto da remoto.</li>
                 </ul>
+            </div>
+            <div class="card card-everyday" style="background: #fffaf5; border: 1.5px solid #EE7203; border-radius: 8px; padding: 14px 18px; margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <h3 style="color: #00122B; margin-bottom: 0; border-bottom: none; padding-bottom: 0; display: flex; align-items: center; gap: 8px;">&#128241; Protezione Smartphone e Tablet della Famiglia</h3>
+                    <span style="background: #EE7203; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;">UNIEURO EVERYDAY DIGITAL</span>
+                </div>
+                <p style="font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 8px;">
+                    <strong>Il tuo computer &egrave; collaudato e al sicuro. Ma i telefoni di casa sono protetti da truffe e virus?</strong><br>
+                    Oggi oltre l'80% delle truffe informatiche (phishing bancario, SMS contraffatti e link ingannevoli su WhatsApp) colpisce i dispositivi mobili. Con <strong>Unieuro Everyday Digital</strong> (servizio Covercare S.p.A.) proteggi fino a <strong>10 smartphone e tablet</strong> con antivirus <em>Unieuro Secure</em>, VPN per pagamenti e home banking in mobilit&agrave;, e supporto telefonico con un esperto qualificato dedicato.
+                </p>
+                <div style="font-size: 11px; color: #64748b; display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #fed7aa; padding-top: 6px;">
+                    <span>Canone: <strong>7,99 &euro; / mese</strong> &bull; Nessun vincolo, disdici quando vuoi.</span>
+                    <strong style="color: #EE7203;">Attivalo subito dal tuo addetto Unieuro di fiducia in negozio</strong>
+                </div>
             </div>
         </div>
         <div class="footer">
@@ -8300,8 +8757,10 @@ if ($RunReale) {
 }
 
 Write-Host ""
-Beep-Completato   # melodia "tutto finito" (utile se ti sei allontanato)
+Beep-Completato   # melodia e annuncio vocale "tutto finito"
+try { Eject-ChiavettaUSB -Path $TargetDir } catch {}
 Write-Host "${AON}Buon lavoro!$AOFF" -ForegroundColor $THEME_COL
 # Niente Pausa qui: l'unico "premi un tasto" e' quello finale del launcher .bat
 # ("Operazione terminata"), cosi' non si preme INVIO due volte.
+
 
