@@ -1163,8 +1163,9 @@ Describe 'Ordine dei passi e pannello' {
         [array]::IndexOf($script:Ids, 'app') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
         [array]::IndexOf($script:Ids, 'lingua') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
     }
-    It 'gli antivirus di prova si tolgono prima dell''antivirus definitivo' {
-        [array]::IndexOf($script:Ids, 'avprova') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'antivirus'))
+    It 'antivirus gestito in un blocco unico (Sicurezza & Antivirus)' {
+        $script:Ids | Should -Contain 'antivirus'
+        $script:Ids | Should -Not -Contain 'avprova'
     }
     It 'ogni passo ha un id unico e un task presente nel pannello (script e HTML)' {
         @($script:Ids | Sort-Object -Unique).Count | Should -Be $script:Ids.Count
@@ -1199,7 +1200,7 @@ Describe 'Controlli "gia'' fatto"' {
     It 'Test-PassoGiaFatto in modalita test non salta mai (si esercitano tutti i passi)' {
         $Global:Test = $true
         try {
-            foreach ($id in @('ripristino', 'avprova', 'lingua', 'officeattiva', 'antivirus', 'nome')) { Test-PassoGiaFatto -Id $id | Should -BeNullOrEmpty }
+            foreach ($id in @('ripristino', 'lingua', 'officeattiva', 'antivirus', 'nome')) { Test-PassoGiaFatto -Id $id | Should -BeNullOrEmpty }
         } finally { Remove-Variable -Name Test -Scope Global -ErrorAction SilentlyContinue }
     }
     It 'Test-LinguaItaliana, Test-OfficeInstallato e Get-AntivirusTerzi non lanciano errori' {

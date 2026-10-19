@@ -15,8 +15,8 @@ allineati come flusso e funzioni.
 | Punto di ripristino         | `Checkpoint-Computer`                     | `tmutil localsnapshot` (Time Machine)         | pari |
 | Account + credenziali       | Apre account.microsoft.com, genera cred   | Apre appleid.apple.com, genera cred           | pari |
 | Office                      | installa se indicato nel pannello o crea icone/collegamenti (zero blocchi/attese dati) | — (su Mac Office si scarica da web, opzionale)| solo Win |
-| Pulizia / ottimizzazione    | AV prova + debloat OEM + config Windows   | config `defaults` (no debloat OEM: non esiste)| Mac = solo config |
-| Antivirus                   | McAfee/Norton                             | — (raramente su Mac; skip)                    | solo Win |
+| Pulizia / ottimizzazione    | debloat OEM + config Windows (background) | config `defaults` (no debloat OEM: non esiste)| Mac = solo config |
+| Antivirus                   | Blocco unico (rilevamento/rimozione preinstallati di prova + card McAfee/Norton o Defender) | — (raramente su Mac; skip) | solo Win |
 | Unieuro Cyber Protection    | apre portale                              | apre portale (uguale)                         | pari |
 | Browser                     | catalogo winget                           | cask brew                                     | pari |
 | App (BASE/UFFICIO/GAMING)   | winget + tool GPU se dedicata (NVIDIA/Intel Arc/AMD) | brew cask (Mac: GPU integrata) | pari |
@@ -48,7 +48,7 @@ allineati come flusso e funzioni.
 ## Solo Windows (Non Esiste su Mac)
 - **Debloat barra Win11**: nasconde Widget, Chat, Vista attivita' e Ricerca dalla barra (registro HKCU).
 - **Debloat OEM**: macOS non ha crapware del produttore.
-- **Rimozione antivirus di prova**: quasi mai preinstallato su Mac.
+- **Rimozione antivirus di prova**: gestita nel blocco unico Antivirus (su macOS non esiste software antivirus OEM preinstallato).
 - **Attivazione Office/driver**: Office da web, driver inclusi in macOS.
 - **GeForce se NVIDIA**: i Mac recenti non hanno GPU NVIDIA.
 

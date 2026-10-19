@@ -1399,7 +1399,6 @@ function Update-PannelloStatus {
                 # fase 2 passi manuali, fase 3 pulizia, driver e aggiornamenti.
                 Tasks         = [ordered]@{
                     "ripristino"  = [ordered]@{ Nome = "Punto di Ripristino di Sicurezza"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "avprova"     = [ordered]@{ Nome = "Rimozione Antivirus di Prova"; Stato = "pending"; Dettaglio = "In attesa" }
                     "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "runtime"     = [ordered]@{ Nome = "Runtime Microsoft Visual C++ (x86 & x64)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "app"         = [ordered]@{ Nome = "Installazione Applicazioni Unieuro"; Stato = "pending"; Dettaglio = "In attesa" }
@@ -2435,27 +2434,26 @@ function Open-PannelloOperatore {
                     <span class="section-badge-num">2</span>
                     <span>Avanzamento lavori</span>
                 </div>
-                <span id="taskCountBadge" class="task-badge-num">0/13</span>
+                <span id="taskCountBadge" class="task-badge-num">0/12</span>
             </div>
             <div class="card">
                 <div class="card-subtitle">Fase 1 e 3 vanno da sole; nella fase 2 servi tu (account, attivazioni, codici). I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
                     <li class="task-gruppo">Fase 1 &middot; Programmi e lingua (automatico)</li>
                     <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 2 &middot; Passi manuali (operatore) &ndash; intanto la pulizia va in background</li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Protezione antivirus &amp; rimozione trial</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 3 &middot; Pulizia, driver e aggiornamenti (automatico)</li>
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Aggiornamenti app e Windows (ultimo passo)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Aggiornamenti app e Windows (ultimo passo)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                 </ul>
             </div>
         </div>
@@ -2508,7 +2506,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
         var isScriptConnected = false;
         var lastStatusPing = 0;
         var formManualmenteAperto = false;
-        var TASK_KEYS = ['ripristino', 'avprova', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
+        var TASK_KEYS = ['ripristino', 'lingua', 'runtime', 'app', 'office', 'account', 'antivirus', 'cyber', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function generaQrConsegna() {
             var qrContainer = el('qrCodeBox');
@@ -6097,20 +6095,7 @@ if ($RunReale) {
     }
 }
 
-# =============================================================================
-# AVVISO ANTIVIRUS ATTIVO - un AV attivo puo' mettere in quarantena lo script
-# (si difende quando prova a rimuovere gli AV di prova). Avviso PRIMA di agire,
-# cosi' l'operatore lo whitelista/consente ed evita che il setto venga ucciso.
-# =============================================================================
-if ($RunReale) {
-    $avAttivi = @(Get-AntivirusInstallati)
-    if ($avAttivi.Count -gt 0) {
-        Write-Titolo "ATTENZIONE: Antivirus attivo rilevato"
-        Write-Errore "Presente: $(($avAttivi.Nome | Select-Object -Unique) -join ', ')."
-        Write-Host "Un antivirus attivo puo' bloccare lo script: se compare un avviso, seleziona 'Consenti'." -ForegroundColor Yellow
-        Write-Host ""
-    }
-}
+
 
 # =============================================================================
 # PASSI DI CONFIGURAZIONE (dopo ogni scelta si avanza; B al prompt = indietro)
@@ -6286,6 +6271,93 @@ function Attiva-ServizioWeb {
     }
 }
 
+function Rimuovi-AntivirusDiProva {
+    param([array]$Lista)
+    if (-not $Lista -or $Lista.Count -eq 0) {
+        $Lista = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+    }
+    if ($Lista.Count -eq 0) {
+        Write-Info "Nessun antivirus di prova preinstallato da rimuovere."
+        Add-Report "Antivirus di prova" "SALTATO"
+        return
+    }
+
+    foreach ($av in $Lista) {
+        Write-Info "Rimozione antivirus preinstallato: $($av.Nome)..."
+        Start-BarraAnimata "Rimuovo $($av.Nome)"
+        try {
+            if ($av.QuietUninstall) {
+                try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
+            } elseif ($av.Uninstall) {
+                try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
+            }
+            if (Confirm-Winget) {
+                winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+            }
+        } finally { Stop-BarraAnimata }
+    }
+
+    $maxAttesaAV = 6
+    for ($w = 0; $w -lt $maxAttesaAV; $w++) {
+        Start-Sleep -Seconds 1
+        $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+        if ($rimasti.Count -eq 0) { break }
+    }
+
+    $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+    $mcafeeResta = @($rimasti | Where-Object { $_.Nome -match 'McAfee' }).Count -gt 0
+    $nortonResta = @($rimasti | Where-Object { $_.Nome -match 'Norton' }).Count -gt 0
+
+    if ($rimasti.Count -eq 0) {
+        Write-OK "Antivirus di prova preinstallati rimossi con successo."
+        Add-Report "Antivirus di prova rimossi" "OK"
+    } else {
+        Write-Info "Resistono ai metodi standard: $(($rimasti.Nome) -join ', '). Tentativo tool dedicati..."
+        Add-Report "Antivirus di prova (residui: tool ufficiale)" "AVVISO"
+    }
+
+    if ($mcafeeResta) {
+        $mcprOffline = Find-OfflineInstaller -Nome "MCPR"
+        if ($mcprOffline -and (Test-Path $mcprOffline)) {
+            Write-Info "McAfee resiste: avvio MCPR da archivio offline USB ($mcprOffline)..."
+            Start-Process -FilePath $mcprOffline
+            Write-Info "MCPR avviato: completalo a video, poi RIAVVIA il PC."
+            Add-Report "McAfee (avviato MCPR da USB)" "AVVISO"
+        } else {
+            try {
+                $mcpr = "$env:TEMP\MCPR.exe"
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                irm "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" -OutFile $mcpr -ErrorAction Stop
+                Start-Process -FilePath $mcpr
+                Write-Info "MCPR avviato: completalo (Avanti), poi RIAVVIA."
+                Add-Report "McAfee (MCPR avviato: completare a mano)" "AVVISO"
+            } catch {
+                Add-Report "McAfee (MCPR a mano)" "AVVISO"
+            }
+        }
+    }
+
+    if ($nortonResta) {
+        $nrnrOffline = Find-OfflineInstaller -Nome "NRnR"
+        if ($nrnrOffline -and (Test-Path $nrnrOffline)) {
+            Write-Info "Norton resiste ai metodi standard: avvio NRnR da archivio offline USB ($nrnrOffline)..."
+            Start-Process -FilePath $nrnrOffline
+            Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
+            Add-Report "Norton (avviato NRnR da USB)" "AVVISO"
+        } else {
+            try {
+                $nrnrDest = "$env:TEMP\NRnR.exe"
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                irm "https://buy-download.norton.com/downloads/RnR/NLOK/NRnR.exe" -OutFile $nrnrDest -ErrorAction Stop
+                Start-Process -FilePath $nrnrDest
+                Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
+                Add-Report "Norton (NRnR avviato: completare a mano)" "AVVISO"
+            } catch {
+                Add-Report "Norton (NRnR a mano)" "AVVISO"
+            }
+        }
+    }
+}
 
 function Get-OsppPath {
     $percorsi = @(
@@ -6434,9 +6506,6 @@ function Test-PassoGiaFatto {
         'ripristino' {
             if (Test-PuntoRipristinoOggi) { return "Punto di ripristino gia' creato oggi" }
         }
-        'avprova' {
-            if (@(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) }).Count -eq 0) { return "Nessun antivirus di prova presente" }
-        }
         'lingua' {
             if (Test-LinguaItaliana) { return "Windows gia' tutto in italiano" }
         }
@@ -6444,8 +6513,10 @@ function Test-PassoGiaFatto {
             if ((Test-OfficeInstallato) -and (Test-OfficeAttivato)) { return "Office gia' attivato" }
         }
         'antivirus' {
-            $av = @(Get-AntivirusTerzi)
-            if ($av.Count -gt 0) { return "Gia' installato: $($av -join ', ')" }
+            $avDaRimuovere = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+            if ($avDaRimuovere.Count -gt 0) { return $null }
+            $sv = $Global:serviziSelezionati
+            if ($sv -and ($sv.McAfee -or $sv.Norton)) { return $null }
         }
     }
     return $null
@@ -7029,14 +7100,13 @@ trap {
 # =============================================================================
 $Global:Passi = @(
     @{ Id = 'ripristino';   Nome = 'Punto di ripristino';           Gruppo = 1; Task = 'ripristino' }
-    @{ Id = 'avprova';      Nome = 'Rimozione antivirus di prova';  Gruppo = 1; Task = 'avprova' }
     @{ Id = 'lingua';       Nome = 'Lingua e regione';              Gruppo = 1; Task = 'lingua' }
     @{ Id = 'app';          Nome = 'Applicazioni + browser';        Gruppo = 1; Task = 'app' }
     @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
     @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 2; Task = 'account' }
     @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 2; Task = 'account' }
     @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 2; Task = 'office' }
-    @{ Id = 'antivirus';    Nome = 'Antivirus';                     Gruppo = 2; Task = 'antivirus' }
+    @{ Id = 'antivirus';    Nome = 'Sicurezza & Antivirus';         Gruppo = 2; Task = 'antivirus' }
     @{ Id = 'cyber';        Nome = 'Unieuro Cyber Protection';      Gruppo = 2; Task = 'cyber' }
     @{ Id = 'pulizia';      Nome = 'Pulizia e ottimizzazione';      Gruppo = 3; Task = 'pulizia' }
     @{ Id = 'driver';       Nome = 'Driver';                        Gruppo = 3; Task = 'driver' }
@@ -7189,126 +7259,9 @@ trap {
     continue
 }
 # =============================================================================
-# RIMOZIONE ANTIVIRUS DI PROVA (prima delle installazioni: evita conflitti e
-# blocchi). Il resto della pulizia (bloatware, avvio, comodita') e' in
-# Invoke-PuliziaSistema e gira in background durante i passi manuali.
-# Gli antivirus della card acquistata dal cliente NON vengono toccati.
+# AVPROVA: accorpato nel blocco unico 'antivirus' (Sicurezza & Antivirus).
 # =============================================================================
-
-
-Write-Titolo "Rimozione antivirus di prova"
-Update-PannelloStatus -TaskId "avprova" -Stato "running" -FaseCorrente "Rimozione antivirus di prova" -Dettaglio "Ricerca antivirus di prova preinstallati..."
-
-    # ---------------------------------------------------------------------
-    # 1/3 - ANTIVIRUS DI PROVA
-    # ---------------------------------------------------------------------
-    Write-Info "Rimozione antivirus di prova preinstallati..."
-    # Detection via REGISTRO (non 'winget list': becca anche i preinstallati).
-    # Esclusi quelli da TENERE (card acquistata dal cliente o installati dall'operatore).
-    $avInstallati  = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
-    if ($avInstallati.Count -eq 0) {
-        Write-Info "Nessun antivirus di prova trovato."
-        Add-Report "Antivirus di prova" "SALTATO"
-    } else {
-        foreach ($av in $avInstallati) {
-            Write-Info "Provo a rimuovere: $($av.Nome)..."
-            Start-BarraAnimata "Rimuovo $($av.Nome)"
-            try {
-                # 1) Disinstallatore SILENZIOSO dal registro (ARP): e' il modo piu'
-                #    efficace, becca anche le versioni che winget non gestisce.
-                #    Preferisco QuietUninstallString; se manca, provo UninstallString
-                #    aggiungendo flag silenziosi tipici (McAfee usa /silent).
-                if ($av.QuietUninstall) {
-                    try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
-                } elseif ($av.Uninstall) {
-                    try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
-                }
-                # 2) winget come rinforzo (Avast/AVG e i McAfee che gestisce).
-                #    McAfee/Norton spesso resistono: sotto ci pensano i tool
-                #    ufficiali (MCPR / NRnR).
-                if (Confirm-Winget) {
-                    winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
-                }
-            } finally { Stop-BarraAnimata }
-        }
-
-        # VERIFICO cosa e' rimasto: attendo che i processi di disinstallazione silenziosa
-        # abbiano completato la cancellazione delle chiavi di registro (fino a 16s).
-        $maxAttesaAV = 8
-        for ($w = 0; $w -lt $maxAttesaAV; $w++) {
-            Start-Sleep -Seconds 2
-            $rimasti = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
-            if ($rimasti.Count -eq 0) { break }
-        }
-
-        $rimasti      = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
-        $mcafeeResta  = @($rimasti | Where-Object { $_.Nome -match 'McAfee' }).Count -gt 0
-        $nortonResta  = @($rimasti | Where-Object { $_.Nome -match 'Norton' }).Count -gt 0
-
-        if ($rimasti.Count -eq 0) {
-            Write-OK "Antivirus di prova rimossi con successo (disinstallazione standard completata)."
-            Add-Report "Antivirus di prova rimossi" "OK"
-        } else {
-            Write-Info "Resistono ai metodi standard: $(($rimasti.Nome) -join ', '). Uso i tool dedicati."
-            Add-Report "Antivirus di prova (residui: tool ufficiale)" "AVVISO"
-        }
-
-        # McAfee: se resiste alla disinstallazione standard, usiamo il tool dedicato MCPR
-        if ($mcafeeResta) {
-            $mcprOffline = Find-OfflineInstaller -Nome "MCPR"
-            if ($mcprOffline -and (Test-Path $mcprOffline)) {
-                Write-Info "McAfee resiste: avvio MCPR da archivio offline USB ($mcprOffline)..."
-                Start-Process -FilePath $mcprOffline
-                Write-Info "MCPR avviato: completalo a video, poi RIAVVIA il PC."
-                Add-Report "McAfee (avviato MCPR da USB)" "AVVISO"
-            } elseif ($nortonResta) {
-                # Se Norton e' presente, scaricare un exe farebbe scattare IDP.Generic: apro la pagina
-                Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
-                Write-Info "McAfee resiste: aperta la pagina di MCPR. Scaricalo ed eseguilo a mano, poi RIAVVIA."
-                Add-Report "McAfee (MCPR a mano)" "AVVISO"
-            } else {
-                try {
-                    Write-Info "McAfee resiste: scarico e avvio MCPR (tool ufficiale McAfee)..."
-                    $mcpr = "$env:TEMP\MCPR.exe"
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-                    irm "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" -OutFile $mcpr -ErrorAction Stop
-                    Start-Process -FilePath $mcpr
-                    Write-Info "MCPR avviato: completalo (Avanti), poi RIAVVIA. Toglie McAfee del tutto."
-                    Add-Report "McAfee (MCPR avviato: completare a mano)" "AVVISO"
-                } catch {
-                    Start-Process "https://www.mcafee.com/support/?articleId=TS101331"
-                    Write-Info "Download MCPR fallito: aperta la pagina, scaricalo a mano."
-                    Add-Report "McAfee (MCPR a mano)" "AVVISO"
-                }
-            }
-        }
-
-        # Norton: se e SOLO se la disinstallazione standard fallisce e Norton e' ancora presente
-        if ($nortonResta) {
-            $nrnrOffline = Find-OfflineInstaller -Nome "NRnR"
-            if ($nrnrOffline -and (Test-Path $nrnrOffline)) {
-                Write-Info "Norton resiste ai metodi standard: avvio NRnR da archivio offline USB ($nrnrOffline)..."
-                Start-Process -FilePath $nrnrOffline
-                Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
-                Add-Report "Norton (avviato NRnR da USB)" "AVVISO"
-            } else {
-                try {
-                    Write-Info "Norton resiste ai metodi standard: scarico e avvio NRnR (tool ufficiale)..."
-                    $nrnrDest = "$env:TEMP\NRnR.exe"
-                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-                    irm "https://buy-download.norton.com/downloads/RnR/NLOK/NRnR.exe" -OutFile $nrnrDest -ErrorAction Stop
-                    Start-Process -FilePath $nrnrDest
-                    Write-Info "NRnR avviato: seleziona 'Opzioni avanzate' -> 'Solo rimozione', poi RIAVVIA."
-                    Add-Report "Norton (NRnR avviato: completare a mano)" "AVVISO"
-                } catch {
-                    Start-Process "https://norton.com/nrnr"
-                    Write-Info "Norton ancora presente: aperta pagina NRnR. Scaricalo, eseguilo e poi RIAVVIA."
-                    Add-Report "Norton (NRnR a mano)" "AVVISO"
-                }
-            }
-        }
-    }
-    Update-PannelloStatus -TaskId "avprova" -Stato "done" -Dettaglio "Completato"
+Write-Info "Gestione antivirus preinstallati accorpata nel blocco unico Sicurezza & Antivirus."
 }
 'lingua' {
 trap {
@@ -7845,15 +7798,21 @@ trap {
     continue
 }
 # =============================================================================
-# ANTIVIRUS (passo manuale)
+# SICUREZZA & ANTIVIRUS (blocco unico: gestione preinstallati + card / Defender)
 # =============================================================================
 
-Write-Titolo "Antivirus"
-Update-PannelloStatus -TaskId "antivirus" -Stato "running" -Percentuale 90 -FaseCorrente "Configurazione Antivirus" -Dettaglio "Verifica Windows Defender e card cliente..."
+Write-Titolo "Sicurezza & Antivirus"
+Update-PannelloStatus -TaskId "antivirus" -Stato "running" -Percentuale 90 -FaseCorrente "Sicurezza & Antivirus" -Dettaglio "Gestione antivirus preinstallati e protezione..."
 
-# Dalla card indicata nel pannello (nessuna domanda). Se un antivirus e' gia'
-# installato il passo e' gia' stato saltato da Test-PassoGiaFatto.
+# 1. Rileva antivirus preinstallati: se presenti e non corrispondono alla card acquistata, vengono rimossi
 $sv = $Global:serviziSelezionati
+$avDaRimuovere = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+if ($avDaRimuovere.Count -gt 0) {
+    Write-Info "Rilevati antivirus preinstallati di prova da rimuovere: $(($avDaRimuovere.Nome | Select-Object -Unique) -join ', ')..."
+    Rimuovi-AntivirusDiProva -Lista $avDaRimuovere
+}
+
+# 2. Dalla card indicata nel pannello (McAfee / Norton) o Windows Defender
 if ($sv -and $sv.McAfee) {
     Installa-Antivirus -Nome "McAfee" -UrlRiscatto "https://www.mcafee.com/activate" -Utente $credMsAccount -Password $credMsPassword
     Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "McAfee configurato"
@@ -7861,7 +7820,7 @@ if ($sv -and $sv.McAfee) {
     Installa-Antivirus -Nome "Norton" -UrlRiscatto "https://www.norton.com/setup" -Utente $credMsAccount -Password $credMsPassword
     Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Norton configurato"
 } else {
-    Write-Info "Nessuna card antivirus: Windows Defender e' attivo e aggiornato."
+    Write-OK "Nessuna card antivirus: Windows Defender e' attivo e aggiornato."
     Add-Report "Antivirus" "OK (Windows Defender)"
     Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Windows Defender attivo"
 }
