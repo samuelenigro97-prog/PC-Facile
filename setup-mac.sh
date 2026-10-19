@@ -1020,6 +1020,24 @@ open_pannello_mac() {
                             <label><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
                             <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="btn-svc-link" onclick="apriESelezionaMac('chkSvcCyber', 'https://unieuro-cyber-protection.covercare.it', event)">Apri portale &#8599;</a>
                         </div>
+                        <div class="svc" style="grid-column: 1 / -1; background: #fff8f5; border: 1.5px solid #EE7203; border-radius: 8px; padding: 10px 12px; display: block;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <label style="margin: 0; font-weight: 700; color: #00122B; display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="chkSvcEveryday">
+                                    <span>&#128241; Unieuro Everyday Digital (Covercare &bull; 7,99 &euro;/mese)</span>
+                                </label>
+                                <button type="button" class="btn-sec" style="font-size: 11px; padding: 3px 8px; background: #EE7203; color: #fff; border: none; font-weight: bold; border-radius: 4px; cursor: pointer;" onclick="toggleScriptVenditaMac()">&#127908; Script Vendita (30s)</button>
+                            </div>
+                            <div style="font-size: 11px; color: #64748b; line-height: 1.4;">
+                                Protegge fino a <strong>10 smartphone e tablet</strong> della famiglia (Antivirus Unieuro Secure, VPN, Chatbot AI e tecnico al telefono). Attivazione da PC aziendale Unieuro, nessun vincolo.
+                            </div>
+                            <div id="modalScriptVenditaMac" style="display: none; margin-top: 8px; background: #fff; border: 1px solid #fed7aa; border-radius: 6px; padding: 10px; font-size: 11px; color: #1e293b; line-height: 1.5;">
+                                <strong style="color: #EE7203;">&#128161; PITCH VENDITA AL RITIRO MAC:</strong><br>
+                                1. <em>Gancio:</em> &laquo;Signor Rossi, il Mac &egrave; perfetto. Ma lo smartphone che ha in tasca &egrave; protetto da truffe bancarie e virus WhatsApp?&raquo;<br>
+                                2. <em>Valore:</em> &laquo;Unieuro ha lanciato Everyday Digital: con 7,99 &euro;/mese copre 10 telefoni e tablet di tutta la famiglia, con VPN e tecnico dedicato al telefono.&raquo;<br>
+                                3. <em>Chiusura:</em> &laquo;Nessun vincolo, disdice quando vuole con un clic. Glielo attivo subito dal mio terminale?&raquo;
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1129,6 +1147,7 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
             if (sn) lines.push('Seriale: ' + sn);
             lines.push('Profilo: ' + prof);
             lines.push('Wi-Fi Negozio: UNIEURO_EXPO');
+            lines.push('Mobile: Unieuro Everyday Digital (7,99E/m)');
 
             try {
                 if (typeof QRCode !== 'undefined') {
@@ -1144,6 +1163,11 @@ var QRCode;!function(){function a(a){this.mode=c.MODE_8BIT_BYTE,this.data=a,this
                     if (card) card.style.display = 'flex';
                 }
             } catch (e) {}
+        }
+
+        function toggleScriptVenditaMac() {
+            var m = document.getElementById('modalScriptVenditaMac');
+            if (m) m.style.display = (m.style.display === 'none' ? 'block' : 'none');
         }
 
         function showTabMac(id) {
@@ -2584,6 +2608,20 @@ HTML_CONSEGNA_DOC="<!DOCTYPE html>
                     <li><strong>Backup Time Machine:</strong> Consigliamo di collegare periodicamente un disco esterno per eseguire i backup automatici con Time Machine (gi&agrave; predisposto).</li>
                     <li><strong>Aggiornamenti:</strong> macOS &egrave; configurato con gli aggiornamenti di sicurezza raccomandati per proteggere il dispositivo.</li>
                 </ul>
+            </div>
+            <div class=\"card card-everyday\" style=\"background: #fffaf5; border: 1.5px solid #EE7203; border-radius: 8px; padding: 14px 18px; margin-top: 4px;\">
+                <div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;\">
+                    <h3 style=\"color: #00122B; margin-bottom: 0; border-bottom: none; padding-bottom: 0; display: flex; align-items: center; gap: 8px;\">&#128241; Protezione Smartphone e Tablet della Famiglia</h3>
+                    <span style=\"background: #EE7203; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;\">UNIEURO EVERYDAY DIGITAL</span>
+                </div>
+                <p style=\"font-size: 12px; color: #334155; line-height: 1.5; margin-bottom: 8px;\">
+                    <strong>Il tuo Mac &egrave; collaudato e al sicuro. Ma i telefoni di casa sono protetti da truffe e virus?</strong><br>
+                    Oggi oltre l'80% delle truffe informatiche (phishing bancario, SMS contraffatti e link ingannevoli su WhatsApp) colpisce i dispositivi mobili. Con <strong>Unieuro Everyday Digital</strong> (servizio Covercare S.p.A.) proteggi fino a <strong>10 smartphone e tablet</strong> con antivirus <em>Unieuro Secure</em>, VPN per pagamenti e home banking in mobilit&agrave;, e supporto telefonico con un esperto qualificato dedicato.
+                </p>
+                <div style=\"font-size: 11px; color: #64748b; display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #fed7aa; padding-top: 6px;\">
+                    <span>Canone: <strong>7,99 &euro; / mese</strong> &bull; Nessun vincolo, disdici quando vuoi.</span>
+                    <strong style=\"color: #EE7203;\">Attivalo subito dal tuo addetto Unieuro di fiducia in negozio</strong>
+                </div>
             </div>
         </div>
         <div class=\"footer\">

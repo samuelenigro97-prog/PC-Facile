@@ -69,5 +69,7 @@ allineati come flusso e funzioni.
 | **Espulsione Sicura Chiavetta USB** | `Eject-ChiavettaUSB` (rilascio directory e unmount via COM `Shell.Application`) | `eject_chiavetta_mac` (rilascio directory e `diskutil eject`) | Pari |
 | **Kit Offline Standalone** | `tools/Scarica-Pacchetti-Offline.bat` (`-PreparaUSB`, salva installer in `installers/`) | `tools/Scarica-Pacchetti-Offline.command` (`--prepara-usb`, salva installer in `installers/mac/`) | Pari |
 | **Dongle Hardware Zero-Clic** | `dongle/code.py` (RP2040 HID per avvio istantaneo via `Win+R`) | `dongle/code.py` (RP2040 HID per avvio istantaneo via Spotlight/Terminale) | Pari (supporto universale) |
+| **Unieuro Everyday Digital** | Card con Script Vendita (30s) nel pannello, nota QR consegna e box promozionale famiglia (10 smartphone/tablet) nella Scheda Consegna PDF | Card con Script Vendita (30s) nel pannello, nota QR consegna e box promozionale famiglia (10 smartphone/tablet) nella Scheda Consegna PDF | Pari |
+
 
 
