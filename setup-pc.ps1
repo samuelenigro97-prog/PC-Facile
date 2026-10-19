@@ -1342,7 +1342,8 @@ public class WinSplit {
         }
 
         if ($edgePath) {
-            $edgeArgs = "--new-window --window-position=0,0 --window-size=$halfW,$workH `"$uriTarget`""
+            try { Set-EdgeFirstRunPolicies } catch {}
+            $edgeArgs = "--new-window --no-first-run --no-default-browser-check --window-position=0,0 --window-size=$halfW,$workH `"$uriTarget`""
             $edgeProc = Start-Process -FilePath $edgePath -ArgumentList $edgeArgs -PassThru -ErrorAction SilentlyContinue
             for ($i = 0; $i -lt 5; $i++) {
                 Start-Sleep -Milliseconds 200
@@ -4599,36 +4600,60 @@ function Save-SchedaConsegna {
     }
 }
 
-# Disattiva schermate iniziali di benvenuto e tour di Edge per un avvio immediato
+# Disattiva schermate iniziali di benvenuto, importazione Google, diagnostica e tour di Edge per un avvio immediato
 function Set-EdgeFirstRunPolicies {
-    if (-not $RunReale) { return }
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) { return }
     try {
-        Enable-PreventSleep
-        $edgePol = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
-        if (-not (Test-Path $edgePol)) { New-Item -Path $edgePol -Force | Out-Null }
-        Set-ItemProperty -Path $edgePol -Name 'HideFirstRunExperience'        -Value 1 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'BrowserSignin'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SyncDisabled'                  -Value 1 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ImportOnEachLaunch'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'AutoImportAtFirstRun'          -Value 4 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'DefaultBrowserSettingEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'HubsSidebarEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ShowMicrosoftRewards'          -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'EdgeShoppingAssistantEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        # Schermata "dati di esplorazione" (Consenti / Non consentire), schede promozionali e inviti all'accesso.
-        Set-ItemProperty -Path $edgePol -Name 'PersonalizationReportingEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'PromotionalTabsEnabled'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SpotlightExperiencesAndRecommendationsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ShowRecommendationsEnabled'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SignInCtaOnNtpEnabled'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'UserFeedbackAllowed'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        $policyPaths = @('HKLM:\SOFTWARE\Policies\Microsoft\Edge', 'HKCU:\SOFTWARE\Policies\Microsoft\Edge')
+        foreach ($edgePol in $policyPaths) {
+            if (-not (Test-Path $edgePol)) { New-Item -Path $edgePol -Force -ErrorAction SilentlyContinue | Out-Null }
+            # 1. First Run & Onboarding generale
+            Set-ItemProperty -Path $edgePol -Name 'HideFirstRunExperience'                    -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'BrowserSignin'                             -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SyncDisabled'                              -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'DefaultBrowserSettingEnabled'              -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 2. Schermata: "I tuoi dati e servizi Google, ora in Edge" (Import automatico da altri browser)
+            Set-ItemProperty -Path $edgePol -Name 'AutoImportAtFirstRun'                      -Value 4 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportOnEachLaunch'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportBrowserSettings'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportFavorites'                           -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportSearchEngine'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportHistory'                             -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportHomepage'                            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportSavedPasswords'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportOpenTabs'                            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ImportAutofillFormData'                    -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 3. Schermata: "Invia dati di diagnostica opzionali a Microsoft Edge"
+            Set-ItemProperty -Path $edgePol -Name 'DiagnosticData'                            -Value 1 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'MetricsReportingEnabled'                   -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SendSiteInfoToImproveServices'             -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 4. Schermata: "Dispone sempre dell'accesso ai dati di esplorazione recenti"
+            Set-ItemProperty -Path $edgePol -Name 'LocalBrowserDataShareEnabled'              -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ShareBrowsingDataWithOtherWindowsFeatures' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'PersonalizationReportingEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+            # 5. Promozioni, sidebar, notifiche e raccomandazioni
+            Set-ItemProperty -Path $edgePol -Name 'PromotionalTabsEnabled'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SpotlightExperiencesAndRecommendationsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ShowRecommendationsEnabled'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SignInCtaOnNtpEnabled'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'UserFeedbackAllowed'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'HubsSidebarEnabled'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'ShowMicrosoftRewards'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'EdgeShoppingAssistantEnabled'              -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SearchbarIsEnabled'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $edgePol -Name 'SearchbarAllowed'                          -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        }
 
         $userProfileKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
-        if (-not (Test-Path $userProfileKey)) { New-Item -Path $userProfileKey -Force | Out-Null }
+        if (-not (Test-Path $userProfileKey)) { New-Item -Path $userProfileKey -Force -ErrorAction SilentlyContinue | Out-Null }
         Set-ItemProperty -Path $userProfileKey -Name 'ScoobeSystemSettingEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
 
         $cdmKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-        if (-not (Test-Path $cdmKey)) { New-Item -Path $cdmKey -Force | Out-Null }
+        if (-not (Test-Path $cdmKey)) { New-Item -Path $cdmKey -Force -ErrorAction SilentlyContinue | Out-Null }
         Set-ItemProperty -Path $cdmKey -Name 'SubscribedContent-310093Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
         Set-ItemProperty -Path $cdmKey -Name 'SubscribedContent-338389Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
     } catch {}
@@ -6111,6 +6136,14 @@ if ($RunReale) {
 function Open-PaginaWeb {
     param([string]$Url)
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { Write-Info "(test) aprirei: $Url"; return }
+    $edgePath = Get-EdgePath
+    if ($edgePath) {
+        try {
+            Start-Process -FilePath $edgePath -ArgumentList "--new-window --no-first-run --no-default-browser-check `"$Url`"" -ErrorAction Stop
+            Write-OK "Browser aperto su: $Url"
+            return
+        } catch {}
+    }
     try { Start-Process $Url -ErrorAction Stop; Write-OK "Browser aperto su: $Url" }
     catch { Write-Info "Apri a mano nel browser: $Url" }
 }
