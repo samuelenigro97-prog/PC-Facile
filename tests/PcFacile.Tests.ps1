@@ -34,7 +34,7 @@ BeforeAll {
         'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
         'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
         'Start-LavoriInBackground', 'Complete-LavoriInBackground',
-        'Save-SchedaConsegna'
+        'Save-SchedaConsegna', 'Beep-Attesa', 'Start-BipRipetuto', 'Stop-BipRipetuto'
     )
     $allFns = $ast.FindAll({
         param($n)
@@ -430,10 +430,23 @@ Describe 'Dati cliente: un solo canale (server locale del pannello)' {
         $Global:DatiClienteRicevuti = $true
         Wait-DatiCliente | Should -BeTrue
     }
-    It 'Wait-DatiCliente e non bloccante: prosegue subito anche se i dati non sono ancora stati inseriti' {
+    It 'Wait-DatiCliente aspetta i dati: ritorna solo quando il pannello li conferma' {
         $Global:DatiClienteRicevuti = $false
         $Global:PannelloDisponibile = $true
-        Wait-DatiCliente -Motivo 'test non bloccante' | Should -BeTrue
+        $Global:PannelloSync = [hashtable]::Synchronized(@{ CodaCred = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]' })
+        $json = '{"Conferma":true,"Cliente":"Rossi Mario","Nome":"Mario","Cognome":"Rossi","Servizi":{"Office":false}}'
+        $ps = [powershell]::Create().AddScript({ param($q, $j) Start-Sleep -Milliseconds 1200; $q.Enqueue($j) }).AddArgument($Global:PannelloSync.CodaCred).AddArgument($json)
+        [void]$ps.BeginInvoke()
+        try {
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            Wait-DatiCliente | Should -BeTrue
+            $sw.Elapsed.TotalMilliseconds | Should -BeGreaterThan 900
+            $Global:DatiClienteRicevuti | Should -BeTrue
+            $Global:nomeProprioCliente | Should -Be 'Mario'
+        } finally {
+            $ps.Dispose()
+            Remove-Variable -Name PannelloSync -Scope Global -ErrorAction SilentlyContinue
+        }
     }
     It 'Mostra-CredenzialiPagina gestisce il timeout e non blocca' {
         { Mostra-CredenzialiPagina -Utente 'test@outlook.it' -Password 'Test123!' -TimeoutSec 1 } | Should -Not -Throw
@@ -962,9 +975,10 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
     It 'il server locale accetta solo il pannello aperto dallo script (niente GitHub Pages)' {
         $script:Src | Should -Not -Match 'github\.io'
     }
-    It 'Office e i passi manuali non bloccano mai e non mostrano messaggi di attesa bloccanti' {
-        $script:Src | Should -Not -Match 'SERVONO I DATI DEL CLIENTE'
+    It 'Office e i passi manuali aspettano i dati del cliente (Wait-DatiCliente), la fase 1 no' {
+        $script:Src | Should -Match 'Wait-DatiCliente -Motivo "Office dipende'
         $script:Src | Should -Match 'if \(\$voce\.Gruppo -eq 2\) \{'
+        $script:Src | Should -Match 'Wait-DatiCliente -Motivo "I passi manuali'
     }
 }
 

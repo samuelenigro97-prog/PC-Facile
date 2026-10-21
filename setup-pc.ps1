@@ -3146,15 +3146,15 @@ function Get-DatiClienteTest {
 function Read-DatiClienteConsole {
     Write-Titolo "DATI CLIENTE (pannello non disponibile)"
     Write-Host "  Il pannello operatore non si e' aperto: inserisci qui i dati essenziali." -ForegroundColor Yellow
-    $cognome = ([string](Attendi-Risposta "Cognome del cliente (default: Utente, auto in 10s)" -TimeoutSec 10 -Default "Utente")).Trim()
-    if (-not $cognome) { $cognome = "Utente" }
-    $nome    = ([string](Attendi-Risposta "Nome del cliente (default: PC, auto in 10s)" -TimeoutSec 10 -Default "PC")).Trim()
-    if (-not $nome) { $nome = "PC" }
-    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna (auto in 10s)" -TimeoutSec 10 -Default "")).Trim()
-    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (auto in 10s)" -TimeoutSec 10 -Default "")).Trim().ToUpper()
-    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N, auto in 10s)" -TimeoutSec 10 -Default "N")).Trim()
+    # Nessun timeout: con "Utente"/"PC" di ripiego l'account verrebbe creato coi dati sbagliati.
+    $cognome = ""; $nome = ""
+    while (-not $cognome) { $cognome = ([string](Attendi-Risposta "Cognome del cliente")).Trim(); if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $cognome) { $cognome = 'Rossi' } } }
+    while (-not $nome)    { $nome    = ([string](Attendi-Risposta "Nome del cliente")).Trim();    if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $nome) { $nome = 'Mario' } } }
+    $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna")).Trim()
+    $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (Defender)")).Trim().ToUpper()
+    $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N)")).Trim()
     $tel = ""
-    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection, auto in 10s)" -TimeoutSec 10 -Default "")).Trim() }
+    if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection)")).Trim() }
     $cliente = "$cognome $nome"
     $dati = [pscustomobject]@{
         Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
@@ -3174,19 +3174,43 @@ function Read-DatiClienteConsole {
     return $true
 }
 
-# Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
-# si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
-# Dati del cliente: se sono gia' arrivati durante la fase 1 o da un passo precedente,
-# si usano subito. Se non sono ancora stati inseriti, lo script NON SI BLOCCA MAI:
-# prosegue senza fermarsi con credenziali provvisorie e l'operatore puo' compilare
-# la scheda nel pannello in QUALSIASI momento (i dati verranno acquisiti al volo
-# e inclusi nella scheda consegna / report finale).
+# Aspetta i dati del cliente: si chiama SOLO dove servono davvero (installazione
+# Office e inizio dei passi manuali). Se sono gia' arrivati non si ferma. Nessun
+# timeout: senza dati Office resterebbe "nessuna" e l'account nascerebbe con
+# email/password provvisorie. Bip di richiamo dopo 2 minuti; P riapre il pannello.
 function Wait-DatiCliente {
     [CmdletBinding()]
     param([string]$Motivo = "")
     if ($Global:DatiClienteRicevuti) { return $true }
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { return (Set-DatiCliente (Get-DatiClienteTest)) }
     if (Get-CredenzialiSalvatePannello) { return $true }
+    if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
+
+    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Compila la scheda Cliente e premi CONFERMA DATI CLIENTE"
+    Write-Host ""
+    Write-Titolo "SERVONO I DATI DEL CLIENTE"
+    if ($Motivo) { Write-Host "  $Motivo" -ForegroundColor White }
+    Write-Host "  Compila il pannello e premi CONFERMA DATI CLIENTE." -ForegroundColor Cyan
+    Write-Host "  (P = riapri il pannello se l'hai chiuso)" -ForegroundColor Gray
+    Beep-Attesa
+    Start-BipRipetuto
+    try {
+        while (-not (Get-CredenzialiSalvatePannello)) {
+            try {
+                if ([Console]::KeyAvailable) {
+                    $k = [Console]::ReadKey($true)
+                    if ($k.Key -eq [ConsoleKey]::P -and $Global:PannelloFile) {
+                        try { Set-SplitScreenLayout -HtmlPath $Global:PannelloFile } catch { try { Start-Process $Global:PannelloFile } catch {} }
+                        Write-Info "Pannello riaperto."
+                    }
+                }
+            } catch {}
+            Start-Sleep -Milliseconds 400
+        }
+    } finally {
+        Stop-BipRipetuto
+        Update-PannelloStatus -AttesaDati 'no'
+    }
     return $true
 }
 
@@ -7143,11 +7167,13 @@ if ($voce.Gruppo -ne $gruppoMostrato) {
     Write-Host ("$AON  " + $gruppiNomi[$voce.Gruppo] + "$AOFF") -ForegroundColor $THEME_COL
 }
 # Dati del cliente dal pannello: arrivano quando l'operatore conferma (anche
-# durante la fase 1) e valgono dal passo successivo. Non blocca.
+# durante la fase 1) e valgono dal passo successivo. Qui non blocca: si aspetta
+# solo prima di Office e all'inizio dei passi manuali (Wait-DatiCliente).
 [void](Get-CredenzialiSalvatePannello)
-# Passi manuali: la pulizia parte in background e si usano i dati disponibili.
+# Passi manuali: la pulizia parte in background, intanto si aspettano i dati del cliente.
 if ($voce.Gruppo -eq 2) {
     if (-not $Global:LavoriBg -and -not $Global:PuliziaFatta) { Start-LavoriInBackground }
+    [void](Wait-DatiCliente -Motivo "I passi manuali (nome, account, attivazioni) usano i dati del cliente.")
 }
 
 Write-Host ""
@@ -7440,9 +7466,9 @@ trap {
 Write-Titolo "Installazione App Office"
 Update-PannelloStatus -TaskId "office" -Stato "running" -FaseCorrente "Configurazione Office & Runtime" -Dettaglio "Configurazione icone Office e runtime..."
 
-# Quale suite dipende dalla card del cliente: se impostata nel pannello si usa subito,
-# altrimenti prosegue senza fermarsi con il controllo di Office gia' presente o default.
-[void](Get-CredenzialiSalvatePannello)
+# Quale suite dipende dalla card del cliente: la scelta arriva dal pannello
+# (se non e' ancora arrivata, qui la si aspetta: e' il primo passo che serve).
+[void](Wait-DatiCliente -Motivo "Office dipende dalla card del cliente: scegli la suite nel pannello.")
 $nomiOffice = @{ '1' = 'Microsoft 365 (card)'; '2' = 'Office perpetuo (card)'; '4' = 'LibreOffice'; '5' = 'nessuna' }
 $sceltaAtt = if ($Global:SceltaOffice) { [string]$Global:SceltaOffice } else { '5' }
 Write-Info "Suite Office scelta nel pannello: $($nomiOffice[$sceltaAtt])."

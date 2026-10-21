@@ -4,6 +4,16 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Corretto — attesa dei dati cliente
+- Il flusso non si ferma più ad aspettare i dati in modo generico, ma
+  `Wait-DatiCliente` aspetta di nuovo **solo** in due punti: prima
+  dell'installazione Office e all'inizio dei passi manuali. Senza, Office
+  risultava "nessuna card" (e non veniva più installato) e il passo account
+  generava `utente@outlook.it` / `Utente123!` al posto dei dati del cliente.
+  Il ripiego da console non usa più i valori "Utente"/"PC" a tempo scaduto.
+  QuickEdit disattivato, layout a mezzo schermo e timer delle credenziali
+  restano come sono.
+
 ### Aggiunto — auto-report su GitHub
 - A fine lavoro, se ci sono voci ERRORE/AVVISO (o imprevisti gestiti), lo
   script apre automaticamente una Issue su GitHub con i dettagli tecnici
