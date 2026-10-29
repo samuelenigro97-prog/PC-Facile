@@ -20,6 +20,7 @@ allineati come flusso e funzioni.
 | Unieuro Cyber Protection    | apre portale                              | apre portale (uguale)                         | pari |
 | Browser                     | catalogo winget                           | cask brew                                     | pari |
 | App (BASE/UFFICIO/GAMING)   | winget + tool GPU se dedicata (NVIDIA/Intel Arc/AMD) | brew cask (Mac: GPU integrata) | pari |
+| Errori gestore app          | codice winget propagato via `cmd.exe`, riparazione sorgenti su errore certificato | codice uscita nativo di Homebrew | specifico per gestore |
 | Aggiornamenti               | `winget upgrade` + aggiornamenti sicurezza Windows (COM Microsoft.Update) + driver Windows Update | `brew upgrade` + `softwareupdate` | pari |
 | Chiave di ripristino disco  | **BitLocker** (`manage-bde`/cmdlet)       | **FileVault** (`fdesetup`)                    | pari |
 | Barra attesa download/install| `Start-BarraAnimata` / `Stop-BarraAnimata` (winget in Start-Process) | — (brew mostra gia' il progresso)             | solo Win |
