@@ -4,6 +4,9 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Corretto
+- Gli errori certificato delle sorgenti winget, incluso `0x8A15005E` durante l'installazione di WhatsApp, ora conservano il codice di uscita e attivano il ripristino automatico delle sorgenti.
+
 ### Aggiunto — auto-report su GitHub
 - A fine lavoro, se ci sono voci ERRORE/AVVISO (o imprevisti gestiti), lo
   script apre automaticamente una Issue su GitHub con i dettagli tecnici

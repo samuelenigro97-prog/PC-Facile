@@ -20,6 +20,7 @@ BeforeAll {
         'New-PasswordCliente', 'New-EmailCliente',
         'Test-NomeSimile', 'Test-LnkJunk',
         'Get-OfflineDirs', 'Find-OfflineInstaller', 'Install-OfflinePackage', 'Stop-AppPopups', 'Select-DestinazioneUSB', 'Test-IsAppInstalled',
+        'Invoke-WingetConBarra',
         'Get-StorageHealthInfo', 'Get-BatteryHealthInfo', 'Get-WindowsActivationStatus', 'Get-BitLockerRecovery',
         'Get-SystemHardwareDetails', 'Invoke-PcFacileDiagnostics', 'Install-VisualCRuntime',
         'Update-PannelloStatus', 'Open-PannelloOperatore', 'Set-SplitScreenLayout', 'Get-CredenzialiSalvatePannello',
@@ -63,6 +64,26 @@ Describe 'setup-pc.ps1: la sorgente e'' sintatticamente valida' {
         $errs = $null
         [System.Management.Automation.Language.Parser]::ParseFile($script:SetupPath, [ref]$null, [ref]$errs) | Out-Null
         @($errs).Count | Should -Be 0
+    }
+}
+
+Describe 'Invoke-WingetConBarra' {
+    It 'propaga il codice firmato degli errori winget tramite cmd.exe' {
+        $comSpecPrecedente = $env:ComSpec
+        $env:ComSpec = 'cmd.exe'
+        $Global:Test = $false
+        $env:PESTER_TEST = $null
+        Mock Start-Process {
+            param($FilePath)
+            if ($FilePath -ne $env:ComSpec) { throw 'winget avviato direttamente' }
+            [pscustomobject]@{ HasExited = $true; ExitCode = -1978335138; Id = 123 }
+        }
+        try {
+            Invoke-WingetConBarra -Nome 'WhatsApp' -WingetArgs @('install', '--id', '9NKSQGP7F2NH') |
+                Should -Be -1978335138
+        } finally {
+            $env:ComSpec = $comSpecPrecedente
+        }
     }
 }
 

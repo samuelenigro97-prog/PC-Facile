@@ -4697,9 +4697,7 @@ function Confirm-Winget {
     }
 }
 
-# Lancia winget con l'output nascosto (rediretto su file temporanei) MA con la
-# barra animata a schermo. Ritorna il codice di uscita di winget. Se per qualche
-# motivo non riesce ad avviare il processo, ripiega sulla chiamata classica.
+# Lancia winget con timeout e restituisce il codice di uscita firmato.
 function Invoke-WingetConBarra {
     param(
         [string]$Nome,
@@ -4713,7 +4711,8 @@ function Invoke-WingetConBarra {
 
     Write-Info "Scarico e installo $Nome (max $([math]::Round($TimeoutSec/60)) min)..."
     try {
-        $p = Start-Process -FilePath "winget" -ArgumentList $WingetArgs -NoNewWindow -PassThru -ErrorAction Stop
+        # L'alias App Installer puo' restituire ExitCode nullo; cmd.exe lo propaga correttamente.
+        $p = Start-Process -FilePath $env:ComSpec -ArgumentList "/d /c winget $($WingetArgs -join ' ')" -NoNewWindow -PassThru -ErrorAction Stop
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         while (-not $p.HasExited) {
             if ($sw.Elapsed.TotalSeconds -ge $TimeoutSec) {
