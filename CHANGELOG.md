@@ -5,6 +5,7 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 ## [Unreleased]
 
 ### Corretto
+- Passo lingua: in modalita' `-Test` simula l'installazione del language pack it-IT evitando tentativi di rete reali e timeout durante gli smoke test della CI.
 - Gli errori certificato delle sorgenti winget, incluso `0x8A15005E` durante l'installazione di WhatsApp, ora conservano il codice di uscita e attivano il ripristino automatico delle sorgenti.
 
 ### Aggiunto — auto-report su GitHub

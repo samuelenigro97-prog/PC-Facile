@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.0.1 (2026-10-29)"
+$SCRIPT_VERSION = "13.0.2 (2026-11-01)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -6856,7 +6856,10 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
     # --- 1) LANGUAGE PACK it-IT (Windows 11 22H2+): e' QUESTO (il Local Experience
     #     Pack) che traduce i MENU. Lo installo se il display non e' gia' italiano. ---
     $packOk = $false
-    if ($displayGiaItaliano) {
+    if ($Test) {
+        Write-OK "TEST: simulazione installazione language pack it-IT."
+        $packOk = $true
+    } elseif ($displayGiaItaliano) {
         Write-OK "Display gia' in italiano: salto il download, applico il forzamento."
         $packOk = $true
     } elseif (Get-Command Install-Language -ErrorAction SilentlyContinue) {
