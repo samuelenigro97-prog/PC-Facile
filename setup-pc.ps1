@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.0.2 (2026-11-01)"
+$SCRIPT_VERSION = "13.0.3 (2026-11-01)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -6516,8 +6516,12 @@ trap {
     } catch {}
 
     try {
-        Write-Info "Avvio pulizia componenti obsoleti WinSxS (DISM in background)..."
-        Start-Process dism.exe -ArgumentList "/Online /Cleanup-Image /StartComponentCleanup /NoRestart" -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
+        if (-not $Test) {
+            Write-Info "Avvio pulizia componenti obsoleti WinSxS (DISM in background)..."
+            Start-Process dism.exe -ArgumentList "/Online /Cleanup-Image /StartComponentCleanup /NoRestart" -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
+        } else {
+            Write-OK "TEST: simulazione pulizia componenti WinSxS (DISM)."
+        }
         Add-Report "Pulizia componenti WinSxS (DISM)" "OK"
     } catch {}
 
@@ -8304,6 +8308,11 @@ if ($RunReale) {
 Write-Host ""
 Beep-Completato   # melodia "tutto finito" (utile se ti sei allontanato)
 Write-Host "${AON}Buon lavoro!$AOFF" -ForegroundColor $THEME_COL
+
+# Assicura chiusura di eventuali barre di progresso o job residui e azzera il codice di uscita
+try { Get-Job | Remove-Job -Force -ErrorAction SilentlyContinue } catch {}
+try { $ProgressPreference = 'SilentlyContinue' } catch {}
+$LASTEXITCODE = 0
 # Niente Pausa qui: l'unico "premi un tasto" e' quello finale del launcher .bat
 # ("Operazione terminata"), cosi' non si preme INVIO due volte.
 
