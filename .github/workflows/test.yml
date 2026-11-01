@@ -46,10 +46,12 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "=== SMOKE TEST (-Test) ===" -ForegroundColor Cyan
+          $ProgressPreference = 'SilentlyContinue'
           $ErrorActionPreference = 'Stop'
           try {
             & ./setup-pc.ps1 -Test
             Write-Host "[OK] Flusso completato senza errori di runtime." -ForegroundColor Green
+            exit 0
           } catch {
             Write-Error "Errore di runtime durante lo smoke test: $_"
             exit 1
