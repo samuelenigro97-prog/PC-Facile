@@ -778,8 +778,8 @@
             var nome = val('inNome');
             if (!cognome && !nome) {
                 if (!manualEdit) {
-                    el('inEmail').value = '';
-                    el('inPass').value = '';
+                    el('inEmail').value = 'utente@' + currentDomain;
+                    el('inPass').value = 'Utente123!';
                 }
                 return;
             }
@@ -1033,6 +1033,8 @@
             if (data.InAttesaDati) { apriScheda('tab-cred', true); }
             aggiornaIndicatore();
         }
+
+        if (!val('inEmail') && !val('inPass')) { aggiornaCred(); }
 
     </script>
 </body>

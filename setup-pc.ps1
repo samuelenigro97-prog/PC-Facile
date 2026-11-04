@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.2.1 (2026-11-04)"
+$SCRIPT_VERSION = "13.3.0 (2026-11-04)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1519,10 +1519,14 @@ function Open-PannelloOperatore {
     if ($NomeCliente -and ($oemNames -contains $NomeCliente.Trim().ToUpper() -or $NomeCliente.Trim().ToUpper() -eq "CLIENTE" -or $NomeCliente.Trim().ToUpper() -eq "UTENTE")) {
         $NomeCliente = ""
     }
-    # Senza un nome reale i campi restano vuoti: niente dati di esempio che
-    # l'operatore potrebbe inviare per sbaglio.
-    if (-not $Email -and $NomeCliente) { $Email = New-EmailCliente -Base $NomeCliente }
-    if (-not $Password -and $NomeCliente) { $Password = New-PasswordCliente -Base $NomeCliente }
+    # Se l'operatore non compila cognome/nome, email e password predefinite
+    # (utente@outlook.it / Utente123!) sono comunque pronte nel pannello e nella scheda finale.
+    if (-not $Email) {
+        $Email = if ($NomeCliente) { New-EmailCliente -Base $NomeCliente } else { "utente@outlook.it" }
+    }
+    if (-not $Password) {
+        $Password = if ($NomeCliente) { New-PasswordCliente -Base $NomeCliente } else { "Utente123!" }
+    }
 
     # Rileva specifiche hardware rapide per il mini-dashboard del pannello
     $hw = Get-SystemHardwareDetails
@@ -2327,8 +2331,8 @@ function Open-PannelloOperatore {
             var nome = val('inNome');
             if (!cognome && !nome) {
                 if (!manualEdit) {
-                    el('inEmail').value = '';
-                    el('inPass').value = '';
+                    el('inEmail').value = 'utente@' + currentDomain;
+                    el('inPass').value = 'Utente123!';
                 }
                 return;
             }
@@ -2582,6 +2586,8 @@ function Open-PannelloOperatore {
             if (data.InAttesaDati) { apriScheda('tab-cred', true); }
             aggiornaIndicatore();
         }
+
+        if (!val('inEmail') && !val('inPass')) { aggiornaCred(); }
 
     </script>
 </body>
