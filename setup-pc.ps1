@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.2.0 (2026-11-04)"
+$SCRIPT_VERSION = "13.2.1 (2026-11-04)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2579,6 +2579,7 @@ function Open-PannelloOperatore {
             // Pannello aperto a lavori gia' avviati: mostro l'avanzamento (una volta,
             // solo se l'operatore non ha gia' scelto una scheda).
             if (!schedaScelta && !data.InAttesaDati && (pct > 5 || completato)) { apriScheda('tab-live', true); schedaScelta = true; }
+            if (data.InAttesaDati) { apriScheda('tab-cred', true); }
             aggiornaIndicatore();
         }
 
@@ -2736,6 +2737,7 @@ function Wait-DatiCliente {
     if ($Motivo) { Write-Host "  $Motivo" -ForegroundColor White }
     Write-Host "  -> Compila cognome, nome e servizi nel pannello (scheda Cliente)." -ForegroundColor Cyan
     Write-Host "  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo." -ForegroundColor Green
+    Write-Host "     (INVIO = procedi subito con profilo standard e nessuna card)" -ForegroundColor Yellow
     Write-Host "     (P = riapri il pannello se l'hai chiuso)" -ForegroundColor Gray
     Beep-Attesa
     Start-BipRipetuto
@@ -2744,6 +2746,17 @@ function Wait-DatiCliente {
             try {
                 if ([Console]::KeyAvailable) {
                     $k = [Console]::ReadKey($true)
+                    if ($k.Key -eq [ConsoleKey]::Enter) {
+                        $std = [pscustomobject]@{
+                            Conferma = $true; Cliente = 'Utente'; Nome = ''; Cognome = ''
+                            Email = (New-EmailCliente -Base 'Utente' -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base 'Utente'); Provider = 'Microsoft'
+                            Telefono = ''; ProfiloApp = 'BASE'
+                            Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
+                        }
+                        [void](Set-DatiCliente $std)
+                        Write-OK "Continuo con profilo standard (nessuna card Office)."
+                        return $true
+                    }
                     if ($k.Key -eq [ConsoleKey]::P -and $Global:PannelloFile) {
                         try { Set-SplitScreenLayout -HtmlPath $Global:PannelloFile } catch { try { Start-Process $Global:PannelloFile } catch {} }
                         Write-Info "Pannello riaperto."
