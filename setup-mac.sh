@@ -515,11 +515,11 @@ open_pannello_mac() {
                 <div class="servizi">
                     <span class="etichetta" style="color:#fed7aa;">Servizi sullo scontrino</span>
                     <div class="servizi-grid">
-                        <label class="svc"><input type="checkbox" id="chkSvcProton" checked> <span>Email Proton</span></label>
+                        <label class="svc"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection</span></label>
+                        <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203;"><input type="checkbox" id="chkSvcCyber"> <span>Unieuro Cyber Protection</span></label>
                     </div>
                     <label class="etichetta" for="selProfilo" style="margin-top:10px;">Programmi</label>
                     <select id="selProfilo" class="cred-input">
@@ -600,15 +600,14 @@ open_pannello_mac() {
             var mcafee = document.getElementById('chkSvcMcAfee').checked;
             var norton = document.getElementById('chkSvcNorton').checked;
             var cyber = document.getElementById('chkSvcCyber').checked;
-            if (!c) { campoErrato('inCognome', 'Manca il cognome del cliente.'); return; }
-            if (!n) { campoErrato('inNome', 'Manca il nome del cliente.'); return; }
             if (cyber && t.replace(/\D/g, '').length < 6) { campoErrato('inTelefono', 'Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.'); return; }
+            var nomeCliente = (c + ' ' + n).trim() || 'Utente';
             var payload = {
                 Conferma: true,
-                Email: email,
-                Password: pass,
+                Email: email || ('utente@' + currentDom),
+                Password: pass || 'Utente123!',
                 Provider: currentProv,
-                Cliente: (c + ' ' + n).trim(),
+                Cliente: nomeCliente,
                 Nome: n,
                 Cognome: c,
                 Telefono: t,

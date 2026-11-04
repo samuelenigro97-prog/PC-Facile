@@ -556,7 +556,7 @@
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber"> <span>Unieuro Cyber Protection (inclusa)</span></label>
                     </div>
                 </div>
 
@@ -823,17 +823,17 @@
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
             var cyber = el('chkSvcCyber').checked;
-            if (!cognome) { segnaErrore('inCognome'); mostraEsito('Manca il cognome del cliente.', 'errore'); return null; }
-            if (!nome) { segnaErrore('inNome'); mostraEsito('Manca il nome del cliente.', 'errore'); return null; }
             if (cyber && telefono.replace(/\D/g, '').length < 6) { segnaErrore('inTelefono'); mostraEsito('Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.', 'errore'); return null; }
-            if (email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
-            if (!pass) { segnaErrore('inPass'); mostraEsito('Manca la password.', 'errore'); return null; }
+            var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
+            var emailEffettiva = email || ('utente@' + currentDomain);
+            var passEffettiva = pass || 'Utente123!';
+            if (email && email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
-                Email: email,
-                Password: pass,
+                Email: emailEffettiva,
+                Password: passEffettiva,
                 Provider: currentProviderName,
-                Cliente: (cognome + ' ' + nome).trim(),
+                Cliente: nomeCliente,
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,

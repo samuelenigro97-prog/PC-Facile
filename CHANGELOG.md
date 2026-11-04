@@ -5,6 +5,8 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 ## [Unreleased]
 
 ### Modificato
+- Pannello operatore: tutte le checkbox dei servizi (inclusa Unieuro Cyber Protection ed Email Proton) sono ora defleggate di default, attivabili solo se selezionate dall'operatore.
+- Dati cliente: nome e cognome non sono più obbligatori per confermare la configurazione (default automatico su profilo "Utente"). Parità mantenuta su Windows e macOS.
 - Autodisinstallazione antivirus stock (McAfee): rimossi i prompt di conferma manuale in `PC Facile.bat` (`choice /c SN` e `choice /c SRC`); la disinstallazione ufficiale e l'eventuale pulizia MCPR si avviano automaticamente per velocizzare e snellire la procedura.
 
 ### Corretto
