@@ -4,6 +4,9 @@ Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
 ## [Unreleased]
 
+### Modificato
+- Autodisinstallazione antivirus stock (McAfee): rimossi i prompt di conferma manuale in `PC Facile.bat` (`choice /c SN` e `choice /c SRC`); la disinstallazione ufficiale e l'eventuale pulizia MCPR si avviano automaticamente per velocizzare e snellire la procedura.
+
 ### Corretto
 - Smoke test CI Windows: in modalita' `-Test` simula il processo DISM WinSxS invece di avviarlo in background, chiude job/progress bar rimasti aperti e imposta `$ProgressPreference = 'SilentlyContinue'` per evitare fallimenti spuri con exit code 1.
 - Passo lingua: in modalita' `-Test` simula l'installazione del language pack it-IT evitando tentativi di rete reali e timeout durante gli smoke test della CI.

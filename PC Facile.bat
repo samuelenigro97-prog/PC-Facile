@@ -183,8 +183,7 @@ echo ============================================================
 for /l %%I in (1,1,!MC_N!) do echo     - !MC_NOME_%%I!
 if defined MC_SVC echo     - servizi McAfee attivi
 echo.
-choice /c SN /n /m "Rimuovo McAfee adesso? [S] Si' (consigliato)   [N] No, continua comunque: "
-if errorlevel 2 goto :mcafee_fine
+echo [AUTO] Rimozione automatica McAfee in corso per velocizzare la procedura...
 if "!MC_N!"=="0" goto :mcafee_mcpr
 for /l %%I in (1,1,!MC_N!) do call :mcafee_uno %%I
 call :mcafee_rileva
@@ -194,9 +193,7 @@ echo McAfee risulta ancora presente ^(a volte serve un riavvio per completare^).
 :mcafee_mcpr
 echo.
 echo Strumento ufficiale di rimozione McAfee ^(MCPR^): toglie McAfee del tutto.
-choice /c SRC /n /m "[S] Avvia MCPR   [R] Riavvia prima il PC   [C] Continua comunque: "
-if errorlevel 3 goto :mcafee_fine
-if errorlevel 2 goto :mcafee_riavvio
+echo [AUTO] Avvio automatico MCPR...
 set "MCPR="
 if exist "%~dp0installers\MCPR.exe" set "MCPR=%~dp0installers\MCPR.exe"
 if defined MCPR goto :mcafee_mcpr_firma
