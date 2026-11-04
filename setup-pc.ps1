@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.1.0 (2026-11-04)"
+$SCRIPT_VERSION = "13.2.0 (2026-11-04)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1374,11 +1374,10 @@ function Update-PannelloStatus {
 
 function Test-DatiClienteConfermati {
     # Il pannello avvia/aggiorna la configurazione SOLO con il pulsante "AVVIA
-    # CONFIGURAZIONE": i dati devono avere Conferma = true, cognome, nome e servizi.
+    # CONFIGURAZIONE": i dati devono avere Conferma = true e servizi (cognome e nome opzionali).
     param($Dati)
     if (-not $Dati) { return $false }
     if (-not ($Dati.Conferma -is [bool] -and $Dati.Conferma)) { return $false }
-    if ([string]::IsNullOrWhiteSpace([string]$Dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$Dati.Cognome)) { return $false }
     if (-not $Dati.Servizi) { return $false }
     return $true
 }
@@ -1456,8 +1455,6 @@ function Start-ServerPannello {
                                 Invia $res 400 '{"ok":false,"motivo":"dati non leggibili"}'
                             } elseif (-not ($dati.Conferma -is [bool] -and $dati.Conferma)) {
                                 Invia $res 400 '{"ok":false,"motivo":"manca la conferma (pulsante CONFERMA DATI CLIENTE)"}'
-                            } elseif ([string]::IsNullOrWhiteSpace([string]$dati.Nome) -or [string]::IsNullOrWhiteSpace([string]$dati.Cognome)) {
-                                Invia $res 400 '{"ok":false,"motivo":"mancano cognome o nome"}'
                             } elseif (-not $dati.Servizi) {
                                 Invia $res 400 '{"ok":false,"motivo":"mancano i servizi"}'
                             } else {
@@ -2108,7 +2105,7 @@ function Open-PannelloOperatore {
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber" checked> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber"> <span>Unieuro Cyber Protection (inclusa)</span></label>
                     </div>
                 </div>
 
@@ -2375,17 +2372,17 @@ function Open-PannelloOperatore {
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
             var cyber = el('chkSvcCyber').checked;
-            if (!cognome) { segnaErrore('inCognome'); mostraEsito('Manca il cognome del cliente.', 'errore'); return null; }
-            if (!nome) { segnaErrore('inNome'); mostraEsito('Manca il nome del cliente.', 'errore'); return null; }
             if (cyber && telefono.replace(/\D/g, '').length < 6) { segnaErrore('inTelefono'); mostraEsito('Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.', 'errore'); return null; }
-            if (email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
-            if (!pass) { segnaErrore('inPass'); mostraEsito('Manca la password.', 'errore'); return null; }
+            var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
+            var emailEffettiva = email || ('utente@' + currentDomain);
+            var passEffettiva = pass || 'Utente123!';
+            if (email && email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
-                Email: email,
-                Password: pass,
+                Email: emailEffettiva,
+                Password: passEffettiva,
                 Provider: currentProviderName,
-                Cliente: (cognome + ' ' + nome).trim(),
+                Cliente: nomeCliente,
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
@@ -2695,20 +2692,19 @@ function Get-DatiClienteTest {
 function Read-DatiClienteConsole {
     Write-Titolo "DATI CLIENTE (pannello non disponibile)"
     Write-Host "  Il pannello operatore non si e' aperto: inserisci qui i dati essenziali." -ForegroundColor Yellow
-    $cognome = ""; $nome = ""
-    while (-not $cognome) { $cognome = ([string](Attendi-Risposta "Cognome del cliente")).Trim(); if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $cognome) { $cognome = 'Rossi' } } }
-    while (-not $nome)    { $nome    = ([string](Attendi-Risposta "Nome del cliente")).Trim();    if ($Test -or $Global:Test -or $env:PESTER_TEST) { if (-not $nome) { $nome = 'Mario' } } }
+    $cognome = ([string](Attendi-Risposta "Cognome del cliente (facoltativo, INVIO per saltare)")).Trim()
+    $nome    = ([string](Attendi-Risposta "Nome del cliente (facoltativo, INVIO per saltare)")).Trim()
     $off = ([string](Attendi-Risposta "Office: 1 = card Microsoft 365, 2 = card perpetuo, 3 = LibreOffice, INVIO = nessuna")).Trim()
     $av  = ([string](Attendi-Risposta "Card antivirus: M = McAfee, N = Norton, INVIO = nessuna (Defender)")).Trim().ToUpper()
     $cy  = ([string](Attendi-Risposta "Unieuro Cyber Protection acquistata? (S/N)")).Trim()
     $tel = ""
     if ($cy -match '^[Ss]') { $tel = ([string](Attendi-Risposta "Cellulare del cliente (per Cyber Protection)")).Trim() }
-    $cliente = "$cognome $nome"
+    $cliente = ("$cognome $nome").Trim()
+    if (-not $cliente) { $cliente = "Utente" }
+    $baseEmailPass = if ($nome -and $cognome) { "$nome $cognome" } elseif ($nome) { $nome } elseif ($cognome) { $cognome } else { "Utente" }
     $dati = [pscustomobject]@{
         Conferma = $true; Cliente = $cliente; Nome = $nome; Cognome = $cognome
-        # New-EmailCliente si aspetta "Nome Cognome" (prende l'ultima parola come
-        # cognome): passare $cliente ("Cognome Nome") invertirebbe l'email.
-        Email = (New-EmailCliente -Base "$nome $cognome" -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base $nome); Provider = 'Microsoft'
+        Email = (New-EmailCliente -Base $baseEmailPass -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base (if ($nome) { $nome } else { $baseEmailPass })); Provider = 'Microsoft'
         Telefono = $tel; ProfiloApp = 'BASE'
         Servizi = [pscustomobject]@{
             Proton = $false
