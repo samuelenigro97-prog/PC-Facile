@@ -1030,6 +1030,7 @@
             // Pannello aperto a lavori gia' avviati: mostro l'avanzamento (una volta,
             // solo se l'operatore non ha gia' scelto una scheda).
             if (!schedaScelta && !data.InAttesaDati && (pct > 5 || completato)) { apriScheda('tab-live', true); schedaScelta = true; }
+            if (data.InAttesaDati) { apriScheda('tab-cred', true); }
             aggiornaIndicatore();
         }
 
