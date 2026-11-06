@@ -979,11 +979,13 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
 }
 
 Describe 'Test-DatiClienteConfermati' {
-    It 'accetta dati con Conferma e servizi (cognome e nome opzionali)' {
+    It 'accetta dati con Conferma, Nome e servizi (cognome e telefono opzionali)' {
         $ok = [pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = [pscustomobject]@{ Cyber = $true } }
         Test-DatiClienteConfermati $ok | Should -BeTrue
-        $senzaNome = [pscustomobject]@{ Conferma = $true; Nome = ''; Cognome = ''; Servizi = [pscustomobject]@{ Cyber = $false } }
-        Test-DatiClienteConfermati $senzaNome | Should -BeTrue
+        $senzaCognome = [pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = ''; Servizi = [pscustomobject]@{ Cyber = $false } }
+        Test-DatiClienteConfermati $senzaCognome | Should -BeTrue
+        $senzaNome = [pscustomobject]@{ Conferma = $true; Nome = ''; Cognome = 'Rossi'; Servizi = [pscustomobject]@{ Cyber = $false } }
+        Test-DatiClienteConfermati $senzaNome | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi' }) | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = 'true'; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse

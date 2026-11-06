@@ -499,13 +499,16 @@ open_pannello_mac() {
                         <input type="text" class="cred-input" id="inCognome" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCredMac()">
                     </div>
                     <div>
-                        <label class="etichetta" for="inNome">Nome</label>
+                        <label class="etichetta" for="inNome">Nome <span style="color:#fca5a5; font-size:13px;">(obbligatorio)</span></label>
                         <input type="text" class="cred-input" id="inNome" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCredMac()">
                     </div>
                 </div>
 
-                <label class="etichetta" for="inTelefono">Cellulare <span style="color:#fca5a5; font-size:13px;">(obbligatorio con Cyber Protection)</span></label>
+                <label class="etichetta" for="inTelefono">Cellulare <span style="color:#94a3b8; font-size:13px;">(opzionale)</span></label>
                 <input type="tel" class="cred-input" id="inTelefono" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
+
+                <button type="button" id="btnAvviaAuto" class="btn-avvia" style="margin-bottom:12px;" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
+                <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
 
                 <label class="etichetta" for="inEmail">Email proposta</label>
                 <input type="text" class="cred-input" id="inEmail" value="__EMAIL__" autocomplete="off">
@@ -528,9 +531,6 @@ open_pannello_mac() {
                         <option value="GAMING">Gaming</option>
                     </select>
                 </div>
-
-                <button type="button" id="btnAvviaAuto" class="btn-avvia" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
-                <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
             </div>
         </div>
 
@@ -568,6 +568,12 @@ open_pannello_mac() {
         function aggiornaCredMac() {
             var c = (document.getElementById('inCognome') ? document.getElementById('inCognome').value.trim() : '').toLowerCase().replace(/[^a-z0-9]/g, '');
             var n = (document.getElementById('inNome') ? document.getElementById('inNome').value.trim() : '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            var isClt = (c === 'clt' && n === 'clt');
+            if (isClt) {
+                document.getElementById('inEmail').value = '';
+                document.getElementById('inPass').value = '';
+                return;
+            }
             var pre = (c && n) ? (c + n) : (n || c || 'utente');
             if (pre.length > 20) pre = pre.substring(0, 20);
             document.getElementById('inEmail').value = pre + '@' + currentDom;
@@ -590,10 +596,12 @@ open_pannello_mac() {
 
         function avviaAutoMac() {
             ['inCognome', 'inNome', 'inTelefono'].forEach(function(id) { document.getElementById(id).classList.remove('errore'); });
-            var email = document.getElementById('inEmail').value.trim();
-            var pass = document.getElementById('inPass').value.trim();
             var c = document.getElementById('inCognome').value.trim();
             var n = document.getElementById('inNome').value.trim();
+            if (!n) { campoErrato('inNome', 'Il nome del cliente \u00e8 obbligatorio.'); return; }
+            var isClt = (c.toLowerCase() === 'clt' && n.toLowerCase() === 'clt');
+            var email = document.getElementById('inEmail').value.trim();
+            var pass = document.getElementById('inPass').value.trim();
             var t = document.getElementById('inTelefono').value.trim();
             var proton = document.getElementById('chkSvcProton').checked;
             var office = document.getElementById('chkSvcOffice').checked;
@@ -604,8 +612,8 @@ open_pannello_mac() {
             var nomeCliente = (c + ' ' + n).trim() || 'Utente';
             var payload = {
                 Conferma: true,
-                Email: email || ('utente@' + currentDom),
-                Password: pass || 'Utente123!',
+                Email: isClt ? '' : (email || ('utente@' + currentDom)),
+                Password: isClt ? '' : (pass || 'Utente123!'),
                 Provider: currentProv,
                 Cliente: nomeCliente,
                 Nome: n,
@@ -693,8 +701,8 @@ try:
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         d = json.load(f)
     for k, nome in (('Email', 'EMAIL_CLIENTE'), ('Password', 'PASS_CLIENTE'),
-                    ('Cliente', 'NOME_CLIENTE'), ('Telefono', 'TELEFONO_CLIENTE'),
-                    ('ProfiloApp', 'PROFILO_APP')):
+                    ('Cliente', 'NOME_CLIENTE'), ('Nome', 'NOME_PROPRIO_CLIENTE'),
+                    ('Telefono', 'TELEFONO_CLIENTE'), ('ProfiloApp', 'PROFILO_APP')):
         if d.get(k):
             print(nome + '\t' + pulito(d[k]))
     svcs = d.get('Servizi', {})
@@ -712,7 +720,7 @@ PYEOF
                         chiave="${riga%%$'\t'*}"
                         valore="${riga#*$'\t'}"
                         case "$chiave" in
-                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
+                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
                                 typeset -g "$chiave=$valore" ;;
                         esac
                     done <<< "$res"
@@ -1142,16 +1150,19 @@ $RUN_REALE && attendi_credenziali_mac
 
 titolo "7. Nome del Mac"
 if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
-    host="${NOME_CLIENTE//[^A-Za-z0-9-]/}"
-    if [[ "$(scutil --get ComputerName 2>/dev/null)" == "$NOME_CLIENTE" ]]; then
-        ok "Nome Mac gia' impostato: $NOME_CLIENTE"
+    # Priorita' al nome proprio del cliente per il computer name
+    nome_mac="${NOME_PROPRIO_CLIENTE:-${NOME_CLIENTE##* }}"
+    [[ -z "$nome_mac" ]] && nome_mac="$NOME_CLIENTE"
+    host="${nome_mac//[^A-Za-z0-9-]/}"
+    if [[ "$(scutil --get ComputerName 2>/dev/null)" == "$nome_mac" ]]; then
+        ok "Nome Mac gia' impostato: $nome_mac"
     else
-        sudo scutil --set ComputerName "$NOME_CLIENTE" 2>/dev/null
+        sudo scutil --set ComputerName "$nome_mac" 2>/dev/null
         sudo scutil --set HostName "$host" 2>/dev/null
         sudo scutil --set LocalHostName "$host" 2>/dev/null
-        ok "Nome Mac impostato a: $NOME_CLIENTE"
+        ok "Nome Mac impostato a: $nome_mac"
     fi
-    add_report "Nome Mac ($NOME_CLIENTE)" "OK"
+    add_report "Nome Mac ($nome_mac)" "OK"
 fi
 
 # Account e servizi indicati nel pannello (Proton, Office, antivirus, Cyber
@@ -1214,6 +1225,20 @@ for a in "${INSTALLATE[@]}"; do
 done
 [[ -z "$app_badges" ]] && app_badges="<div style='background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:11.5px;'>&#10003; <strong>Applicazioni base configurate</strong></div>"
 
+is_clt=false
+if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || ("${NOME_PROPRIO_CLIENTE:l}" == "clt") ]]; then
+    is_clt=true
+fi
+
+box_cred=""
+if ! $is_clt && [[ -n "$h_account" || -n "$h_password" ]]; then
+    box_cred="<div class=\"card card-cred\">
+                <h3 style=\"color:#EE7203; margin-bottom:8px;\">🔑 Credenziali &amp; Account Apple ID</h3>
+                <p><strong>Email / Apple ID:</strong> $h_account</p>
+                <p><strong>Password provvisoria:</strong> <code style=\"background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;\">$h_password</code></p>
+            </div>"
+fi
+
 cat <<EOF > "$HTML_CONSEGNA"
 <!DOCTYPE html>
 <html lang="it">
@@ -1240,11 +1265,7 @@ cat <<EOF > "$HTML_CONSEGNA"
             <div style="background:#EE7203; padding:6px 12px; border-radius:6px; font-weight:700;">PC FACILE MAC v$SCRIPT_VERSION</div>
         </div>
         <div style="padding: 24px;">
-            <div class="card card-cred">
-                <h3 style="color:#EE7203; margin-bottom:8px;">🔑 Credenziali &amp; Account Apple ID</h3>
-                <p><strong>Email / Apple ID:</strong> $h_account</p>
-                <p><strong>Password provvisoria:</strong> <code style="background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;">$h_password</code></p>
-            </div>
+            $box_cred
             <div class="card">
                 <h3 style="margin-bottom:8px; color:#00122B;">💻 Dati Dispositivo &amp; Diagnostica</h3>
                 <p><strong>Modello:</strong> $hw_m ($hw_c &bull; $hw_r)</p>

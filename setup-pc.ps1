@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.3.0 (2026-11-04)"
+$SCRIPT_VERSION = "13.4.0 (2026-11-06)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1373,12 +1373,13 @@ function Update-PannelloStatus {
 }
 
 function Test-DatiClienteConfermati {
-    # Il pannello avvia/aggiorna la configurazione SOLO con il pulsante "AVVIA
-    # CONFIGURAZIONE": i dati devono avere Conferma = true e servizi (cognome e nome opzionali).
+    # Il pannello avvia/aggiorna la configurazione SOLO con il pulsante "CONFERMA
+    # DATI CLIENTE": i dati devono avere Conferma = true, Nome obbligatorio e Servizi.
     param($Dati)
     if (-not $Dati) { return $false }
     if (-not ($Dati.Conferma -is [bool] -and $Dati.Conferma)) { return $false }
     if (-not $Dati.Servizi) { return $false }
+    if (-not $Dati.Nome -or -not [string]$Dati.Nome.Trim()) { return $false }
     return $true
 }
 
@@ -2041,14 +2042,16 @@ function Open-PannelloOperatore {
                             <input type="text" id="inCognome" class="cred-input" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                         <div>
-                            <label class="cred-label" for="inNome">Nome</label>
+                            <label class="cred-label" for="inNome">Nome <span class="obbligo">(obbligatorio)</span></label>
                             <input type="text" id="inNome" class="cred-input" value="$hNome" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                     </div>
-                    <div>
-                        <label class="cred-label" for="inTelefono">Cellulare <span class="obbligo">(obbligatorio con Cyber Protection)</span></label>
+                    <div style="margin-bottom: 12px;">
+                        <label class="cred-label" for="inTelefono">Cellulare <span style="color:#64748b; font-weight:normal;">(opzionale)</span></label>
                         <input type="tel" id="inTelefono" class="cred-input" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
                     </div>
+                    <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
+                    <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 </div>
 
                 <div class="cred-step-box">
@@ -2113,8 +2116,6 @@ function Open-PannelloOperatore {
                     </div>
                 </div>
 
-                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
-                <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top: 10px;">
                     <button type="button" class="btn-sec" style="width: 100%;" onclick="copiaRiepilogoCred()">&#128203; Copia dati per il ticket</button>
                 </div>
@@ -2329,6 +2330,12 @@ function Open-PannelloOperatore {
             if (es && es.className.indexOf('errore') !== -1) es.className = 'esito';
             var cognome = val('inCognome');
             var nome = val('inNome');
+            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
+            if (isClt) {
+                el('inEmail').value = '';
+                el('inPass').value = '';
+                return;
+            }
             if (!cognome && !nome) {
                 if (!manualEdit) {
                     el('inEmail').value = 'utente@' + currentDomain;
@@ -2375,12 +2382,17 @@ function Open-PannelloOperatore {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
+            if (!nome) {
+                segnaErrore('inNome');
+                mostraEsito('Il nome del cliente \u00e8 obbligatorio.', 'errore');
+                return null;
+            }
             var cyber = el('chkSvcCyber').checked;
-            if (cyber && telefono.replace(/\D/g, '').length < 6) { segnaErrore('inTelefono'); mostraEsito('Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.', 'errore'); return null; }
+            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
             var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
-            var emailEffettiva = email || ('utente@' + currentDomain);
-            var passEffettiva = pass || 'Utente123!';
-            if (email && email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
+            var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
+            var passEffettiva = isClt ? '' : (pass || 'Utente123!');
+            if (email && email.indexOf('@') < 1 && !isClt) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
                 Email: emailEffettiva,
@@ -2621,14 +2633,25 @@ function Set-DatiCliente {
     param($Dati)
     if (-not $Dati) { return $false }
     try {
-        if ($Dati.Email) {
-            $Global:credMsAccount = [string]$Dati.Email
-            $script:credMsAccount = [string]$Dati.Email
-            if ([string]$Dati.Email -like "*@*") { $Global:credDominio = ([string]$Dati.Email -split "@")[-1] }
-        }
-        if ($Dati.Password) {
-            $Global:credMsPassword = [string]$Dati.Password
-            $script:credMsPassword = [string]$Dati.Password
+        $isClt = ($Dati.Cliente -match '(?i)^(clt\s*clt|clt)$') -or
+                 ($Dati.Nome -match '(?i)^clt$' -and ($Dati.Cognome -match '(?i)^clt$' -or -not $Dati.Cognome))
+
+        if ($isClt) {
+            $Global:credMsAccount = ""
+            $script:credMsAccount = ""
+            $Global:credMsPassword = ""
+            $script:credMsPassword = ""
+            $Global:credDominio = ""
+        } else {
+            if ($Dati.Email) {
+                $Global:credMsAccount = [string]$Dati.Email
+                $script:credMsAccount = [string]$Dati.Email
+                if ([string]$Dati.Email -like "*@*") { $Global:credDominio = ([string]$Dati.Email -split "@")[-1] }
+            }
+            if ($Dati.Password) {
+                $Global:credMsPassword = [string]$Dati.Password
+                $script:credMsPassword = [string]$Dati.Password
+            }
         }
         if ($Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
         if ($Dati.Cliente) {
@@ -3168,11 +3191,11 @@ function Install-VisualCRuntime {
             }
         }
 
-        # 2. Prova installazione via Winget
+        # 2. Prova installazione via Winget (specificando espressamente --source winget per evitare errori con msstore)
         $wingetInstalled = $false
         if (Confirm-Winget) {
             try {
-                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -NoNewWindow -ErrorAction SilentlyContinue
+                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -NoNewWindow -ErrorAction SilentlyContinue
                 if ($p -and ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010 -or $p.ExitCode -eq 1641 -or $p.ExitCode -eq -1978335189)) {
                     $wingetInstalled = $true
                     Write-OK "$($rt.Nome) installato via Winget."
@@ -5029,6 +5052,17 @@ function Repair-DesktopShortcuts {
                                 $riparati++
                                 continue
                             }
+                            # Se non trova icona AppX, cerca gli asset del pacchetto SpotifyMusic
+                            $pkgSpot = Get-AppxPackage -Name "*SpotifyMusic*" -ErrorAction SilentlyContinue | Select-Object -First 1
+                            if ($pkgSpot -and $pkgSpot.InstallLocation) {
+                                $spotIco = Get-ChildItem -Path $pkgSpot.InstallLocation -Filter "*.ico" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                                if ($spotIco) {
+                                    $sc.IconLocation = "$($spotIco.FullName),0"
+                                    $sc.Save()
+                                    $riparati++
+                                    continue
+                                }
+                            }
                         }
                     }
 
@@ -6292,6 +6326,12 @@ trap {
                 }
             }
         }
+        # Pulizia cartelle residue temporanee di installer sul Desktop (es. OpenOffice Installation Files)
+        Get-ChildItem -Path $dir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*OpenOffice*' -or $_.Name -like '*Installation Files*' } | ForEach-Object {
+            Write-Info "Elimino cartella residua installer dal desktop: $($_.Name)"
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            $rimosse++
+        }
     }
 
     # 5) SBLOCCO DALLA BARRA DELLE APPLICAZIONI (Taskbar Unpin)
@@ -7257,8 +7297,15 @@ if (-not $RunReale) {
         Add-Report "Nome cliente" "OK"
     }
 
-    # Rinomina il PC in 'PC-Cognome' o 'PC-Nome' o 'PC-Utente' (max 15 char)
-    $cleanPc = ($nomeCliente -replace '[^A-Za-z0-9]', '')
+    # Rinomina il PC in 'PC-Nome' o 'PC-Utente' (priorita' al NOME proprio del cliente, max 15 char)
+    $nomeDaUsare = if ($Global:nomeProprioCliente -and $Global:nomeProprioCliente.Trim()) {
+        $Global:nomeProprioCliente.Trim()
+    } else {
+        # Se nomeProprioCliente non e' popolato, estrai il nome da nomeCliente (es. 'Rossi Mario' -> 'Mario')
+        $parti = $nomeCliente -split '\s+' | Where-Object { $_ }
+        if ($parti.Count -gt 1) { $parti[-1] } else { $nomeCliente }
+    }
+    $cleanPc = ($nomeDaUsare -replace '[^A-Za-z0-9]', '')
     if (-not $cleanPc -or $cleanPc.ToUpper() -eq "OEM") { $cleanPc = "Utente" }
     $pcNuovo = "PC-$cleanPc"
     if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
@@ -7741,7 +7788,13 @@ if ($RunReale) {
                 $u.SetInfo()
             } catch {}
         }
-        $cleanPc = ($nomeCliente -replace '[^A-Za-z0-9]', '')
+        $nomeDaUsare = if ($Global:nomeProprioCliente -and $Global:nomeProprioCliente.Trim()) {
+            $Global:nomeProprioCliente.Trim()
+        } else {
+            $parti = $nomeCliente -split '\s+' | Where-Object { $_ }
+            if ($parti.Count -gt 1) { $parti[-1] } else { $nomeCliente }
+        }
+        $cleanPc = ($nomeDaUsare -replace '[^A-Za-z0-9]', '')
         if ($cleanPc -and $cleanPc.ToUpper() -ne "OEM") {
             $pcNuovo = "PC-$cleanPc"
             if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
@@ -7847,6 +7900,10 @@ if ($RunReale) {
         $clienteDisplay = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser -or $env:USERNAME.ToUpper() -eq "OEM") { "Utente" } else { $env:USERNAME }
         $pcDisplay = if ($pcNuovo) { $pcNuovo } elseif ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$' -or $env:COMPUTERNAME.ToUpper() -eq "OEM") { "PC-$clienteDisplay" } else { $env:COMPUTERNAME }
 
+        $isClt = ($nomeCliente -match '(?i)^(clt\s*clt|clt)$') -or
+                 ($Global:nomeCliente -match '(?i)^(clt\s*clt|clt)$') -or
+                 ($Global:nomeProprioCliente -match '(?i)^clt$' -and ($Global:cognomeCliente -match '(?i)^clt$' -or -not $Global:cognomeCliente))
+
         $f = @()
         $f += "============================================================"
         $f += "   RIEPILOGO TECNICO CONFIGURAZIONE PC (log assistenza)"
@@ -7856,8 +7913,12 @@ if ($RunReale) {
         $f += "Cliente  : $clienteDisplay"
         $f += "Nome PC  : $pcDisplay"
         $f += "Utente   : $clienteDisplay"
-        $f += "Account  : $credMsAccount ($provNome)"
-        $f += "           (password e credenziali: solo nella scheda di consegna PDF sul Desktop)"
+        if ($isClt -or (-not $credMsAccount -and -not $credMsPassword)) {
+            $f += "Account  : Nessuno (configurazione rapida clt)"
+        } else {
+            $f += "Account  : $credMsAccount ($provNome)"
+            $f += "           (password e credenziali: solo nella scheda di consegna PDF sul Desktop)"
+        }
         $f += ""
         $f += $sep
         $f += "HARDWARE, SERIALE & GARANZIA LEGALE"
@@ -7966,7 +8027,7 @@ if ($RunReale) {
                 $avRighe += "<tr><td style='font-weight: 600;'>$($svcAv):</td><td>$notaAv</td></tr>"
             }
             $credBox = ""
-            if ($credMsAccount -or $credMsPassword) {
+            if ((-not $isClt) -and ($credMsAccount -or $credMsPassword)) {
                 $credBox = @"
             <div class='card card-cred'>
                 <h3>&#128273; Credenziali di Primo Accesso &bull; $provNome</h3>
