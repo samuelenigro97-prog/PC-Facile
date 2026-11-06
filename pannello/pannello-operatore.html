@@ -488,14 +488,16 @@
                             <input type="text" id="inCognome" class="cred-input" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                         <div>
-                            <label class="cred-label" for="inNome">Nome</label>
+                            <label class="cred-label" for="inNome">Nome <span class="obbligo">(obbligatorio)</span></label>
                             <input type="text" id="inNome" class="cred-input" value="" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                     </div>
-                    <div>
-                        <label class="cred-label" for="inTelefono">Cellulare <span class="obbligo">(obbligatorio con Cyber Protection)</span></label>
+                    <div style="margin-bottom: 12px;">
+                        <label class="cred-label" for="inTelefono">Cellulare <span style="color:#64748b; font-weight:normal;">(opzionale)</span></label>
                         <input type="tel" id="inTelefono" class="cred-input" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
                     </div>
+                    <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
+                    <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 </div>
 
                 <div class="cred-step-box">
@@ -560,8 +562,6 @@
                     </div>
                 </div>
 
-                <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
-                <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
                 <div style="margin-top: 10px;">
                     <button type="button" class="btn-sec" style="width: 100%;" onclick="copiaRiepilogoCred()">&#128203; Copia dati per il ticket</button>
                 </div>
@@ -776,6 +776,12 @@
             if (es && es.className.indexOf('errore') !== -1) es.className = 'esito';
             var cognome = val('inCognome');
             var nome = val('inNome');
+            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
+            if (isClt) {
+                el('inEmail').value = '';
+                el('inPass').value = '';
+                return;
+            }
             if (!cognome && !nome) {
                 if (!manualEdit) {
                     el('inEmail').value = 'utente@' + currentDomain;
@@ -822,12 +828,17 @@
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
+            if (!nome) {
+                segnaErrore('inNome');
+                mostraEsito('Il nome del cliente \u00e8 obbligatorio.', 'errore');
+                return null;
+            }
             var cyber = el('chkSvcCyber').checked;
-            if (cyber && telefono.replace(/\D/g, '').length < 6) { segnaErrore('inTelefono'); mostraEsito('Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.', 'errore'); return null; }
+            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
             var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
-            var emailEffettiva = email || ('utente@' + currentDomain);
-            var passEffettiva = pass || 'Utente123!';
-            if (email && email.indexOf('@') < 1) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
+            var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
+            var passEffettiva = isClt ? '' : (pass || 'Utente123!');
+            if (email && email.indexOf('@') < 1 && !isClt) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
                 Email: emailEffettiva,
