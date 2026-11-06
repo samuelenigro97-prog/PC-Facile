@@ -11,7 +11,8 @@ allineati come flusso e funzioni.
 | Ordine                      | fase 1 app+lingua (+Office) · fase 2 manuali · fase 3 pulizia/driver/aggiornamenti per ultimi | fase 1 lingua/app · fase 2 nome+account/servizi · fase 3 aggiornamenti per ultimi | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
 | Sincronizzazione orario     | `w32tm` + W32Time auto + tzautoupdate     | `systemsetup -setusingnetworktime on` + sntp  | pari |
-| Nome cliente + host         | `Set-LocalUser` + `Rename-Computer`       | `scutil --set ComputerName/HostName`          | pari |
+| Nome cliente + host         | `Set-NomeUtenteEPc` (`Set-LocalUser` + `ADSI` + pulizia cache `LogonUI` + `Rename-Computer`, sanitizza `clt clt` → `Utente`/`PC-Utente`) | `imposta_nome_mac` (`scutil --set ComputerName/HostName`, sanitizza `clt clt` → `Mac`) | pari |
+| Scheda Passaggi singoli     | Scheda `4. Passaggi` nel pannello operatore (`POST /step`): ripete qualsiasi passo `1..13` nell'ordine o cambia subito Nome Utente/PC | Scheda `3. Passaggi` nel pannello operatore (`pcfacile-step.json`): ripete i passi `1..8` nell'ordine o cambia subito Nome Mac | pari |
 | Punto di ripristino         | `Checkpoint-Computer`                     | `tmutil localsnapshot` (Time Machine)         | pari |
 | Account + credenziali       | Apre account.microsoft.com, genera cred   | Apre appleid.apple.com, genera cred           | pari |
 | Office                      | installa (winget) + riscatto card PIN sul web | — (su Mac Office si scarica da web, opzionale)| solo Win |

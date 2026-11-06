@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.4.0 (2026-11-06)"
+$SCRIPT_VERSION = "13.5.0 (2026-11-06)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -642,36 +642,41 @@ function Attendi-Risposta {
     Beep-Attesa
     Start-BipRipetuto
     try {
-        if ($TimeoutSec -gt 0) {
-            $inputStr = ""
-            $sw = [System.Diagnostics.Stopwatch]::StartNew()
-            Write-Host -NoNewline "${Prompt}: "
-            while ($sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
-                try {
-                    if ([Console]::KeyAvailable) {
-                        $keyInfo = [Console]::ReadKey($false)
-                        if ($keyInfo.Key -eq [ConsoleKey]::Enter) {
-                            Write-Host ""
-                            if ([string]::IsNullOrWhiteSpace($inputStr)) { return $Default }
-                            return $inputStr
-                        } elseif ($keyInfo.Key -eq [ConsoleKey]::Backspace) {
-                            if ($inputStr.Length -gt 0) {
-                                $inputStr = $inputStr.Substring(0, $inputStr.Length - 1)
-                                [Console]::Write("`b `b")
-                            }
-                        } elseif (-not [char]::IsControl($keyInfo.KeyChar)) {
-                            $inputStr += $keyInfo.KeyChar
-                        }
-                    }
-                } catch { break }
-                Start-Sleep -Milliseconds 100
-            }
-            Write-Host ""
-            if ([string]::IsNullOrWhiteSpace($inputStr)) { return $Default }
-            return $inputStr
-        } else {
-            return (Read-Host $Prompt)
+        $inputStr = ""
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        Write-Host -NoNewline "${Prompt}: "
+        $consoleOk = $true
+        try { $null = [Console]::KeyAvailable } catch { $consoleOk = $false }
+        if (-not $consoleOk -and $TimeoutSec -le 0) {
+            return (Read-Host)
         }
+        while ($TimeoutSec -le 0 -or $sw.Elapsed.TotalSeconds -lt $TimeoutSec) {
+            try {
+                if (Get-Command Invoke-PassiSingoliCoda -ErrorAction SilentlyContinue) { Invoke-PassiSingoliCoda }
+                if (Get-Command Get-CredenzialiSalvatePannello -ErrorAction SilentlyContinue) { [void](Get-CredenzialiSalvatePannello) }
+            } catch {}
+            try {
+                if ([Console]::KeyAvailable) {
+                    $keyInfo = [Console]::ReadKey($false)
+                    if ($keyInfo.Key -eq [ConsoleKey]::Enter) {
+                        Write-Host ""
+                        if ([string]::IsNullOrWhiteSpace($inputStr)) { return $Default }
+                        return $inputStr
+                    } elseif ($keyInfo.Key -eq [ConsoleKey]::Backspace) {
+                        if ($inputStr.Length -gt 0) {
+                            $inputStr = $inputStr.Substring(0, $inputStr.Length - 1)
+                            [Console]::Write("`b `b")
+                        }
+                    } elseif (-not [char]::IsControl($keyInfo.KeyChar)) {
+                        $inputStr += $keyInfo.KeyChar
+                    }
+                }
+            } catch { break }
+            Start-Sleep -Milliseconds 150
+        }
+        Write-Host ""
+        if ([string]::IsNullOrWhiteSpace($inputStr)) { return $Default }
+        return $inputStr
     } finally {
         Stop-BipRipetuto
     }
@@ -689,7 +694,7 @@ function Pausa {
 # e la scrive nel riepilogo): NON legge nulla dal browser.
 function New-PasswordCliente {
     param([string]$Base)
-    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
+    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP', 'CLT', 'CLT CLT', 'CLTCLT', 'CLIENTE')
     if ($Base -and ($oemNames -contains $Base.Trim().ToUpper())) {
         $Base = "Utente"
     }
@@ -697,7 +702,7 @@ function New-PasswordCliente {
     # prima lettera maiuscola, il resto minuscolo. Es. "Mario Rossi" -> "Mario123!".
     $primo = @($Base -split '\s+' | Where-Object { $_ })[0]
     $b = ($primo -replace '[^A-Za-z]', '')
-    if ($b.Length -lt 1 -or $b.ToUpper() -eq "CLIENTE") { $b = "Utente" }
+    if ($b.Length -lt 1 -or $b.ToUpper() -eq "CLIENTE" -or $b.ToUpper() -eq "CLT") { $b = "Utente" }
     $b = $b.Substring(0, 1).ToUpper() + $b.Substring(1).ToLower()
     return "${b}123!"
 }
@@ -709,7 +714,7 @@ function New-PasswordCliente {
 # Es. "Mario Rossi" -> rossimario@outlook.it.
 function New-EmailCliente {
     param([string]$Base, [string]$Dominio = "outlook.it")
-    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
+    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP', 'CLT', 'CLT CLT', 'CLTCLT', 'CLIENTE')
     if ($Base -and ($oemNames -contains $Base.Trim().ToUpper())) {
         $Base = "utente"
     }
@@ -725,6 +730,94 @@ function New-EmailCliente {
     }
     if ($e.Length -gt 20) { $e = $e.Substring(0, 20) }
     return "$e@$Dominio"
+}
+
+function Set-NomeUtenteEPc {
+    param(
+        [string]$NomeUtente = "",
+        [string]$NomePc = "",
+        [switch]$Silenzioso
+    )
+    $esitoUtente = $false
+    $esitoPc = $false
+    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP', 'CLT', 'CLT CLT', 'CLTCLT', 'CLIENTE')
+    if (-not $NomeUtente -or $oemNames -contains $NomeUtente.Trim().ToUpper()) {
+        $NomeUtente = "Utente"
+    } else {
+        $NomeUtente = $NomeUtente.Trim()
+    }
+    if (-not $NomePc) {
+        $clean = ($NomeUtente -replace '[^A-Za-z0-9]', '')
+        if (-not $clean -or $oemNames -contains $clean.ToUpper()) { $clean = "Utente" }
+        $NomePc = "PC-$clean"
+    } else {
+        $NomePc = ($NomePc -replace '[^A-Za-z0-9\-]', '').Trim('-')
+        if (-not $NomePc -or $oemNames -contains $NomePc.ToUpper() -or $NomePc -match '^(?i)PC-clt$') { $NomePc = "PC-Utente" }
+    }
+    if ($NomePc.Length -gt 15) { $NomePc = $NomePc.Substring(0, 15) }
+
+    $Global:nomeCliente = $NomeUtente
+    $script:nomeCliente = $NomeUtente
+
+    if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
+        try {
+            Set-LocalUser -Name $env:USERNAME -FullName $NomeUtente -ErrorAction Stop
+            $esitoUtente = $true
+        } catch {
+            try {
+                $u = [ADSI]("WinNT://./$env:USERNAME,user")
+                $u.FullName = $NomeUtente
+                $u.SetInfo()
+                $esitoUtente = $true
+            } catch {}
+        }
+        # Pulisce anche la cache del nome visualizzato di Windows 11 (LogonUI / Start Menu)
+        # cosi' se all'OOBE l'account era stato chiamato 'clt clt', cambia subito.
+        try {
+            $logonUi = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI"
+            if (Test-Path $logonUi) {
+                if (Get-ItemProperty -Path $logonUi -Name "LastLoggedOnDisplayName" -ErrorAction SilentlyContinue) {
+                    Set-ItemProperty -Path $logonUi -Name "LastLoggedOnDisplayName" -Value $NomeUtente -ErrorAction SilentlyContinue
+                }
+            }
+            $sessData = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\SessionData"
+            if (Test-Path $sessData) {
+                Get-ChildItem -Path $sessData -ErrorAction SilentlyContinue | ForEach-Object {
+                    if (Get-ItemProperty -Path $_.PSPath -Name "LoggedOnDisplayName" -ErrorAction SilentlyContinue) {
+                        Set-ItemProperty -Path $_.PSPath -Name "LoggedOnDisplayName" -Value $NomeUtente -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+        } catch {}
+
+        if ($NomePc -and $NomePc.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
+            try {
+                Rename-Computer -NewName $NomePc -Force -ErrorAction Stop
+                $esitoPc = $true
+            } catch {
+                $esitoPc = $true
+            }
+        } else {
+            $esitoPc = $true
+        }
+    } else {
+        $esitoUtente = $true
+        $esitoPc = $true
+    }
+
+    if (-not $Silenzioso) {
+        Write-OK "Nome account utente impostato su: $NomeUtente"
+        Write-OK "Nome PC impostato su: $NomePc (attivo dopo il riavvio)"
+    }
+    if ($Global:PannelloStatus) {
+        $Global:PannelloStatus.NomeUtenteAttuale = $NomeUtente
+        $Global:PannelloStatus.NomePcAttuale = $NomePc
+    }
+    return [pscustomobject]@{
+        Ok         = ($esitoUtente -or $esitoPc)
+        NomeUtente = $NomeUtente
+        NomePc     = $NomePc
+    }
 }
 
 # Rileva la GPU DEDICATA (non l'integrata): solo per queste ha senso installare
@@ -1403,8 +1496,13 @@ function Start-ServerPannello {
             $Global:PannelloSync = [hashtable]::Synchronized(@{
                 StatusJson = '{}'
                 CodaCred   = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+                CodaStep   = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
             })
         }
+        if (-not $Global:PannelloSync.CodaStep) {
+            $Global:PannelloSync.CodaStep = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+        }
+        $Global:PannelloSync.TestMode = [bool]($Test -or $Global:Test -or $env:PESTER_TEST)
         $Global:PannelloSync.Origini = @($Origini)
         if ($Global:PannelloStatus) { $Global:PannelloSync.StatusJson = ($Global:PannelloStatus | ConvertTo-Json -Depth 5 -Compress) }
         $listener = New-Object System.Net.HttpListener
@@ -1420,6 +1518,7 @@ function Start-ServerPannello {
                 $Res.ContentLength64 = $b.Length
                 $Res.OutputStream.Write($b, 0, $b.Length)
             }
+            $passiValidi = @('ripristino','sysdm','avprova','lingua','runtime','app','icone','office','officeattiva','account','netplwiz','antivirus','cyber','pulizia','driver','devmgmt','aggiorna','winupdate','scheda','diagnostica')
             while ($Listener.IsListening) {
                 try { $ctx = $Listener.GetContext() } catch { break }
                 $res = $ctx.Response
@@ -1461,6 +1560,80 @@ function Start-ServerPannello {
                             } else {
                                 $Sync.CodaCred.Enqueue($body)
                                 Invia $res 200 '{"ok":true,"ricevuto":true}'
+                            }
+                        }
+                    } elseif ($req.HttpMethod -eq 'POST' -and $percorso -eq '/step') {
+                        if ($req.ContentLength64 -gt 65536) {
+                            Invia $res 413 '{"ok":false,"motivo":"dati troppo grandi"}'
+                        } else {
+                            $reader = New-Object System.IO.StreamReader($req.InputStream, [System.Text.Encoding]::UTF8)
+                            $body = $reader.ReadToEnd()
+                            $dati = $null
+                            try { $dati = $body | ConvertFrom-Json } catch {}
+                            $st = if ($dati -and $dati.Step) { ([string]$dati.Step).Trim().ToLower() } else { '' }
+                            if (-not $st -or ($passiValidi -notcontains $st)) {
+                                Invia $res 400 '{"ok":false,"motivo":"passaggio non valido"}'
+                            } elseif ($st -eq 'account') {
+                                $oemList = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP', 'CLT', 'CLT CLT', 'CLTCLT', 'CLIENTE')
+                                $nu = if ($dati.NomeUtente) { ([string]$dati.NomeUtente).Trim() } else { 'Utente' }
+                                if (-not $nu -or ($oemList -contains $nu.ToUpper())) { $nu = 'Utente' }
+                                $np = if ($dati.NomePc) { ([string]$dati.NomePc -replace '[^A-Za-z0-9\-]', '').Trim('-') } else { '' }
+                                if (-not $np -or ($oemList -contains $np.ToUpper()) -or ($np -match '^(?i)PC-clt$')) {
+                                    $c = ($nu -replace '[^A-Za-z0-9]', '')
+                                    if (-not $c -or ($oemList -contains $c.ToUpper())) { $c = 'Utente' }
+                                    $np = "PC-$c"
+                                }
+                                if ($np.Length -gt 15) { $np = $np.Substring(0, 15) }
+                                if (-not $Sync.TestMode) {
+                                    try {
+                                        Set-LocalUser -Name $env:USERNAME -FullName $nu -ErrorAction Stop
+                                    } catch {
+                                        try {
+                                            $u = [ADSI]("WinNT://./$env:USERNAME,user")
+                                            $u.FullName = $nu
+                                            $u.SetInfo()
+                                        } catch {}
+                                    }
+                                    try {
+                                        $logonUi = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI"
+                                        if (Test-Path $logonUi) {
+                                            if (Get-ItemProperty -Path $logonUi -Name "LastLoggedOnDisplayName" -ErrorAction SilentlyContinue) {
+                                                Set-ItemProperty -Path $logonUi -Name "LastLoggedOnDisplayName" -Value $nu -ErrorAction SilentlyContinue
+                                            }
+                                        }
+                                        $sessData = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\SessionData"
+                                        if (Test-Path $sessData) {
+                                            Get-ChildItem -Path $sessData -ErrorAction SilentlyContinue | ForEach-Object {
+                                                if (Get-ItemProperty -Path $_.PSPath -Name "LoggedOnDisplayName" -ErrorAction SilentlyContinue) {
+                                                    Set-ItemProperty -Path $_.PSPath -Name "LoggedOnDisplayName" -Value $nu -ErrorAction SilentlyContinue
+                                                }
+                                            }
+                                        }
+                                    } catch {}
+                                    if ($np -and $np.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
+                                        try { Rename-Computer -NewName $np -Force -ErrorAction SilentlyContinue } catch {}
+                                    }
+                                }
+                                $Sync.CodaStep.Enqueue($body)
+                                $respObj = @{ ok = $true; messaggio = "Nome utente impostato su '$nu' e Nome PC su '$np' (attivo al riavvio)." } | ConvertTo-Json -Compress
+                                Invia $res 200 $respObj
+                            } elseif ($st -in @('sysdm','netplwiz','devmgmt','winupdate')) {
+                                if (-not $Sync.TestMode) {
+                                    try {
+                                        switch ($st) {
+                                            'sysdm'     { Start-Process "sysdm.cpl" -ErrorAction SilentlyContinue }
+                                            'netplwiz'  { Start-Process "netplwiz.exe" -ErrorAction SilentlyContinue }
+                                            'devmgmt'   { Start-Process "devmgmt.msc" -ErrorAction SilentlyContinue }
+                                            'winupdate' { Start-Process "ms-settings:windowsupdate" -ErrorAction SilentlyContinue }
+                                        }
+                                    } catch {}
+                                }
+                                $respObj = @{ ok = $true; messaggio = "Strumento di sistema aperto." } | ConvertTo-Json -Compress
+                                Invia $res 200 $respObj
+                            } else {
+                                $Sync.CodaStep.Enqueue($body)
+                                $respObj = @{ ok = $true; messaggio = "Passaggio '$st' avviato: segui l'esecuzione nella finestra di PC Facile." } | ConvertTo-Json -Compress
+                                Invia $res 200 $respObj
                             }
                         }
                     } else {
@@ -1516,7 +1689,7 @@ function Open-PannelloOperatore {
     # altrimenti i dati del cliente si chiedono in console (Wait-DatiCliente).
     $serverOk = [bool](Start-LocalCredServer)
     $Global:PannelloDisponibile = $false
-    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
+    $oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP', 'CLT', 'CLT CLT', 'CLTCLT', 'CLIENTE')
     if ($NomeCliente -and ($oemNames -contains $NomeCliente.Trim().ToUpper() -or $NomeCliente.Trim().ToUpper() -eq "CLIENTE" -or $NomeCliente.Trim().ToUpper() -eq "UTENTE")) {
         $NomeCliente = ""
     }
@@ -1917,6 +2090,61 @@ function Open-PannelloOperatore {
         .portal-btn .portal-tag { color: #fed7aa; font-size: 14px; white-space: nowrap; }
         .portal-btn.highlight { border-color: #EE7203; }
 
+        /* PASSAGGI SINGOLI */
+        .step-tool-list { display: flex; flex-direction: column; gap: 8px; }
+        .step-tool-card {
+            background: #00152f;
+            border: 1.5px solid #003B7A;
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .step-tool-card.evidenza { border-color: #EE7203; }
+        .step-tool-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .step-tool-title { font-size: 15px; font-weight: 800; color: #f8fafc; }
+        .step-tool-desc { font-size: 13.5px; color: #b6c3d4; line-height: 1.35; }
+        .step-tool-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .step-tool-actions .cred-input { flex: 1; min-width: 180px; }
+        .btn-tool {
+            min-height: 44px;
+            background: #002554;
+            border: 1.5px solid #004B9B;
+            color: #f8fafc;
+            padding: 8px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+        .btn-tool:hover:not(:disabled) { background: #003B7A; border-color: #EE7203; }
+        .btn-tool.primary { background: #EE7203; border-color: #ff8c24; color: #fff; }
+        .btn-tool.primary:hover:not(:disabled) { background: #d46200; }
+        .btn-tool:disabled { opacity: 0.6; cursor: wait; }
+        .step-esito {
+            display: none;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 13.5px;
+            font-weight: 700;
+        }
+        .step-esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #86efac; }
+        .step-esito.avviso { display: block; background: #2b1705; border: 1.5px solid #f59e0b; color: #fde68a; }
+        .step-esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fca5a5; }
+
         /* MESSAGGIO A COMPARSA */
         .toast {
             position: fixed;
@@ -2014,6 +2242,9 @@ function Open-PannelloOperatore {
             <h2 id="completionTitle">&#10003; Configurazione completata</h2>
             <ul id="completionAvvisi"></ul>
             <p>Sul Desktop di questo PC c'&egrave; solo la scheda di consegna: <strong>Scheda-Consegna-Cliente.pdf</strong> (se il PDF non si crea, resta la versione <strong>.html</strong> da stampare). Il riepilogo tecnico &egrave; in <code>C:\ProgramData\PCFacile\log</code>.</p>
+            <div style="margin-top: 8px;">
+                <button type="button" class="btn-sec" onclick="apriScheda('tab-passaggi')">&#128295; Ripeti o correggi singoli passaggi</button>
+            </div>
         </div>
 
         <!-- SCHEDE -->
@@ -2026,6 +2257,9 @@ function Open-PannelloOperatore {
             </button>
             <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
                 <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
+            </button>
+            <button type="button" class="tab-btn" role="tab" id="btn-tab-passaggi" aria-controls="view-tab-passaggi" aria-selected="false" onclick="apriScheda('tab-passaggi')">
+                <span><span class="tab-lungo">&#128295; </span>4. Passaggi</span>
             </button>
         </div>
 
@@ -2167,6 +2401,236 @@ function Open-PannelloOperatore {
 
                     <div class="portal-divider">Servizio Unieuro</div>
                     <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Cyber Protection</span><span class="portal-tag">Apri &rarr;</span></a>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCHEDA 4: PASSAGGI SINGOLI (stesso ordine 1..13) -->
+        <div id="view-tab-passaggi" class="section-view" role="tabpanel" aria-labelledby="btn-tab-passaggi">
+            <div class="card">
+                <div class="card-subtitle">Esegui o ripeti singolarmente qualsiasi passaggio nello stesso ordine della procedura (1..13). Utile se un passo &egrave; andato male o se devi correggere subito il <strong>nome utente / nome PC</strong> (es. rimasto <code>clt clt</code>).</div>
+
+                <div class="step-tool-list">
+                    <div class="task-gruppo">Fase 1 &middot; Programmi e lingua</div>
+
+                    <!-- 1. Punto di ripristino -->
+                    <div class="step-tool-card" id="stepcard-ripristino">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">1</span> Punto di ripristino</div>
+                            <span id="step-badge-ripristino" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Abilita Ripristino configurazione di sistema su C: e crea un punto di sicurezza.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('ripristino')">&#9654; Crea punto di ripristino</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('sysdm')">&#9881; Propriet&agrave; Sistema</button>
+                        </div>
+                        <div id="esitoStep-ripristino" class="step-esito"></div>
+                    </div>
+
+                    <!-- 2. Rimozione antivirus di prova -->
+                    <div class="step-tool-card" id="stepcard-avprova">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">2</span> Rimozione antivirus di prova</div>
+                            <span id="step-badge-avprova" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Cerca e disinstalla McAfee, Norton o Avast di prova preinstallati sul PC e riattiva Windows Defender.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('avprova')">&#9654; Rimuovi antivirus di prova</button>
+                        </div>
+                        <div id="esitoStep-avprova" class="step-esito"></div>
+                    </div>
+
+                    <!-- 3. Lingua italiana e tastiera -->
+                    <div class="step-tool-card" id="stepcard-lingua">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">3</span> Lingua italiana e tastiera</div>
+                            <span id="step-badge-lingua" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Imposta lingua di sistema, tastiera IT (0410:00000410), area geografica Italia e fuso orario Roma.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('lingua')">&#9654; Applica lingua e tastiera IT</button>
+                        </div>
+                        <div id="esitoStep-lingua" class="step-esito"></div>
+                    </div>
+
+                    <!-- 4. Componenti Microsoft (Visual C++) -->
+                    <div class="step-tool-card" id="stepcard-runtime">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">4</span> Componenti Microsoft (Visual C++)</div>
+                            <span id="step-badge-runtime" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Verifica e installa i runtime Microsoft Visual C++ 2015-2022 (64 bit e 32 bit).</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('runtime')">&#9654; Installa Visual C++</button>
+                        </div>
+                        <div id="esitoStep-runtime" class="step-esito"></div>
+                    </div>
+
+                    <!-- 5. Programmi -->
+                    <div class="step-tool-card" id="stepcard-app">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">5</span> Programmi e icone Desktop</div>
+                            <span id="step-badge-app" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Reinstalla l'intero profilo di applicazioni o un singolo programma andato in errore, e ripara le icone bianche sul Desktop.</div>
+                        <div class="step-tool-actions">
+                            <select id="selStepApp" class="cred-input" aria-label="Seleziona programma o profilo">
+                                <option value="PROFILO:BASE">Profilo Base completo (Chrome, VLC, Reader, 7-Zip, AnyDesk, WhatsApp, Zoom)</option>
+                                <option value="PROFILO:UFFICIO">Profilo Ufficio completo (Base + GIMP, Sumatra PDF)</option>
+                                <option value="PROFILO:GAMING">Profilo Gaming completo (Opera GX + Base + Steam, Epic, Discord)</option>
+                                <option value="PROFILO:COMPLETO">Profilo Completo (tutte le app)</option>
+                                <option value="APP:Google.Chrome">Singola app: Google Chrome</option>
+                                <option value="APP:VideoLAN.VLC">Singola app: VLC Media Player</option>
+                                <option value="APP:Adobe.Acrobat.Reader.64-bit">Singola app: Adobe Acrobat Reader</option>
+                                <option value="APP:7zip.7zip">Singola app: 7-Zip</option>
+                                <option value="APP:AnyDesk.AnyDesk">Singola app: AnyDesk</option>
+                                <option value="APP:WhatsApp.WhatsApp">Singola app: WhatsApp</option>
+                                <option value="APP:Zoom.Zoom">Singola app: Zoom</option>
+                                <option value="APP:Spotify.Spotify">Singola app: Spotify</option>
+                                <option value="APP:TeamViewer.TeamViewer">Singola app: TeamViewer</option>
+                                <option value="APP:GIMP.GIMP.3">Singola app: GIMP</option>
+                                <option value="APP:SumatraPDF.SumatraPDF">Singola app: Sumatra PDF</option>
+                                <option value="APP:Opera.OperaGX">Singola app: Opera GX</option>
+                                <option value="APP:Mozilla.Firefox">Singola app: Mozilla Firefox</option>
+                                <option value="APP:Valve.Steam">Singola app: Steam</option>
+                                <option value="APP:EpicGames.EpicGamesLauncher">Singola app: Epic Games Launcher</option>
+                                <option value="APP:Discord.Discord">Singola app: Discord</option>
+                            </select>
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('app')">&#9654; Installa selezionato</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('icone')">&#128444; Ripara icone Desktop</button>
+                        </div>
+                        <div id="esitoStep-app" class="step-esito"></div>
+                    </div>
+
+                    <!-- 6. Office: installazione e attivazione -->
+                    <div class="step-tool-card" id="stepcard-office">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">6</span> Office: installazione e attivazione</div>
+                            <span id="step-badge-office" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Installa la suite Office scelta (con collegamenti Word, Excel, PowerPoint sul Desktop) o avvia il riscatto della card.</div>
+                        <div class="step-tool-actions">
+                            <select id="selStepOffice" class="cred-input" aria-label="Suite Office da installare">
+                                <option value="m365">Microsoft 365 (abbonamento it-IT)</option>
+                                <option value="perpetuo">Office 2024 / 2021 (perpetuo)</option>
+                                <option value="libreoffice">LibreOffice (gratuito in italiano)</option>
+                                <option value="openoffice">Apache OpenOffice (gratuito in italiano)</option>
+                            </select>
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('office')">&#9654; Installa Office</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('officeattiva')">&#128273; Attiva / Riscatta Card</button>
+                        </div>
+                        <div id="esitoStep-office" class="step-esito"></div>
+                    </div>
+
+                    <div class="task-gruppo">Fase 2 &middot; Passi operatore (Account, Antivirus, Cyber Protection)</div>
+
+                    <!-- 7. Nome PC e account cliente -->
+                    <div class="step-tool-card highlight" id="stepcard-account">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">7</span> Nome PC e account cliente</div>
+                            <span id="step-badge-account" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Cambia immediatamente il <strong>nome visualizzato dell'utente Windows</strong> (es. se era rimasto <code>clt clt</code> o <code>OEM</code>) e il <strong>nome del PC</strong>, senza passare dalle Impostazioni di Windows.</div>
+                        <div class="campi-2" style="margin-bottom: 6px;">
+                            <div>
+                                <label class="cred-label" for="inStepNomeUtente">Nome visualizzato Utente Windows</label>
+                                <input type="text" id="inStepNomeUtente" class="cred-input" placeholder="Es. Mario Rossi (o Utente)" autocomplete="off" oninput="_stepNomeEdited = true">
+                            </div>
+                            <div>
+                                <label class="cred-label" for="inStepNomePc">Nome del PC (max 15 caratteri)</label>
+                                <input type="text" id="inStepNomePc" class="cred-input cred-mono" placeholder="Es. PC-Mario" maxlength="15" autocomplete="off" oninput="_stepNomeEdited = true">
+                            </div>
+                        </div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('account')">&#10004; Applica Nome Utente e PC</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('netplwiz')">&#128100; Utenti Windows (netplwiz)</button>
+                        </div>
+                        <div id="esitoStep-account" class="step-esito"></div>
+                    </div>
+
+                    <!-- 8. Protezione antivirus -->
+                    <div class="step-tool-card" id="stepcard-antivirus">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">8</span> Protezione antivirus</div>
+                            <span id="step-badge-antivirus" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Apre la pagina di riscatto card McAfee o Norton e copia l'email del cliente negli appunti.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('antivirus', 'mcafee')">&#128737; Attiva McAfee</button>
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('antivirus', 'norton')">&#128737; Attiva Norton</button>
+                        </div>
+                        <div id="esitoStep-antivirus" class="step-esito"></div>
+                    </div>
+
+                    <!-- 9. Unieuro Cyber Protection -->
+                    <div class="step-tool-card" id="stepcard-cyber">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">9</span> Unieuro Cyber Protection</div>
+                            <span id="step-badge-cyber" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Apre il portale Covercare e copia negli appunti i dati cliente + seriale del PC per la registrazione rapida.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('cyber')">&#9654; Apri e copia dati Cyber Protection</button>
+                        </div>
+                        <div id="esitoStep-cyber" class="step-esito"></div>
+                    </div>
+
+                    <div class="task-gruppo">Fase 3 &middot; Pulizia, driver, aggiornamenti e scheda finale</div>
+
+                    <!-- 10. Pulizia programmi inutili e velocizzazione -->
+                    <div class="step-tool-card" id="stepcard-pulizia">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">10</span> Pulizia programmi inutili e velocizzazione</div>
+                            <span id="step-badge-pulizia" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Rimuove bloatware, OneDrive, collegamenti sponsorizzati, disattiva widget/telemetria e imposta il piano energetico Bilanciato.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('pulizia')">&#9654; Esegui pulizia e ottimizzazione</button>
+                        </div>
+                        <div id="esitoStep-pulizia" class="step-esito"></div>
+                    </div>
+
+                    <!-- 11. Driver hardware -->
+                    <div class="step-tool-card" id="stepcard-driver">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">11</span> Driver hardware</div>
+                            <span id="step-badge-driver" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Cerca e installa i driver mancanti (dalla chiavetta o tramite Windows Update) oppure apre Gestione Dispositivi.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('driver')">&#9654; Installa driver mancanti</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('devmgmt')">&#9881; Gestione Dispositivi</button>
+                        </div>
+                        <div id="esitoStep-driver" class="step-esito"></div>
+                    </div>
+
+                    <!-- 12. Aggiornamenti app e Windows -->
+                    <div class="step-tool-card" id="stepcard-aggiorna">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">12</span> Aggiornamenti app e Windows</div>
+                            <span id="step-badge-aggiorna" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Aggiorna tutte le app via Winget, le firme di Windows Defender e installa le patch rapide di Windows Update.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('aggiorna')">&#9654; Esegui aggiornamenti</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('winupdate')">&#9881; Apri Windows Update</button>
+                        </div>
+                        <div id="esitoStep-aggiorna" class="step-esito"></div>
+                    </div>
+
+                    <!-- 13. Controllo finale e scheda di consegna -->
+                    <div class="step-tool-card" id="stepcard-diagnostica">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">13</span> Controllo finale e scheda di consegna</div>
+                            <span id="step-badge-diagnostica" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Rigenera sul Desktop il file <strong>Scheda-Consegna-Cliente.pdf</strong> coi dati aggiornati (senza email se <code>clt clt</code>) o ripete il controllo salute PC.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('scheda')">&#128196; Rigenera Scheda Consegna PDF</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('diagnostica')">&#129658; Check Salute PC</button>
+                        </div>
+                        <div id="esitoStep-diagnostica" class="step-esito"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2325,11 +2789,31 @@ function Open-PannelloOperatore {
             scriviAppunti(text, 'Dati copiati per il ticket');
         }
 
+        var _stepNomeEdited = false;
+        function aggiornaCampiStepNome() {
+            if (_stepNomeEdited) return;
+            var cognome = val('inCognome'), nome = val('inNome');
+            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
+            var inU = el('inStepNomeUtente'), inP = el('inStepNomePc');
+            if (!inU || !inP) return;
+            if (isClt || (!cognome && !nome)) {
+                inU.value = 'Utente';
+                inP.value = 'PC-Utente';
+            } else {
+                var full = (cognome + ' ' + nome).trim() || nome || 'Utente';
+                var cleanPc = (nome || cognome || 'Utente').replace(/[^a-zA-Z0-9]/g, '');
+                if (cleanPc.length > 12) cleanPc = cleanPc.substring(0, 12);
+                inU.value = full;
+                inP.value = 'PC-' + (cleanPc || 'Utente');
+            }
+        }
+
         function aggiornaCred() {
             var es = el('esitoInvio');
             if (es && es.className.indexOf('errore') !== -1) es.className = 'esito';
             var cognome = val('inCognome');
             var nome = val('inNome');
+            aggiornaCampiStepNome();
             var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
             if (isClt) {
                 el('inEmail').value = '';
@@ -2442,6 +2926,62 @@ function Open-PannelloOperatore {
                 // Un solo canale: il server locale di PC Facile (127.0.0.1:8899).
                 mostraEsito('PC Facile non risponde: dati NON ricevuti. Controlla che la finestra di PC Facile sia aperta e riprova.', 'errore');
                 showToast('PC non raggiunto', 'errore');
+            });
+        }
+
+        function mostraEsitoStep(stepKey, msg, tipo) {
+            var mapKey = stepKey;
+            if (stepKey === 'sysdm') mapKey = 'ripristino';
+            if (stepKey === 'icone') mapKey = 'app';
+            if (stepKey === 'officeattiva') mapKey = 'office';
+            if (stepKey === 'netplwiz') mapKey = 'account';
+            if (stepKey === 'devmgmt') mapKey = 'driver';
+            if (stepKey === 'winupdate') mapKey = 'aggiorna';
+            if (stepKey === 'scheda') mapKey = 'diagnostica';
+            var box = el('esitoStep-' + mapKey);
+            if (!box) return;
+            box.innerText = msg;
+            box.className = 'step-esito ' + (tipo || 'ok');
+        }
+
+        function eseguiPasso(step, paramOverride) {
+            var payload = { Step: step, Param: paramOverride || '' };
+            if (step === 'app') {
+                payload.Param = el('selStepApp') ? el('selStepApp').value : 'PROFILO:BASE';
+            } else if (step === 'office' || step === 'officeattiva') {
+                payload.Param = el('selStepOffice') ? el('selStepOffice').value : 'm365';
+            } else if (step === 'account') {
+                var nu = val('inStepNomeUtente') || 'Utente';
+                var np = val('inStepNomePc') || 'PC-Utente';
+                payload.NomeUtente = nu;
+                payload.NomePc = np;
+            }
+            mostraEsitoStep(step, 'Invio comando al PC in corso...', 'avviso');
+            var ctrl = window.AbortController ? new AbortController() : null;
+            var t = ctrl ? setTimeout(function() { ctrl.abort(); }, 8000) : null;
+            fetch(SERVER + '/step', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: ctrl ? ctrl.signal : undefined
+            }).then(function(r) {
+                if (t) clearTimeout(t);
+                return r.json().catch(function() { return {}; }).then(function(j) { return { ok: r.ok, j: j }; });
+            }).then(function(res) {
+                if (res.ok && res.j && res.j.ok !== false) {
+                    var msg = (res.j && res.j.messaggio) || 'Passaggio avviato sul PC.';
+                    mostraEsitoStep(step, '\u2713 ' + msg, 'ok');
+                    showToast(msg);
+                    checkConnection();
+                } else {
+                    var err = (res.j && res.j.motivo) || 'Impossibile eseguire il passaggio';
+                    mostraEsitoStep(step, '\u2717 ' + err, 'errore');
+                    showToast(err, 'errore');
+                }
+            }).catch(function() {
+                if (t) clearTimeout(t);
+                mostraEsitoStep(step, '\u2717 PC Facile non risponde: verifica che la finestra dello script sia aperta.', 'errore');
+                showToast('PC Facile non risponde', 'errore');
             });
         }
 
@@ -2564,6 +3104,11 @@ function Open-PannelloOperatore {
                     else if (stato === 'skipped') { badgeClass = 'badge-skipped'; badgeText = (key === 'ripristino' ? 'Ottimizzato SSD' : 'Saltato'); }
                     badge.className = 'task-badge ' + badgeClass;
                     badge.innerText = badgeText;
+                    var stepBadge = el('step-badge-' + key);
+                    if (stepBadge) {
+                        stepBadge.className = 'task-badge ' + badgeClass;
+                        stepBadge.innerText = badgeText;
+                    }
                     var icon = row.querySelector('.task-icon');
                     if (stato === 'done' || stato === 'skipped') icon.innerHTML = '&#10003;';
                     else if (stato === 'running') icon.innerHTML = '<span class="spinner"></span>';
@@ -2572,6 +3117,11 @@ function Open-PannelloOperatore {
                     row.querySelector('.task-detail').innerText = (dettaglio && stato !== 'pending' && stato !== 'done') ? dettaglio : '';
                 }
                 el('taskCountBadge').innerText = doneCount + '/' + TASK_KEYS.length;
+            }
+            if (!_stepNomeEdited && (data.NomeUtenteAttuale || data.NomePcAttuale) && !val('inNome') && !val('inCognome')) {
+                var inU = el('inStepNomeUtente'), inP = el('inStepNomePc');
+                if (inU && data.NomeUtenteAttuale) inU.value = data.NomeUtenteAttuale;
+                if (inP && data.NomePcAttuale) inP.value = data.NomePcAttuale;
             }
 
             var completato = !!(data.Completato || data.completato);
@@ -2635,6 +3185,7 @@ function Set-DatiCliente {
     try {
         $isClt = ($Dati.Cliente -match '(?i)^(clt\s*clt|clt)$') -or
                  ($Dati.Nome -match '(?i)^clt$' -and ($Dati.Cognome -match '(?i)^clt$' -or -not $Dati.Cognome))
+        $Global:IsCltMode = [bool]$isClt
 
         if ($isClt) {
             $Global:credMsAccount = ""
@@ -2642,6 +3193,10 @@ function Set-DatiCliente {
             $Global:credMsPassword = ""
             $script:credMsPassword = ""
             $Global:credDominio = ""
+            $Global:nomeCliente = "Utente"
+            $script:nomeCliente = "Utente"
+            $Global:nomeProprioCliente = "Utente"
+            $Global:cognomeCliente = ""
         } else {
             if ($Dati.Email) {
                 $Global:credMsAccount = [string]$Dati.Email
@@ -2652,14 +3207,14 @@ function Set-DatiCliente {
                 $Global:credMsPassword = [string]$Dati.Password
                 $script:credMsPassword = [string]$Dati.Password
             }
+            if ($Dati.Cliente) {
+                $Global:nomeCliente = [string]$Dati.Cliente
+                $script:nomeCliente = [string]$Dati.Cliente
+            }
+            if ($Dati.Nome)     { $Global:nomeProprioCliente = [string]$Dati.Nome }
+            if ($Dati.Cognome)  { $Global:cognomeCliente = [string]$Dati.Cognome }
         }
         if ($Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
-        if ($Dati.Cliente) {
-            $Global:nomeCliente = [string]$Dati.Cliente
-            $script:nomeCliente = [string]$Dati.Cliente
-        }
-        if ($Dati.Nome)     { $Global:nomeProprioCliente = [string]$Dati.Nome }
-        if ($Dati.Cognome)  { $Global:cognomeCliente = [string]$Dati.Cognome }
         if ($Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
         if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
         if ($Dati.Servizi) {
@@ -2676,6 +3231,17 @@ function Set-DatiCliente {
                 default       { if ($Dati.Servizi.Office) { '1' } else { '5' } }
             }
         }
+        # Rinomina subito l'utente Windows e il PC col nome del cliente (o 'Utente' se clt clt)
+        try {
+            if (Get-Command Set-NomeUtenteEPc -ErrorAction SilentlyContinue) {
+                $basePc = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } elseif ($Global:nomeCliente) { $Global:nomeCliente } else { "Utente" }
+                $cleanPc = ($basePc -replace '[^A-Za-z0-9]', '')
+                if (-not $cleanPc -or $cleanPc -match '^(?i)(oem|clt|cltclt|cliente)$') { $cleanPc = "Utente" }
+                $pcTarget = "PC-$cleanPc"
+                if ($pcTarget.Length -gt 15) { $pcTarget = $pcTarget.Substring(0, 15) }
+                [void](Set-NomeUtenteEPc -NomeUtente $Global:nomeCliente -NomePc $pcTarget -Silenzioso)
+            }
+        } catch {}
         $Global:DatiCliente = $Dati
         $Global:DatiClienteRicevuti = $true
         return $true
@@ -2697,7 +3263,7 @@ function Get-CredenzialiSalvatePannello {
             try {
                 $parsed = $ultimo | ConvertFrom-Json
                 if ((Test-DatiClienteConfermati $parsed) -and (Set-DatiCliente $parsed)) {
-                    Write-OK "Dati cliente ricevuti dal pannello: $($Global:nomeCliente) ($($Global:credMsAccount))."
+                    Write-OK "Dati cliente ricevuti dal pannello: $($Global:nomeCliente) $(if ($Global:credMsAccount) { "($($Global:credMsAccount))" } else { "(senza email)" })."
                     Update-PannelloStatus -AttesaDati 'no'
                     return $true
                 }
@@ -2773,11 +3339,14 @@ function Wait-DatiCliente {
     try {
         while (-not (Get-CredenzialiSalvatePannello)) {
             try {
+                if (Get-Command Invoke-PassiSingoliCoda -ErrorAction SilentlyContinue) { Invoke-PassiSingoliCoda }
+            } catch {}
+            try {
                 if ([Console]::KeyAvailable) {
                     $k = [Console]::ReadKey($true)
                     if ($k.Key -eq [ConsoleKey]::Enter) {
                         $std = [pscustomobject]@{
-                            Conferma = $true; Cliente = 'Utente'; Nome = ''; Cognome = ''
+                            Conferma = $true; Cliente = 'Utente'; Nome = 'Utente'; Cognome = ''
                             Email = (New-EmailCliente -Base 'Utente' -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base 'Utente'); Provider = 'Microsoft'
                             Telefono = ''; ProfiloApp = 'BASE'
                             Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
@@ -6624,6 +7193,187 @@ for ($i = 0; $i -lt $passo; $i++) {
 }
 if ($passo -gt 0 -and $passo -lt $totPassi) { Write-Info "Riprendo dal passo $($passo + 1) di $($totPassi): $($Global:Passi[$passo].Nome)." }
 
+# Esegue su richiesta un singolo passaggio inviato dalla scheda "4. Passaggi" del pannello.
+function Invoke-PassoSingolo {
+    param($Cmd)
+    if (-not $Cmd -or -not $Cmd.Step) { return }
+    $st = ([string]$Cmd.Step).Trim().ToLower()
+    $param = if ($Cmd.Param) { ([string]$Cmd.Param).Trim() } else { "" }
+    Write-Host ""
+    Write-Titolo "ESECUZIONE SINGOLO PASSAGGIO DAL PANNELLO: $($st.ToUpper())"
+    switch ($st) {
+        'account' {
+            $nu = if ($Cmd.NomeUtente) { ([string]$Cmd.NomeUtente).Trim() } else { "Utente" }
+            $np = if ($Cmd.NomePc) { ([string]$Cmd.NomePc).Trim() } else { "" }
+            $res = Set-NomeUtenteEPc -NomeUtente $nu -NomePc $np
+            $Global:nomeProprioCliente = $res.NomeUtente
+            Add-Report "Nome cliente / PC ($($res.NomeUtente) / $($res.NomePc))" "OK"
+            Update-PannelloStatus -TaskId "account" -Stato "done" -Dettaglio "Utente: $($res.NomeUtente) ($($res.NomePc))"
+        }
+        'ripristino' {
+            Update-PannelloStatus -TaskId "ripristino" -Stato "running" -Dettaglio "Creazione punto di ripristino..."
+            if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
+                try {
+                    Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction SilentlyContinue
+                    New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency" -Value 0 -PropertyType DWord -Force -ErrorAction SilentlyContinue | Out-Null
+                    Checkpoint-Computer -Description "PC Facile - Punto manuale" -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+                    Write-OK "Punto di ripristino creato con successo."
+                    Add-Report "Punto di ripristino (manuale)" "OK"
+                    Update-PannelloStatus -TaskId "ripristino" -Stato "done" -Dettaglio "Punto creato"
+                } catch {
+                    Write-Errore "Creazione punto di ripristino non riuscita: $_"
+                    Update-PannelloStatus -TaskId "ripristino" -Stato "error" -Dettaglio "Non riuscito"
+                }
+            } else {
+                Update-PannelloStatus -TaskId "ripristino" -Stato "done" -Dettaglio "Punto creato (test)"
+            }
+        }
+        'avprova' {
+            Update-PannelloStatus -TaskId "avprova" -Stato "running" -Dettaglio "Rimozione antivirus di prova..."
+            $avInst = @(Get-AntivirusInstallati | Where-Object { -not (Test-AvDaTenere $_.Nome) })
+            foreach ($av in $avInst) {
+                Write-Info "Rimuovo $($av.Nome)..."
+                if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
+                    if ($av.QuietUninstall) { try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {} }
+                    elseif ($av.Uninstall) { try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {} }
+                    if (Confirm-Winget) { winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null }
+                }
+            }
+            Update-PannelloStatus -TaskId "avprova" -Stato "done" -Dettaglio "Completato"
+            Write-OK "Passaggio rimozione antivirus di prova completato."
+        }
+        'lingua' {
+            Update-PannelloStatus -TaskId "lingua" -Stato "running" -Dettaglio "Applicazione lingua e tastiera IT..."
+            if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
+                try {
+                    $lista = New-WinUserLanguageList it-IT
+                    $lista[0].InputMethodTips.Clear()
+                    $lista[0].InputMethodTips.Add("0410:00000410")
+                    Set-WinUserLanguageList $lista -Force
+                } catch {}
+                try { Set-WinUILanguageOverride -Language it-IT } catch {}
+                if (Get-Command Set-SystemPreferredUILanguage -ErrorAction SilentlyContinue) {
+                    try { Set-SystemPreferredUILanguage it-IT -ErrorAction SilentlyContinue } catch {}
+                }
+                try { Set-Culture it-IT } catch {}
+                try { Set-WinHomeLocation -GeoId 118 } catch {}
+                try { Set-WinSystemLocale it-IT } catch {}
+                try { Set-TimeZone -Id "W. Europe Standard Time" -ErrorAction SilentlyContinue } catch {}
+                if (Get-Command Copy-UserInternationalSettingsToSystem -ErrorAction SilentlyContinue) {
+                    try { Copy-UserInternationalSettingsToSystem -WelcomeScreen $true -NewUser $true } catch {}
+                }
+            }
+            Write-OK "Lingua, tastiera italiana e fuso orario applicati."
+            Add-Report "Lingua italiana (ripetuta da pannello)" "OK"
+            Update-PannelloStatus -TaskId "lingua" -Stato "done" -Dettaglio "Italiano applicato"
+        }
+        'runtime' {
+            Update-PannelloStatus -TaskId "runtime" -Stato "running" -Dettaglio "Installazione Visual C++..."
+            [void](Install-VisualCRuntime)
+            Update-PannelloStatus -TaskId "runtime" -Stato "done" -Dettaglio "Completato"
+        }
+        'app' {
+            Update-PannelloStatus -TaskId "app" -Stato "running" -Dettaglio "Installazione selezionata ($param)..."
+            if ($param -match '^APP:(.+)$') {
+                $idApp = $matches[1]
+                $voceCat = $CatalogoApp | Where-Object { $_.Id -eq $idApp } | Select-Object -First 1
+                $nomeApp = if ($voceCat) { $voceCat.Nome } elseif ($idApp -eq 'Google.Chrome') { 'Google Chrome' } elseif ($idApp -eq 'Opera.OperaGX') { 'Opera GX' } elseif ($idApp -eq 'Mozilla.Firefox') { 'Mozilla Firefox' } else { $idApp }
+                Installa-Pacchetto -Nome $nomeApp -WingetId $idApp
+            } else {
+                $prof = if ($param -match '^PROFILO:(.+)$') { $matches[1] } else { 'BASE' }
+                Installa-Pacchetto -Nome $(if ($prof -eq 'GAMING') { 'Opera GX' } else { 'Google Chrome' }) -WingetId $(if ($prof -eq 'GAMING') { 'Opera.OperaGX' } else { 'Google.Chrome' })
+                foreach ($a in $CatalogoApp) {
+                    if ($prof -eq 'COMPLETO' -or ($a.Profili -contains $prof)) {
+                        Installa-Pacchetto -Nome $a.Nome -WingetId $a.Id
+                    }
+                }
+            }
+            Remove-IconeDoppieDesktop
+            Repair-DesktopShortcuts
+            Update-PannelloStatus -TaskId "app" -Stato "done" -Dettaglio "Completato"
+        }
+        'icone' {
+            Remove-IconeDoppieDesktop
+            Repair-DesktopShortcuts
+            Write-OK "Icone Desktop riparate e duplicate rimosse."
+            Update-PannelloStatus -TaskId "app" -Stato "done" -Dettaglio "Icone Desktop riparate"
+        }
+        'office' {
+            Update-PannelloStatus -TaskId "office" -Stato "running" -Dettaglio "Installazione Office ($param)..."
+            switch ($param) {
+                'libreoffice' { Installa-Pacchetto -Nome "LibreOffice" -WingetId "TheDocumentFoundation.LibreOffice" }
+                'openoffice'  { Installa-Pacchetto -Nome "OpenOffice" -WingetId "Apache.OpenOffice"; Repair-DesktopShortcuts }
+                default       {
+                    if (-not (Test-OfficeInstallato)) { Installa-Pacchetto -Nome "Microsoft 365" -WingetId "Microsoft.Office" }
+                    Add-CollegamentiOffice
+                }
+            }
+            Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Office installato"
+        }
+        'officeattiva' {
+            $urlOff = if ($param -eq 'perpetuo') { "https://office.com/setup" } else { "https://microsoft365.com/setup" }
+            Open-PaginaWeb $urlOff
+            Mostra-CredenzialiPagina -Utente $Global:credMsAccount -Password $Global:credMsPassword
+            Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Pagina attivazione aperta"
+        }
+        'antivirus' {
+            Update-PannelloStatus -TaskId "antivirus" -Stato "running" -Dettaglio "Attivazione antivirus..."
+            if ($param -eq 'norton') {
+                Installa-Antivirus -Nome "Norton" -UrlRiscatto "https://www.norton.com/setup" -Utente $Global:credMsAccount -Password $Global:credMsPassword
+            } else {
+                Installa-Antivirus -Nome "McAfee" -UrlRiscatto "https://www.mcafee.com/activate" -Utente $Global:credMsAccount -Password $Global:credMsPassword
+            }
+            Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Antivirus avviato"
+        }
+        'cyber' {
+            Update-PannelloStatus -TaskId "cyber" -Stato "running" -Dettaglio "Apertura Cyber Protection..."
+            Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $Global:credMsAccount
+            Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Configurato"
+        }
+        'pulizia' {
+            Update-PannelloStatus -TaskId "pulizia" -Stato "running" -Dettaglio "Pulizia bloatware e ottimizzazione..."
+            Invoke-PuliziaSistema
+            $Global:PuliziaFatta = $true
+            Update-PannelloStatus -TaskId "pulizia" -Stato "done" -Dettaglio "Completato"
+        }
+        'driver' {
+            Update-PannelloStatus -TaskId "driver" -Stato "running" -Dettaglio "Ricerca e installazione driver..."
+            [void](Install-WindowsUpdateDrivers -TimeoutSec 360 -Test:$Test)
+            Update-PannelloStatus -TaskId "driver" -Stato "done" -Dettaglio "Completato"
+        }
+        'aggiorna' {
+            Update-PannelloStatus -TaskId "aggiorna" -Stato "running" -Dettaglio "Aggiornamento app e firme..."
+            if (Confirm-Winget) {
+                [void](Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600)
+            }
+            Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Dettaglio "Completato"
+        }
+        'scheda' {
+            if (Get-Command Invoke-SchedaConsegnaFinale -ErrorAction SilentlyContinue) {
+                Invoke-SchedaConsegnaFinale
+            }
+        }
+        'diagnostica' {
+            Invoke-PcFacileDiagnostics -MostraDettagli | Out-Null
+            Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Dettaglio "Check salute eseguito"
+        }
+    }
+}
+
+function Invoke-PassiSingoliCoda {
+    if ($Global:PannelloSync -and $Global:PannelloSync.CodaStep) {
+        $voceStep = $null
+        while ($Global:PannelloSync.CodaStep.TryDequeue([ref]$voceStep)) {
+            if ($voceStep) {
+                try {
+                    $parsedStep = $voceStep | ConvertFrom-Json
+                    Invoke-PassoSingolo $parsedStep
+                } catch {}
+            }
+        }
+    }
+}
+
 # La percentuale del pannello la guidano i passi (i singoli passi aggiornano
 # solo stato e dettaglio del proprio task).
 $Global:PercentualeDaPassi = $true
@@ -6643,9 +7393,9 @@ if ($voce.Gruppo -ne $gruppoMostrato) {
     Write-Host ""
     Write-Host ("$AON  " + $gruppiNomi[$voce.Gruppo] + "$AOFF") -ForegroundColor $THEME_COL
 }
-# Dati del cliente dal pannello: arrivano quando l'operatore conferma (anche
-# durante la fase 1) e valgono dal passo successivo. Non blocca.
+# Dati del cliente e singoli passaggi dal pannello: non bloccano.
 [void](Get-CredenzialiSalvatePannello)
+Invoke-PassiSingoliCoda
 # Passi manuali: la pulizia (niente domande, niente browser) parte in background
 # e, se non sono ancora arrivati, si aspettano i dati del cliente.
 if ($voce.Gruppo -eq 2) {
@@ -7246,17 +7996,17 @@ try {
 }
 
 # Riconoscimento nomi e hostname generici di fabbrica / OEM (da non lasciare sul PC del cliente)
-$oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP')
+$oemNames = @('OEM', 'ADMIN', 'ADMINISTRATOR', 'USER', 'OWNER', 'DEFAULTUSER0', 'PC', 'LAPTOP', 'DESKTOP', 'CLT', 'CLT CLT', 'CLTCLT', 'CLIENTE')
 $isOemUser = ($oemNames -contains $env:USERNAME.ToUpper()) -or [string]::IsNullOrWhiteSpace($nomeAttuale) -or ($oemNames -contains $nomeAttuale.ToUpper())
 $isOemComputer = ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$') -or ($oemNames -contains $env:COMPUTERNAME.ToUpper())
 
 # Il nome arriva dai dati del cliente (pannello, una volta sola).
-if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(Cliente|OEM|Utente)$') {
+if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(?i)(Cliente|OEM|Utente|clt|clt\s*clt)$') {
     $nomeCliente = $Global:nomeCliente
 }
 
-if (-not $nomeCliente) {
-    if ($isOemUser -or $env:USERNAME -match '^(telef|oem|admin|user|utente)$') {
+if (-not $nomeCliente -or $oemNames -contains $nomeCliente.Trim().ToUpper()) {
+    if ($isOemUser -or $env:USERNAME -match '^(?i)(telef|oem|admin|user|utente|clt|clt\s*clt)$') {
         $nomeCliente = "Utente"
     } else {
         $nomeCliente = $env:USERNAME
@@ -7272,33 +8022,8 @@ if (-not $RunReale) {
     Write-Info "(test) nome account e nome PC non modificati (cliente: $nomeCliente)."
     Add-Report "Nome cliente ($nomeCliente)" "OK (test)"
 } elseif ($nomeCliente -and $nomeCliente -ne "") {
-    $nomeOk = $false
-    # 1) Metodo moderno (modulo LocalAccounts)
-    if ($nomeAttuale -and $nomeAttuale -eq $nomeCliente) {
-        # Gia' impostato (es. dall'operatore o da un giro precedente): non tocco nulla.
-        $nomeOk = $true
-    } else { try {
-        Set-LocalUser -Name $env:USERNAME -FullName $nomeCliente -ErrorAction Stop
-        $nomeOk = $true
-    } catch {
-        # 2) Fallback ADSI/WinNT
-        try {
-            $u = [ADSI]$adsiUser
-            $u.FullName = $nomeCliente
-            $u.SetInfo()
-            $nomeOk = $true
-        } catch {}
-    } }
-    if ($nomeOk) {
-        Write-OK "Nome account utente impostato su: $nomeCliente"
-        Add-Report "Nome cliente ($nomeCliente)" "OK"
-    } else {
-        Write-Info "Nome visualizzato account: $env:USERNAME"
-        Add-Report "Nome cliente" "OK"
-    }
-
     # Rinomina il PC in 'PC-Nome' o 'PC-Utente' (priorita' al NOME proprio del cliente, max 15 char)
-    $nomeDaUsare = if ($Global:nomeProprioCliente -and $Global:nomeProprioCliente.Trim()) {
+    $nomeDaUsare = if ($Global:nomeProprioCliente -and $Global:nomeProprioCliente.Trim() -and $Global:nomeProprioCliente.Trim() -notmatch '^(?i)(clt|oem|cliente)$') {
         $Global:nomeProprioCliente.Trim()
     } else {
         # Se nomeProprioCliente non e' popolato, estrai il nome da nomeCliente (es. 'Rossi Mario' -> 'Mario')
@@ -7306,20 +8031,15 @@ if (-not $RunReale) {
         if ($parti.Count -gt 1) { $parti[-1] } else { $nomeCliente }
     }
     $cleanPc = ($nomeDaUsare -replace '[^A-Za-z0-9]', '')
-    if (-not $cleanPc -or $cleanPc.ToUpper() -eq "OEM") { $cleanPc = "Utente" }
+    if (-not $cleanPc -or $oemNames -contains $cleanPc.ToUpper()) { $cleanPc = "Utente" }
     $pcNuovo = "PC-$cleanPc"
     if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
 
-    if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
-        try {
-            Rename-Computer -NewName $pcNuovo -Force -ErrorAction Stop
-            Write-OK "Nome PC aggiornato in '$pcNuovo' (attivo dopo il riavvio)."
-            Add-Report "Nome PC ($pcNuovo)" "OK"
-        } catch {
-            Write-Info "Rinomina PC in '$pcNuovo' completata per la configurazione."
-            Add-Report "Nome PC ($pcNuovo)" "OK"
-        }
-    }
+    $resNome = Set-NomeUtenteEPc -NomeUtente $nomeCliente -NomePc $pcNuovo -Silenzioso
+    Write-OK "Nome account utente impostato su: $($resNome.NomeUtente)"
+    Add-Report "Nome cliente ($($resNome.NomeUtente))" "OK"
+    Write-OK "Nome PC aggiornato in '$($resNome.NomePc)' (attivo dopo il riavvio)."
+    Add-Report "Nome PC ($($resNome.NomePc))" "OK"
 } else {
     Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
     Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
@@ -7344,44 +8064,49 @@ trap {
 
 Write-Titolo "Account / Email cliente"
 
-if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
-if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
-# $nomeCliente e' "Cognome Nome" (da $Dati.Cliente, costruito dal pannello come
-# "cognome + nome"): NON va usato per la password, altrimenti prende il cognome
-# come base (New-PasswordCliente usa sempre la PRIMA parola). Uso i campi
-# separati Nome/Cognome quando disponibili (niente ambiguita' di ordine);
-# New-EmailCliente si aspetta "Nome Cognome", quindi li ricompongo in quell'ordine.
-$nomeProprio = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
-$cognomeCli  = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
-$basePerNome = if ($nomeProprio -and $cognomeCli) { "$nomeProprio $cognomeCli" }
-               elseif ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente }
-               else { "utente" }
-if (-not $credMsAccount) {
-    $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
-    $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
+if ($Global:IsCltMode) {
+    Write-Info "Modalita' clt senza email: salto la creazione dell'account email."
+    Add-Report "Account email (clt)" "SALTATO"
+} else {
+    if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
+    if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
+    # $nomeCliente e' "Cognome Nome" (da $Dati.Cliente, costruito dal pannello come
+    # "cognome + nome"): NON va usato per la password, altrimenti prende il cognome
+    # come base (New-PasswordCliente usa sempre la PRIMA parola). Uso i campi
+    # separati Nome/Cognome quando disponibili (niente ambiguita' di ordine);
+    # New-EmailCliente si aspetta "Nome Cognome", quindi li ricompongo in quell'ordine.
+    $nomeProprio = if ($Global:nomeProprioCliente) { $Global:nomeProprioCliente } else { $null }
+    $cognomeCli  = if ($Global:cognomeCliente) { $Global:cognomeCliente } else { $null }
+    $basePerNome = if ($nomeProprio -and $cognomeCli) { "$nomeProprio $cognomeCli" }
+                   elseif ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente }
+                   else { "utente" }
+    if (-not $credMsAccount) {
+        $dom = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
+        $credMsAccount = New-EmailCliente -Base $basePerNome -Dominio $dom
+    }
+    if (-not $credMsPassword) {
+        $basePerPassword = if ($nomeProprio -and $nomeProprio.ToUpper() -ne "OEM") { $nomeProprio } else { $basePerNome }
+        $credMsPassword = New-PasswordCliente -Base $basePerPassword
+    }
+    $provNome = if ($Global:credProvider) { [string]$Global:credProvider } else { "Microsoft" }
+    $Global:credProvider = $provNome
+    # Pagina di registrazione del provider scelto nel pannello (tipo di email).
+    $urlAccount = switch -Regex ($provNome) {
+        '^Google'  { "https://accounts.google.com/signup" }
+        '^Proton'  { "https://account.proton.me/signup?plan=free" }
+        '^Libero'  { "https://registrazione.libero.it" }
+        '^iCloud'  { "https://account.apple.com" }
+        default    { "https://signup.live.com" }
+    }
+    Write-Host "Crea (o apri) ORA l'account $provNome del cliente, col cliente davanti." -ForegroundColor White
+    if ($provNome -notmatch '^(Microsoft|Hotmail|Outlook)') {
+        Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
+        Write-Info "    con $provNome crei l'email del cliente."
+    }
+    Open-PaginaWeb $urlAccount
+    Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
+    Add-Report "Account $provNome ($credMsAccount)" "OK"
 }
-if (-not $credMsPassword) {
-    $basePerPassword = if ($nomeProprio -and $nomeProprio.ToUpper() -ne "OEM") { $nomeProprio } else { $basePerNome }
-    $credMsPassword = New-PasswordCliente -Base $basePerPassword
-}
-$provNome = if ($Global:credProvider) { [string]$Global:credProvider } else { "Microsoft" }
-$Global:credProvider = $provNome
-# Pagina di registrazione del provider scelto nel pannello (tipo di email).
-$urlAccount = switch -Regex ($provNome) {
-    '^Google'  { "https://accounts.google.com/signup" }
-    '^Proton'  { "https://account.proton.me/signup?plan=free" }
-    '^Libero'  { "https://registrazione.libero.it" }
-    '^iCloud'  { "https://account.apple.com" }
-    default    { "https://signup.live.com" }
-}
-Write-Host "Crea (o apri) ORA l'account $provNome del cliente, col cliente davanti." -ForegroundColor White
-if ($provNome -notmatch '^(Microsoft|Hotmail|Outlook)') {
-    Write-Info "NB: per attivare Office/antivirus serve comunque un account Microsoft;"
-    Write-Info "    con $provNome crei l'email del cliente."
-}
-Open-PaginaWeb $urlAccount
-Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
-Add-Report "Account $provNome ($credMsAccount)" "OK"
 }
 'officeattiva' {
 trap {
@@ -7753,6 +8478,7 @@ if ($RunReale) {
     # "Conserva questa chiave"), che resta col PC. Niente file separato sul
     # Desktop e niente chiave nei log.
     # -------------------------------------------------------------------------
+    function Invoke-SchedaConsegnaFinale {
     Update-PannelloStatus -TaskId "diagnostica" -Stato "running" -Percentuale 98 -FaseCorrente "Diagnostica & Scheda Consegna" -Dettaglio "Lettura chiave BitLocker e scheda cliente..."
     Write-Titolo "Chiave di Ripristino BitLocker"
     Write-Host "Riporto la chiave di ripristino nella scheda di consegna: senza, se Windows" -ForegroundColor White
@@ -7777,31 +8503,19 @@ if ($RunReale) {
     #
     # Leggi se l'operatore ha salvato/aggiornato credenziali dal pannello Edge
     Get-CredenzialiSalvatePannello | Out-Null
-    if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(Cliente|OEM|Utente)$') {
+    if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(?i)(Cliente|OEM|Utente|clt|clt\s*clt)$') {
         $nomeCliente = $Global:nomeCliente
-        try {
-            Set-LocalUser -Name $env:USERNAME -FullName $nomeCliente -ErrorAction SilentlyContinue
-        } catch {
-            try {
-                $u = [ADSI]"WinNT://$env:COMPUTERNAME/$env:USERNAME,user"
-                $u.FullName = $nomeCliente
-                $u.SetInfo()
-            } catch {}
-        }
-        $nomeDaUsare = if ($Global:nomeProprioCliente -and $Global:nomeProprioCliente.Trim()) {
+        $nomeDaUsare = if ($Global:nomeProprioCliente -and $Global:nomeProprioCliente.Trim() -and $Global:nomeProprioCliente.Trim() -notmatch '^(?i)(clt|oem|cliente)$') {
             $Global:nomeProprioCliente.Trim()
         } else {
             $parti = $nomeCliente -split '\s+' | Where-Object { $_ }
             if ($parti.Count -gt 1) { $parti[-1] } else { $nomeCliente }
         }
         $cleanPc = ($nomeDaUsare -replace '[^A-Za-z0-9]', '')
-        if ($cleanPc -and $cleanPc.ToUpper() -ne "OEM") {
-            $pcNuovo = "PC-$cleanPc"
-            if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
-            if ($pcNuovo -ne "" -and $pcNuovo.ToUpper() -ne $env:COMPUTERNAME.ToUpper()) {
-                try { Rename-Computer -NewName $pcNuovo -Force -ErrorAction SilentlyContinue } catch {}
-            }
-        }
+        if (-not $cleanPc -or $cleanPc.ToUpper() -eq "OEM") { $cleanPc = "Utente" }
+        $pcNuovo = "PC-$cleanPc"
+        if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
+        [void](Set-NomeUtenteEPc -NomeUtente $nomeCliente -NomePc $pcNuovo -Silenzioso)
     }
 
     # $nomeCliente e' "Cognome Nome" (da $Dati.Cliente): per email/password uso
@@ -7814,33 +8528,38 @@ if ($RunReale) {
     $baseEmailRete = if ($nomeProprioRete -and $cognomeRete) { "$nomeProprioRete $cognomeRete" } else { $nomeCliente }
     $basePassRete  = if ($nomeProprioRete) { $nomeProprioRete } else { $nomeCliente }
 
-    # Se dal pannello sono arrivate credenziali, hanno la precedenza assoluta
-    if ($Global:credMsAccount) {
-        $credMsAccount = $Global:credMsAccount
-    } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsAccount -match 'telef|oem|admin|user|utente' -or -not $credMsAccount)) {
-        $domRete = if ($Global:credDominio) { $Global:credDominio } else { "proton.me" }
-        $credMsAccount = New-EmailCliente -Base $baseEmailRete -Dominio $domRete
-    }
+    if ($Global:IsCltMode) {
+        $credMsAccount = ""
+        $credMsPassword = ""
+    } else {
+        # Se dal pannello sono arrivate credenziali, hanno la precedenza assoluta
+        if ($Global:credMsAccount) {
+            $credMsAccount = $Global:credMsAccount
+        } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsAccount -match 'telef|oem|admin|user|utente' -or -not $credMsAccount)) {
+            $domRete = if ($Global:credDominio) { $Global:credDominio } else { "proton.me" }
+            $credMsAccount = New-EmailCliente -Base $baseEmailRete -Dominio $domRete
+        }
 
-    if ($Global:credMsPassword) {
-        $credMsPassword = $Global:credMsPassword
-    } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsPassword -match 'Telef|OEM|Admin|Utente' -or -not $credMsPassword)) {
-        $credMsPassword = New-PasswordCliente -Base $basePassRete
-    }
+        if ($Global:credMsPassword) {
+            $credMsPassword = $Global:credMsPassword
+        } elseif ($nomeCliente -and $nomeCliente -notmatch '^(Cliente|OEM|Utente)$' -and ($credMsPassword -match 'Telef|OEM|Admin|Utente' -or -not $credMsPassword)) {
+            $credMsPassword = New-PasswordCliente -Base $basePassRete
+        }
 
-    if ($Global:credProvider) {
-        $provNome = $Global:credProvider
-    }
+        if ($Global:credProvider) {
+            $provNome = $Global:credProvider
+        }
 
-    # RETE DI SICUREZZA sulla PASSWORD: nel file non deve MAI mancare.
-    if (-not $credMsPassword) {
-        $basePass = if ($basePassRete -and $basePassRete.ToUpper() -ne "OEM") { $basePassRete } else { "Utente" }
-        $credMsPassword = New-PasswordCliente -Base $basePass
-    }
-    if (-not $credMsAccount) {
-        $baseAcc = if ($baseEmailRete -and $baseEmailRete.ToUpper() -ne "OEM") { $baseEmailRete } else { "utente" }
-        $domRete = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
-        $credMsAccount = New-EmailCliente -Base $baseAcc -Dominio $domRete
+        # RETE DI SICUREZZA sulla PASSWORD: nel file non deve MAI mancare (salvo modalita' clt).
+        if (-not $credMsPassword) {
+            $basePass = if ($basePassRete -and $basePassRete.ToUpper() -ne "OEM") { $basePassRete } else { "Utente" }
+            $credMsPassword = New-PasswordCliente -Base $basePass
+        }
+        if (-not $credMsAccount) {
+            $baseAcc = if ($baseEmailRete -and $baseEmailRete.ToUpper() -ne "OEM") { $baseEmailRete } else { "utente" }
+            $domRete = if ($Global:credDominio) { $Global:credDominio } else { "outlook.it" }
+            $credMsAccount = New-EmailCliente -Base $baseAcc -Dominio $domRete
+        }
     }
     try {
         $winOk   = ($winActInfo.Attivo -or (@($Report | Where-Object { $_.Voce -eq 'Windows attivato' -and $_.Esito -eq 'OK' }).Count -gt 0))
@@ -7897,10 +8616,11 @@ if ($RunReale) {
         # ProgramData\PCFacile\log e NON contiene password ne' recovery key.
         $provNome = if ($Global:credProvider) { $Global:credProvider } elseif ($prov) { $prov.Nome } else { "Microsoft" }
 
-        $clienteDisplay = if ($nomeCliente -and $nomeCliente.ToUpper() -ne "OEM") { $nomeCliente } elseif ($isOemUser -or $env:USERNAME.ToUpper() -eq "OEM") { "Utente" } else { $env:USERNAME }
-        $pcDisplay = if ($pcNuovo) { $pcNuovo } elseif ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$' -or $env:COMPUTERNAME.ToUpper() -eq "OEM") { "PC-$clienteDisplay" } else { $env:COMPUTERNAME }
+        $clienteDisplay = if ($Global:nomeCliente -and $Global:nomeCliente -notmatch '^(?i)(OEM|clt|clt\s*clt)$') { $Global:nomeCliente } elseif ($nomeCliente -and $nomeCliente -notmatch '^(?i)(OEM|clt|clt\s*clt)$') { $nomeCliente } elseif ($isOemUser -or $env:USERNAME -match '^(?i)(oem|clt|clt\s*clt)$') { "Utente" } else { $env:USERNAME }
+        $pcDisplay = if ($Global:PannelloStatus -and $Global:PannelloStatus.NomePcAttuale) { $Global:PannelloStatus.NomePcAttuale } elseif ($pcNuovo) { $pcNuovo } elseif ($env:COMPUTERNAME -match '^(LAPTOP|DESKTOP|WIN)-[A-Z0-9]{4,10}$' -or $env:COMPUTERNAME -match '^(?i)(oem|clt|pc-clt)$') { "PC-$clienteDisplay" } else { $env:COMPUTERNAME }
 
-        $isClt = ($nomeCliente -match '(?i)^(clt\s*clt|clt)$') -or
+        $isClt = [bool]$Global:IsCltMode -or
+                 ($nomeCliente -match '(?i)^(clt\s*clt|clt)$') -or
                  ($Global:nomeCliente -match '(?i)^(clt\s*clt|clt)$') -or
                  ($Global:nomeProprioCliente -match '(?i)^clt$' -and ($Global:cognomeCliente -match '(?i)^clt$' -or -not $Global:cognomeCliente))
 
@@ -8248,6 +8968,8 @@ if ($RunReale) {
     Send-ReportGitHub -ReportVoci $Report
     Repair-DesktopShortcuts
     Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
+    }
+    Invoke-SchedaConsegnaFinale
 }
 
 # -----------------------------------------------------------------------------
@@ -8257,10 +8979,11 @@ if ($RunReale) {
 # cancella in modo PERMANENTE, NON passa dal Cestino. La SCHEDA DI CONSEGNA
 # (PDF) sul Desktop resta: serve al cliente. Se lo script gira dalla chiavetta (offline) la copia
 # locale NON viene toccata. Fatto PRIMA dell'eventuale riavvio, cosi' parte sempre.
+# Il server del pannello resta attivo durante il menu finale cosi' l'operatore
+# puo' ancora usare la scheda "4. Passaggi", e viene chiuso all'uscita.
 # -----------------------------------------------------------------------------
 if ($RunReale) {
     try {
-        Stop-LocalCredServer
         Restore-SilentElevation
         # Console riportata com'era: tolgo TUTTI i valori scritti dal .bat e da
         # questo script (colori, font, VT), poi reimporto il backup originale
@@ -8274,10 +8997,6 @@ if ($RunReale) {
             & reg.exe import $Global:ConsoleBackupFile 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) { Remove-Item -LiteralPath $Global:ConsoleBackupFile -Force -ErrorAction SilentlyContinue }
         }
-        # Il pannello operatore generato in %TEMP% contiene email e password
-        # precompilate: lo cancello (la pagina gia' aperta nel browser resta).
-        $tmpPannello = Join-Path $(if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }) "Pannello-Operatore.html"
-        Remove-Item -LiteralPath $tmpPannello -Force -ErrorAction SilentlyContinue
     } catch {}
     # Lavoro COMPLETATO: via il checkpoint di ripresa sessione (contiene anche
     # le credenziali generate: non deve restare sul PC del cliente). La cartella
@@ -8341,11 +9060,12 @@ if ($RunReale -and $Global:JobWinUpdate) {
     }
 }
 
-# MENU DI CHIUSURA: Check Salute PC oppure Riavvio
+# MENU DI CHIUSURA: Check Salute PC oppure Riavvio (il pannello web resta collegato!)
 if ($RunReale) {
     Set-PreventSleep $false
     Write-Titolo "COMPLETAMENTO PC FACILE"
     Write-Host "Configurazione e ottimizzazione completate con successo!" -ForegroundColor Green
+    Write-Host "  (Il Pannello Operatore resta attivo: puoi usare la scheda '4. Passaggi' per ripetere qualsiasi operazione)" -ForegroundColor Cyan
     Write-Host ""
     
     $linguaOk = @($Report | Where-Object { $_.Voce -like "Lingua italiana (it-IT*" -and $_.Esito -eq "OK" }).Count -gt 0
@@ -8364,11 +9084,21 @@ if ($RunReale) {
                 Write-Host ""
             }
             "2" {
+                try {
+                    Stop-LocalCredServer
+                    $tmpPannello = Join-Path $(if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }) "Pannello-Operatore.html"
+                    Remove-Item -LiteralPath $tmpPannello -Force -ErrorAction SilentlyContinue
+                } catch {}
                 Write-Info "Riavvio del PC in corso..."
                 Restart-Computer -Force
                 break
             }
             "3" {
+                try {
+                    Stop-LocalCredServer
+                    $tmpPannello = Join-Path $(if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }) "Pannello-Operatore.html"
+                    Remove-Item -LiteralPath $tmpPannello -Force -ErrorAction SilentlyContinue
+                } catch {}
                 if ($linguaOk) {
                     Write-Info "Ricordati di riavviare prima di consegnare il PC per applicare lingua e nuove impostazioni."
                 }

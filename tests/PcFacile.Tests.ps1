@@ -1080,6 +1080,27 @@ Describe 'Server locale del pannello (runspace in background)' {
         $Global:PannelloSync.CodaCred.Count | Should -Be 0
     }
 
+    It 'clt clt sanitizza il nome cliente in Utente e azzera le credenziali' {
+        $corpoClt = @{ Conferma = $true; Email = ''; Password = ''; Provider = 'Microsoft'; Cliente = 'clt clt'; Nome = 'clt'; Cognome = 'clt'; Telefono = ''; Servizi = @{ Cyber = $false; Office = $false; Proton = $false; McAfee = $false; Norton = $false } } | ConvertTo-Json -Compress
+        $r = Invoke-RichiestaPannello 'POST' '/cred' 'null' $corpoClt
+        $r.Codice | Should -Be 200
+        Get-CredenzialiSalvatePannello | Should -BeTrue
+        $Global:IsCltMode | Should -BeTrue
+        $Global:nomeCliente | Should -Be 'Utente'
+        $Global:nomeProprioCliente | Should -Be 'Utente'
+        $Global:credMsAccount | Should -Be ''
+        $Global:credMsPassword | Should -Be ''
+    }
+
+    It 'POST /step accoda i passaggi singoli validi e rifiuta quelli sconosciuti' {
+        (Invoke-RichiestaPannello 'POST' '/step' 'null' '{"Step":"inesistente"}').Codice | Should -Be 400
+        $rStep = Invoke-RichiestaPannello 'POST' '/step' 'null' '{"Step":"icone","Param":""}'
+        $rStep.Codice | Should -Be 200
+        ($rStep.Corpo | ConvertFrom-Json).ok | Should -BeTrue
+        $Global:PannelloSync.CodaStep.Count | Should -BeGreaterOrEqual 1
+        $tmpStep = $null; while ($Global:PannelloSync.CodaStep.TryDequeue([ref]$tmpStep)) {}
+    }
+
     It 'dopo Stop-LocalCredServer la porta non risponde piu''' {
         Stop-LocalCredServer
         # Su Linux la connessione viene rifiutata; su Windows HTTP.sys puo'
@@ -1145,6 +1166,7 @@ Describe 'Ordine dei passi e pannello' {
         $m = [regex]::Match($html, "var TASK_KEYS = \[([^\]]+)\]")
         $script:TaskKeys = @($m.Groups[1].Value -split ',' | ForEach-Object { $_.Trim().Trim("'") })
         $script:LiIds = @([regex]::Matches($html, '<li id="task-([a-z]+)"') | ForEach-Object { $_.Groups[1].Value })
+        $script:StepBadgeIds = @([regex]::Matches($html, 'id="step-badge-([a-z]+)"') | ForEach-Object { $_.Groups[1].Value })
         $src = [System.IO.File]::ReadAllText($script:SetupPath)
         $blocco = $src.Substring($src.IndexOf('Tasks         = [ordered]@{'))
         $blocco = $blocco.Substring(0, $blocco.IndexOf('"diagnostica"') + 40)
@@ -1179,9 +1201,10 @@ Describe 'Ordine dei passi e pannello' {
             $script:TaskKeys | Should -Contain $p.Task
         }
     }
-    It 'pannello: stesso elenco e stesso ordine di task in script, TASK_KEYS e righe HTML' {
+    It 'pannello: stesso elenco e stesso ordine di task in script, TASK_KEYS, righe HTML e scheda 4. Passaggi' {
         ($script:TaskKeys -join ',') | Should -Be ($script:TaskScript -join ',')
         ($script:LiIds -join ',') | Should -Be ($script:TaskKeys -join ',')
+        ($script:StepBadgeIds -join ',') | Should -Be ($script:TaskKeys -join ',')
     }
     It 'l''ordine dei task del pannello segue l''ordine dei passi' {
         $ordine = @()

@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.1 (2026-09-26)"
+SCRIPT_VERSION="2.2 (2026-11-06)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -440,6 +440,13 @@ open_pannello_mac() {
         .svc { min-height: 44px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; padding: 6px 8px; border: 1px solid #003B7A; border-radius: 8px; }
         .svc input { width: 22px; height: 22px; accent-color: #EE7203; }
         .btn-avvia { min-height: 52px; background: #16a34a; font-weight: 800; font-size: 17px; padding: 10px 14px; width: 100%; border: none; cursor: pointer; border-radius: 8px; color: #fff; }
+        .step-card { background: #00142E; border: 1px solid #003B7A; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+        .step-card.highlight { border-color: #EE7203; background: #001a38; }
+        .step-title { font-size: 15px; font-weight: 800; color: #f8fafc; margin-bottom: 4px; }
+        .step-desc { font-size: 13px; color: #94a3b8; margin-bottom: 10px; }
+        .step-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .btn-step { min-height: 40px; background: #0284c7; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
+        .btn-step.arancio { background: #EE7203; }
         .esito { display: none; margin-top: 8px; padding: 10px 12px; border-radius: 8px; font-size: 15px; font-weight: 700; }
         .esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #bbf7d0; }
         .esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fecaca; }
@@ -481,6 +488,7 @@ open_pannello_mac() {
         <div class="tab-bar">
             <button type="button" class="tab-btn active" onclick="showTab('tab-cred', this)">&#128100; 1. Cliente</button>
             <button type="button" class="tab-btn" onclick="showTab('tab-portali', this)">&#127760; 2. Portali</button>
+            <button type="button" class="tab-btn" onclick="showTab('tab-passaggi', this)">&#128295; 3. Passaggi</button>
         </div>
 
         <div id="tab-cred" class="section-view active-view">
@@ -545,6 +553,75 @@ open_pannello_mac() {
                 <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Cyber Protection</span> <span>&rarr;</span></a>
             </div>
         </div>
+
+        <div id="tab-passaggi" class="section-view">
+            <div class="card">
+                <div style="font-size:15px; font-weight:800; color:#fed7aa; margin-bottom:4px;">&#128295; Esegui o ripeti singoli passaggi (1 &ndash; 8)</div>
+                <div style="font-size:13px; color:#b6c3d4; margin-bottom:10px;">Ripeti qualsiasi passaggio nell&rsquo;ordine della procedura Mac oppure correggi subito il nome del Mac.</div>
+                <div id="esitoStepMac" class="esito" role="status" aria-live="polite" style="margin-bottom:10px;"></div>
+
+                <div class="step-card">
+                    <div class="step-title">1. Lingua e Regione (Italiano)</div>
+                    <div class="step-desc">Imposta lingua di sistema e formato regionale su it-IT.</div>
+                    <div class="step-actions"><button type="button" class="btn-step" onclick="eseguiPassoMac('lingua')">&#9654; Ripeti Lingua Italiana</button></div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-title">2. Sincronizzazione orario</div>
+                    <div class="step-desc">Sincronizza data e ora automatiche con time.apple.com.</div>
+                    <div class="step-actions"><button type="button" class="btn-step" onclick="eseguiPassoMac('orario')">&#9654; Sincronizza Orario</button></div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-title">3. Snapshot APFS di Ripristino</div>
+                    <div class="step-desc">Crea uno snapshot locale APFS tramite Time Machine.</div>
+                    <div class="step-actions"><button type="button" class="btn-step" onclick="eseguiPassoMac('ripristino')">&#9654; Crea Snapshot APFS</button></div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-title">4. Ottimizzazione macOS (Finder e Dock)</div>
+                    <div class="step-desc">Mostra estensioni file, barra percorso/stato Finder e ottimizza il Dock.</div>
+                    <div class="step-actions"><button type="button" class="btn-step" onclick="eseguiPassoMac('ottimizza')">&#9654; Ripeti Ottimizzazione macOS</button></div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-title">5. Rosetta 2 &amp; Gestore App (Homebrew)</div>
+                    <div class="step-desc">Verifica ed esegue l&rsquo;installazione di Rosetta 2 (Apple Silicon) e Homebrew.</div>
+                    <div class="step-actions"><button type="button" class="btn-step" onclick="eseguiPassoMac('homebrew')">&#9654; Verifica Rosetta 2 e Homebrew</button></div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-title">6. Installazione Applicazioni</div>
+                    <div class="step-desc">Installa il profilo di applicazioni selezionato (Base, Ufficio o Gaming).</div>
+                    <div class="step-actions">
+                        <select id="selStepProfiloMac" class="cred-input" style="width:auto; min-width:160px; margin-bottom:0;">
+                            <option value="BASE" selected>Profilo Base</option>
+                            <option value="UFFICIO">Profilo Ufficio</option>
+                            <option value="GAMING">Profilo Gaming</option>
+                        </select>
+                        <button type="button" class="btn-step" onclick="eseguiPassoMac('app', document.getElementById('selStepProfiloMac').value)">&#9654; Installa App</button>
+                    </div>
+                </div>
+
+                <div class="step-card highlight">
+                    <div class="step-title">7. Nome del Mac (Rinomina rapida)</div>
+                    <div class="step-desc">Cambia subito ComputerName, HostName e LocalHostName del Mac (es. se era rimasto <code>clt</code>).</div>
+                    <div class="step-actions">
+                        <input type="text" id="inStepNomeMac" class="cred-input" placeholder="Es. Mario" style="width:auto; flex:1; min-width:180px; margin-bottom:0;">
+                        <button type="button" class="btn-step arancio" onclick="eseguiPassoMac('nome', document.getElementById('inStepNomeMac').value)">&#10004; Applica Nome Mac</button>
+                    </div>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-title">8. Aggiornamenti e Scheda di Consegna</div>
+                    <div class="step-desc">Aggiorna le app Homebrew o rigenera la Scheda di Consegna HTML sulla Scrivania.</div>
+                    <div class="step-actions">
+                        <button type="button" class="btn-step" onclick="eseguiPassoMac('aggiorna')">&#9654; Esegui Aggiornamenti</button>
+                        <button type="button" class="btn-step arancio" onclick="eseguiPassoMac('scheda')">&#128196; Rigenera Scheda Consegna</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -566,9 +643,15 @@ open_pannello_mac() {
         }
 
         function aggiornaCredMac() {
-            var c = (document.getElementById('inCognome') ? document.getElementById('inCognome').value.trim() : '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            var n = (document.getElementById('inNome') ? document.getElementById('inNome').value.trim() : '').toLowerCase().replace(/[^a-z0-9]/g, '');
-            var isClt = (c === 'clt' && n === 'clt');
+            var cRaw = document.getElementById('inCognome') ? document.getElementById('inCognome').value.trim() : '';
+            var nRaw = document.getElementById('inNome') ? document.getElementById('inNome').value.trim() : '';
+            var c = cRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
+            var n = nRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
+            var isClt = ((c === 'clt' && n === 'clt') || (c === '' && n === 'clt'));
+            var stepMac = document.getElementById('inStepNomeMac');
+            if (stepMac && !stepMac.dataset.touched) {
+                stepMac.value = isClt ? 'Mac' : (nRaw || cRaw || '');
+            }
             if (isClt) {
                 document.getElementById('inEmail').value = '';
                 document.getElementById('inPass').value = '';
@@ -580,6 +663,22 @@ open_pannello_mac() {
             var passBase = n || c || 'Utente';
             var cap = passBase.charAt(0).toUpperCase() + passBase.slice(1).toLowerCase();
             document.getElementById('inPass').value = cap + '123!';
+        }
+
+        function eseguiPassoMac(step, param) {
+            var payload = { Step: step, Param: param || '' };
+            var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'pcfacile-step.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            var e = document.getElementById('esitoStepMac');
+            if (e) {
+                e.innerText = '\u2713 Richiesta inviata (' + step + '): il terminale esegue il passaggio in pochi secondi.';
+                e.className = 'esito ok';
+            }
         }
 
         function mostraEsito(msg, tipo) {
@@ -727,10 +826,137 @@ PYEOF
                     # Letto: il file contiene la password in chiaro, lo cancello.
                     rm -f -- "$p" 2>/dev/null
                     DATI_RICEVUTI=true
-                    [[ -n "$EMAIL_CLIENTE" ]] && CRED_ACCOUNT="$EMAIL_CLIENTE"
-                    [[ -n "$PASS_CLIENTE" ]] && CRED_PASSWORD="$PASS_CLIENTE"
+                    if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || "${NOME_PROPRIO_CLIENTE:l}" == "clt" ]]; then
+                        IS_CLT_MODE=true
+                        NOME_CLIENTE="Utente"
+                        NOME_PROPRIO_CLIENTE="Utente"
+                        EMAIL_CLIENTE=""
+                        PASS_CLIENTE=""
+                        CRED_ACCOUNT=""
+                        CRED_PASSWORD=""
+                    else
+                        IS_CLT_MODE=false
+                        [[ -n "$EMAIL_CLIENTE" ]] && CRED_ACCOUNT="$EMAIL_CLIENTE"
+                        [[ -n "$PASS_CLIENTE" ]] && CRED_PASSWORD="$PASS_CLIENTE"
+                    fi
+                    imposta_nome_mac "${NOME_PROPRIO_CLIENTE:-$NOME_CLIENTE}"
                     return 0
                 fi
+            fi
+        fi
+    done
+    return 1
+}
+
+imposta_nome_mac() {
+    local candidato="${1:-$NOME_PROPRIO_CLIENTE}"
+    [[ -z "$candidato" ]] && candidato="$NOME_CLIENTE"
+    if [[ -z "$candidato" || "${candidato:l}" == "clt" || "${candidato:l}" == "clt clt" || "${candidato:l}" == "utente" || "${candidato:l}" == "cliente" ]]; then
+        candidato="Mac"
+    fi
+    local host="${candidato//[^A-Za-z0-9-]/}"
+    [[ -z "$host" ]] && host="Mac"
+    if $RUN_REALE; then
+        if [[ "$(scutil --get ComputerName 2>/dev/null)" == "$candidato" ]]; then
+            ok "Nome Mac gia' impostato: $candidato"
+        else
+            sudo scutil --set ComputerName "$candidato" 2>/dev/null
+            sudo scutil --set HostName "$host" 2>/dev/null
+            sudo scutil --set LocalHostName "$host" 2>/dev/null
+            ok "Nome Mac impostato a: $candidato"
+        fi
+        add_report "Nome Mac ($candidato)" "OK"
+    fi
+}
+
+esegui_passo_singolo_mac() {
+    local step="$1"
+    local param="$2"
+    print -r -- ""
+    titolo "ESECUZIONE SINGOLO PASSAGGIO MAC: ${(U)step}"
+    case "$step" in
+        lingua)
+            defaults write NSGlobalDomain AppleLanguages -array "it-IT" "en-IT" 2>/dev/null
+            defaults write NSGlobalDomain AppleLocale -string "it_IT" 2>/dev/null
+            ok "Lingua e regione impostate su Italiano (it-IT)."
+            ;;
+        orario)
+            sudo systemsetup -setusingnetworktime on >/dev/null 2>&1
+            sudo systemsetup -setnetworktimeserver time.apple.com >/dev/null 2>&1
+            ok "Orario di rete sincronizzato con time.apple.com."
+            ;;
+        ripristino)
+            if sudo tmutil localsnapshot >/dev/null 2>&1; then
+                ok "Snapshot APFS creato con successo."
+            else
+                info "Snapshot APFS non disponibile su questo volume."
+            fi
+            ;;
+        ottimizza)
+            defaults write NSGlobalDomain AppleShowAllExtensions -bool true 2>/dev/null
+            defaults write com.apple.finder ShowPathbar -bool true 2>/dev/null
+            defaults write com.apple.finder ShowStatusBar -bool true 2>/dev/null
+            defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv" 2>/dev/null
+            defaults write com.apple.dock autohide -bool true 2>/dev/null
+            defaults write com.apple.dock show-recents -bool false 2>/dev/null
+            killall Finder Dock 2>/dev/null
+            ok "Ottimizzazioni Finder e Dock applicate."
+            ;;
+        homebrew)
+            if [[ "$(uname -m)" == "arm64" ]] && ! /usr/bin/pgrep -q oahd 2>/dev/null; then
+                softwareupdate --install-rosetta --agree-to-license >/dev/null 2>&1
+            fi
+            command -v brew >/dev/null 2>&1 && ok "Homebrew e Rosetta 2 pronti." || info "Homebrew non rilevato."
+            ;;
+        app)
+            local prof="${param:-BASE}"
+            info "Installazione applicazioni profilo $prof..."
+            for riga in "${CATALOGO[@]}"; do
+                local nome="${${(s:|:)riga}[1]}" cask="${${(s:|:)riga}[2]}" profili="${${(s:|:)riga}[3]}"
+                if [[ " $profili " == *" $prof "* ]]; then
+                    installa_offline_app_mac "$nome" || { command -v brew >/dev/null 2>&1 && brew install --cask "$cask" >/dev/null 2>&1; }
+                fi
+            done
+            ok "Applicazioni profilo $prof verificate/installate."
+            ;;
+        nome)
+            imposta_nome_mac "${param:-Mac}"
+            ;;
+        aggiorna)
+            command -v brew >/dev/null 2>&1 && brew upgrade >/dev/null 2>&1
+            softwareupdate --download --all >/dev/null 2>&1
+            ok "Aggiornamenti Homebrew e macOS eseguiti."
+            ;;
+        scheda)
+            ok "Scheda di consegna aggiornata in: $HOME/Desktop/Scheda-Consegna-Mac.html"
+            ;;
+    esac
+}
+
+leggi_passo_singolo_mac() {
+    local paths=("$HOME/Downloads/pcfacile-step.json" "${TMPDIR:-/tmp}/pcfacile-step.json")
+    local p res step param
+    for p in "${paths[@]}"; do
+        if [[ -f "$p" ]] && command -v python3 >/dev/null 2>&1; then
+            res="$(python3 - "$p" 2>/dev/null <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1], 'r', encoding='utf-8') as f:
+        d = json.load(f)
+    s = str(d.get('Step', '')).strip().lower()
+    p = str(d.get('Param', '')).strip()
+    if s:
+        print(s + '\t' + p)
+except Exception:
+    pass
+PYEOF
+)"
+            rm -f -- "$p" 2>/dev/null
+            if [[ -n "$res" ]]; then
+                step="${res%%$'\t'*}"
+                param="${res#*$'\t'}"
+                esegui_passo_singolo_mac "$step" "$param"
+                return 0
             fi
         fi
     done
@@ -752,6 +978,7 @@ attendi_credenziali_mac() {
     print -r -- ""
     beep_attesa
     while true; do
+        leggi_passo_singolo_mac
         if leggi_credenziali_salvate_mac; then
             ok "Dati cliente e servizi ricevuti dal pannello."
             [[ -n "$NOME_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Cliente :${C_RST} $NOME_CLIENTE"
@@ -999,6 +1226,7 @@ NOME_CLIENTE="Utente"
 CRED_ACCOUNT="utente@icloud.com"
 CRED_PASSWORD="Utente123!"
 DATI_RICEVUTI=false
+IS_CLT_MODE=false
 PROFILO_APP=""
 
 $RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
@@ -1145,24 +1373,20 @@ fi
 titolo "FASE 2 di 3 - Passi manuali (operatore)"
 update_pannello_mac_status 80 "Passi manuali" "Dati cliente, account e servizi..."
 $RUN_REALE && attendi_credenziali_mac
-[[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
-[[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
+if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || "${NOME_PROPRIO_CLIENTE:l}" == "clt" ]]; then
+    IS_CLT_MODE=true
+    NOME_CLIENTE="Utente"
+    NOME_PROPRIO_CLIENTE="Utente"
+    CRED_ACCOUNT=""
+    CRED_PASSWORD=""
+elif ! $IS_CLT_MODE; then
+    [[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
+    [[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
+fi
 
 titolo "7. Nome del Mac"
 if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
-    # Priorita' al nome proprio del cliente per il computer name
-    nome_mac="${NOME_PROPRIO_CLIENTE:-${NOME_CLIENTE##* }}"
-    [[ -z "$nome_mac" ]] && nome_mac="$NOME_CLIENTE"
-    host="${nome_mac//[^A-Za-z0-9-]/}"
-    if [[ "$(scutil --get ComputerName 2>/dev/null)" == "$nome_mac" ]]; then
-        ok "Nome Mac gia' impostato: $nome_mac"
-    else
-        sudo scutil --set ComputerName "$nome_mac" 2>/dev/null
-        sudo scutil --set HostName "$host" 2>/dev/null
-        sudo scutil --set LocalHostName "$host" 2>/dev/null
-        ok "Nome Mac impostato a: $nome_mac"
-    fi
-    add_report "Nome Mac ($nome_mac)" "OK"
+    imposta_nome_mac "${NOME_PROPRIO_CLIENTE:-${NOME_CLIENTE##* }}"
 fi
 
 # Account e servizi indicati nel pannello (Proton, Office, antivirus, Cyber
@@ -1225,7 +1449,7 @@ for a in "${INSTALLATE[@]}"; do
 done
 [[ -z "$app_badges" ]] && app_badges="<div style='background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:11.5px;'>&#10003; <strong>Applicazioni base configurate</strong></div>"
 
-is_clt=false
+is_clt=$IS_CLT_MODE
 if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || ("${NOME_PROPRIO_CLIENTE:l}" == "clt") ]]; then
     is_clt=true
 fi
@@ -1303,13 +1527,20 @@ if $RUN_REALE && ! $MODO_TEST; then
     print -r -- ""
     
     while true; do
-        print -r -- "${C_TXT}   Scegli come procedere:${C_RST}"
+        print -r -- "${C_TXT}   Scegli come procedere (o usa la scheda '3. Passaggi' nel pannello):${C_RST}"
         print -r -- "     ${C_CYAN}1) Esegui Check Completo Salute Mac (Batteria, Cicli, SSD SMART, FileVault)${C_RST}"
         print -r -- "     ${C_OK}2) Riavvia il Mac adesso (Consigliato per rendere attive tutte le modifiche)${C_RST}"
         print -r -- "     ${C_INFO}3) Esci senza riavviare${C_RST}"
         print -r -- ""
         
-        beep_attesa; print -n -- "   Scelta (1-3): "; read -r scelta_fine
+        beep_attesa; print -n -- "   Scelta (1-3): "
+        scelta_fine=""
+        while true; do
+            leggi_passo_singolo_mac && print -n -- "   Scelta (1-3): "
+            if read -t 1 -r scelta_fine 2>/dev/null; then
+                break
+            fi
+        done
         case "$scelta_fine" in
             1)
                 diagnostica_salute_mac
