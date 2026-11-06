@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.0 (2026-11-06)"
+$SCRIPT_VERSION = "13.5.1 (2026-11-06)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -491,7 +491,21 @@ function Send-ReportGitHub {
     if (-not $RunReale -or $Test -or $Global:Test -or $env:PESTER_TEST) { return }
     try {
         $problemi = @($ReportVoci | Where-Object { $_.Esito -eq 'ERRORE' -or $_.Esito -eq 'AVVISO' })
-        if ($problemi.Count -eq 0) { return }
+        $imprevisti = if ($Global:ErroriImprevisti) { @($Global:ErroriImprevisti) } else { @() }
+        if ($problemi.Count -eq 0 -and $imprevisti.Count -eq 0) { return }
+
+        # Se sulla chiavetta c'e' wifi\gh_token.txt (non pubblicato su GitHub, quindi
+        # mai revocato dallo scanner automatico di GitHub), usa quello in priorita'.
+        $tokenAttivo = $Global:GH_REPORT_TOKEN
+        foreach ($candBase in @($Global:TargetDir, $PSScriptRoot)) {
+            if ($candBase) {
+                $tFile = Join-Path $candBase "wifi\gh_token.txt"
+                if (Test-Path -LiteralPath $tFile) {
+                    $tLetto = (Get-Content -LiteralPath $tFile -Raw -ErrorAction SilentlyContinue).Trim()
+                    if ($tLetto) { $tokenAttivo = $tLetto; break }
+                }
+            }
+        }
 
         $hw      = Get-SystemHardwareDetails
         $modello = if ($hw.Produttore -and $hw.Modello) { "$($hw.Produttore) $($hw.Modello)" } else { "PC sconosciuto" }
@@ -506,14 +520,14 @@ function Send-ReportGitHub {
         [void]$corpo.AppendLine("")
         [void]$corpo.AppendLine("### Esiti da controllare")
         foreach ($p in $problemi) { [void]$corpo.AppendLine("- **$($p.Esito)**: $($p.Voce)") }
-        if ($Global:ErroriImprevisti -and $Global:ErroriImprevisti.Count -gt 0) {
+        if ($imprevisti.Count -gt 0) {
             [void]$corpo.AppendLine("")
             [void]$corpo.AppendLine("### Imprevisti gestiti (non bloccanti)")
-            foreach ($e in $Global:ErroriImprevisti) { [void]$corpo.AppendLine("- $($e.Messaggio) (riga $($e.Riga))") }
+            foreach ($e in $imprevisti) { [void]$corpo.AppendLine("- $($e.Messaggio) (riga $($e.Riga))") }
         }
 
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $headers = @{ Authorization = "Bearer $Global:GH_REPORT_TOKEN"; Accept = "application/vnd.github+json" }
+        $headers = @{ Authorization = "Bearer $tokenAttivo"; Accept = "application/vnd.github+json" }
         $payload = @{ title = "[Auto-report] $modello - $nErrore errori, $nAvviso avvisi"; body = $corpo.ToString() } | ConvertTo-Json -Compress
         Invoke-RestMethod -Uri "https://api.github.com/repos/$Global:GH_REPORT_REPO/issues" -Method Post `
             -Headers $headers -Body $payload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 | Out-Null
@@ -3760,11 +3774,11 @@ function Install-VisualCRuntime {
             }
         }
 
-        # 2. Prova installazione via Winget (specificando espressamente --source winget per evitare errori con msstore)
+        # 2. Prova installazione via Winget (specificando espressamente --source winget e nascondendo output spurio)
         $wingetInstalled = $false
         if (Confirm-Winget) {
             try {
-                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -NoNewWindow -ErrorAction SilentlyContinue
+                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
                 if ($p -and ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010 -or $p.ExitCode -eq 1641 -or $p.ExitCode -eq -1978335189)) {
                     $wingetInstalled = $true
                     Write-OK "$($rt.Nome) installato via Winget."
@@ -4558,6 +4572,10 @@ function Connect-AutoWiFi {
                         }
                         if (Test-Rete) {
                             Write-OK "Connesso automaticamente al Wi-Fi: $profName!"
+                            try {
+                                $kitDir = if ($Global:TargetDir -and (Test-CartellaKitUSB $Global:TargetDir)) { $Global:TargetDir } elseif ($PSScriptRoot -and (Test-CartellaKitUSB $PSScriptRoot)) { $PSScriptRoot } else { $null }
+                                if ($kitDir) { [void](Invoke-AggiornamentoUSB -Destinazione $kitDir -LauncherInEsecuzione $LauncherPath) }
+                            } catch {}
                             return $true
                         }
                     }
@@ -4597,6 +4615,10 @@ function Connect-AutoWiFi {
                         }
                         if (Test-Rete) {
                             Write-OK "Connesso automaticamente al Wi-Fi: $ssid!"
+                            try {
+                                $kitDir = if ($Global:TargetDir -and (Test-CartellaKitUSB $Global:TargetDir)) { $Global:TargetDir } elseif ($PSScriptRoot -and (Test-CartellaKitUSB $PSScriptRoot)) { $PSScriptRoot } else { $null }
+                                if ($kitDir) { [void](Invoke-AggiornamentoUSB -Destinazione $kitDir -LauncherInEsecuzione $LauncherPath) }
+                            } catch {}
                             return $true
                         }
                     }
@@ -5603,6 +5625,12 @@ function Repair-DesktopShortcuts {
                             "${env:ProgramFiles(x86)}\Spotify\Spotify.exe"
                         )
                         $spotExes += @(Get-ChildItem -Path "C:\Users\*\AppData\Roaming\Spotify\Spotify.exe" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
+                        try {
+                            $pkgSpot = Get-AppxPackage -Name "*Spotify*" -ErrorAction SilentlyContinue | Select-Object -First 1
+                            if ($pkgSpot -and $pkgSpot.InstallLocation) {
+                                $spotExes += (Join-Path $pkgSpot.InstallLocation "Spotify.exe")
+                            }
+                        } catch {}
                         $spotReal = $spotExes | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 
                         if ($spotReal) {
@@ -5650,7 +5678,18 @@ function Repair-DesktopShortcuts {
                     }
                 } catch {}
             }
+            # Rimuovi eventuali cartelle temporanee di estrazione (es. OpenOffice 4.1.17 Installation Files)
+            try {
+                Get-ChildItem -Path $dir -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -like '*OpenOffice*' -or $_.Name -like '*Installation Files*' } |
+                    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+            } catch {}
         }
+
+        # Se Office e' installato ma manca qualche collegamento (es. Word terminato dopo), assicurati che ci siano tutti
+        try {
+            if (Test-OfficeInstallato) { Add-CollegamentiOffice }
+        } catch {}
 
         if ($riparati -gt 0) {
             Write-OK "Riparate icone desktop per $riparati collegamenti."
@@ -6871,7 +6910,8 @@ trap {
         '*Acer Collection*', '*Acer Care Center*', '*Acer Jumpstart*', '*Acer Registration*',
         '*Planet9*', '*HP Support Assistant*', '*HP Documentation*', '*Lenovo Welcome*',
         '*Lenovo Vantage*', '*Dell SupportAssist*', '*Dell Digital Delivery*',
-        '*ASUS GiftBox*', '*GlideX*', '*McAfee*', '*Norton*', '*Google Play Games*'
+        '*ASUS GiftBox*', '*GlideX*', '*MSI Product Registration*', '*MSIala*',
+        '*McAfee*', '*Norton*', '*Google Play Games*'
     )
 
     $shortcutDirs = @(
@@ -7054,10 +7094,15 @@ trap {
         Set-ItemProperty -Path $adv -Name "TaskbarDa"          -Value 0 -Type DWord -ErrorAction SilentlyContinue   # Widget: nascosto
         Set-ItemProperty -Path $adv -Name "TaskbarMn"          -Value 0 -Type DWord -ErrorAction SilentlyContinue   # Chat/Teams: nascosto
         Set-ItemProperty -Path $adv -Name "ShowTaskViewButton" -Value 0 -Type DWord -ErrorAction SilentlyContinue   # Vista attivita': nascosta
+        Set-ItemProperty -Path $adv -Name "ShowCopilotButton"  -Value 0 -Type DWord -ErrorAction SilentlyContinue   # Copilot: nascosto
         $srch = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
         if (-not (Test-Path $srch)) { New-Item -Path $srch -Force | Out-Null }
         Set-ItemProperty -Path $srch -Name "SearchboxTaskbarMode" -Value 0 -Type DWord -ErrorAction SilentlyContinue  # Ricerca: nascosta dalla barra
-        Write-OK "Barra applicazioni ripulita (Widget, Chat, Vista attivita', Ricerca)."
+        # Nasconde l'icona di Windows Spotlight ("Ulteriori informazioni su questa immagine" / "Peering over smooth seas") dal Desktop
+        $hideDesk = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel"
+        if (-not (Test-Path $hideDesk)) { New-Item -Path $hideDesk -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $hideDesk -Name "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Write-OK "Barra applicazioni e Desktop ripuliti (Widget, Chat, Vista attivita', Copilot, Ricerca, Spotlight)."
         Add-Report "Pulizia barra applicazioni (Win11)" "OK"
     } catch {
         Write-Info "Alcune impostazioni della barra non applicate (versione di Windows diversa)."
@@ -7752,7 +7797,7 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
     } catch { Write-Info "Elenco lingue non impostato: $_" }
 
     # --- 3) Lingua UI (utente + sistema), formati, regione, locale, fuso ---
-    try { Set-WinUILanguageOverride -Language it-IT } catch {}
+    try { Set-WinUILanguageOverride -Language it-IT -WarningAction SilentlyContinue } catch {}
     if (Get-Command Set-SystemPreferredUILanguage -ErrorAction SilentlyContinue) {
         # Errore non terminante (RPC_E_CHANGED_MODE se il thread ha gia' usato COM): il catch non lo ferma.
         try { Set-SystemPreferredUILanguage it-IT -ErrorAction SilentlyContinue } catch {}
@@ -8958,6 +9003,20 @@ if ($RunReale) {
             $Report | Select-Object @{N='voce';E={$_.Voce}}, @{N='esito';E={$_.Esito}} |
                 Export-Csv -Path "$baseLog.csv" -NoTypeInformation -Encoding UTF8
             Write-OK "Log tecnico salvato: $baseLog.json / .csv"
+
+            # Salva una copia del report anche sulla chiavetta USB (cartella Logs\)
+            # cosi' l'operatore ha sempre lo storico dei PC configurati sulla chiavetta.
+            try {
+                $usbLogBase = if ($Global:TargetDir -and (Test-CartellaKitUSB $Global:TargetDir)) { $Global:TargetDir }
+                              elseif ($PSScriptRoot -and (Test-CartellaKitUSB $PSScriptRoot)) { $PSScriptRoot }
+                              else { $null }
+                if ($usbLogBase) {
+                    $usbLogDir = Join-Path $usbLogBase "Logs"
+                    if (-not (Test-Path -LiteralPath $usbLogDir)) { New-Item -Path $usbLogDir -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null }
+                    Copy-Item -LiteralPath "$baseLog.json" -Destination (Join-Path $usbLogDir (Split-Path "$baseLog.json" -Leaf)) -Force -ErrorAction SilentlyContinue
+                    Copy-Item -LiteralPath "$baseLog.csv"  -Destination (Join-Path $usbLogDir (Split-Path "$baseLog.csv"  -Leaf)) -Force -ErrorAction SilentlyContinue
+                }
+            } catch {}
         } catch {
             Write-Info "Log strutturato non salvato: $_"
         }
