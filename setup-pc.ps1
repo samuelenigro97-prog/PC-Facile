@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.1 (2026-11-06)"
+$SCRIPT_VERSION = "13.5.2 (2026-11-07)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1280,6 +1280,106 @@ function Set-PreventSleep {
     } catch {}
 }
 
+# Disattiva schermate iniziali di benvenuto, tour, sync e widget di Edge
+function Set-EdgeFirstRunPolicies {
+    if ($Global:Test -or $env:PESTER_TEST) { return }
+    try {
+        # 1. Chiudi eventuali finestre Edge orfane aperte su welcome/onboarding
+        try {
+            $edgeProcs = Get-Process -Name "msedge" -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowTitle -like "*Welcome*" -or $_.MainWindowTitle -like "*Benvenuto*" -or $_.MainWindowTitle -like "*Microsoft Edge*" }
+            foreach ($p in $edgeProcs) {
+                if ($p.MainWindowTitle -notlike "*Unieuro*" -and $p.MainWindowTitle -notlike "*Pannello*" -and $p.MainWindowTitle -notlike "*PC Facile*") {
+                    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+                }
+            }
+        } catch {}
+
+        # 2. Chiudi processi widget Windows 11
+        try {
+            Get-Process -Name "Widgets", "msedgewebview2" -ErrorAction SilentlyContinue |
+                Where-Object { $_.Path -like "*Windows.Shell.Experiences.TextInput*" -or $_.Path -like "*Widgets*" } |
+                Stop-Process -Force -ErrorAction SilentlyContinue
+        } catch {}
+
+        # 3. Policy di registro HKLM e HKCU per sopprimere FRE, Welcome, Sync e Widget
+        $edgeHives = @('HKLM:\SOFTWARE\Policies\Microsoft\Edge', 'HKCU:\SOFTWARE\Policies\Microsoft\Edge')
+        $policies = @{
+            'HideFirstRunExperience'                       = 1
+            'BrowserSignin'                                = 0
+            'SyncDisabled'                                 = 1
+            'ImportOnEachLaunch'                           = 0
+            'AutoImportAtFirstRun'                         = 4
+            'DefaultBrowserSettingEnabled'                 = 0
+            'HubsSidebarEnabled'                           = 0
+            'StandaloneHubsSidebarEnabled'                 = 0
+            'EdgeWidgetAllowed'                            = 0
+            'SearchEngineChoiceScreenEnabled'              = 0
+            'ShowMicrosoftRewards'                         = 0
+            'EdgeShoppingAssistantEnabled'                 = 0
+            'PersonalizationReportingEnabled'              = 0
+            'PromotionalTabsEnabled'                       = 0
+            'SpotlightExperiencesAndRecommendationsEnabled' = 0
+            'ShowRecommendationsEnabled'                   = 0
+            'SignInCtaOnNtpEnabled'                        = 0
+            'UserFeedbackAllowed'                          = 0
+            'NewTabPageContentEnabled'                     = 0
+        }
+        foreach ($hive in $edgeHives) {
+            try {
+                if (-not (Test-Path $hive)) { New-Item -Path $hive -Force -ErrorAction SilentlyContinue | Out-Null }
+                foreach ($name in $policies.Keys) {
+                    Set-ItemProperty -Path $hive -Name $name -Value $policies[$name] -Type DWord -Force -ErrorAction SilentlyContinue | Out-Null
+                }
+            } catch {}
+        }
+
+        # 4. Disabilita widget / news / Bing su Windows 11
+        try {
+            if (-not (Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh")) {
+                New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+            Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Dsh" -Name "AllowNewsAndInterests" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue | Out-Null
+        } catch {}
+        try {
+            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" -Name "BingSearchEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue | Out-Null
+            Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Feeds" -Name "ShellFeedsTaskbarViewMode" -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue | Out-Null
+        } catch {}
+
+        # 5. File sentinella First Run nel profilo Edge
+        $edgeData = Join-Path $env:LOCALAPPDATA "Microsoft\Edge\User Data"
+        if (-not (Test-Path $edgeData)) {
+            New-Item -Path $edgeData -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        $freFile = Join-Path $edgeData "First Run"
+        if (-not (Test-Path $freFile)) {
+            New-Item -Path $freFile -ItemType File -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+
+        # 6. Flag has_seen_welcome_page nel file Preferences di default
+        $prefDir = Join-Path $edgeData "Default"
+        if (-not (Test-Path $prefDir)) {
+            New-Item -Path $prefDir -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        $prefFile = Join-Path $prefDir "Preferences"
+        try {
+            $prefObj = if (Test-Path $prefFile) {
+                Get-Content -Path $prefFile -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json -ErrorAction SilentlyContinue
+            } else { $null }
+            if (-not $prefObj) { $prefObj = [PSCustomObject]@{} }
+            if (-not $prefObj.PSObject.Properties['browser']) {
+                $prefObj | Add-Member -MemberType NoteProperty -Name 'browser' -Value ([PSCustomObject]@{}) -Force
+            }
+            $prefObj.browser | Add-Member -MemberType NoteProperty -Name 'has_seen_welcome_page' -Value $true -Force
+            $prefObj.browser | Add-Member -MemberType NoteProperty -Name 'should_reset_check_default_browser' -Value $false -Force
+            $prefJson = $prefObj | ConvertTo-Json -Depth 10 -Compress
+            [System.IO.File]::WriteAllText($prefFile, $prefJson)
+        } catch {}
+    } catch {}
+}
+
+function Disable-EdgeFirstRunExperience { Set-EdgeFirstRunPolicies }
+
 function Get-EdgePath {
     $edgeCandidates = @(
         "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
@@ -1371,13 +1471,14 @@ public class WinSplit {
         }
 
         if ($edgePath) {
-            $edgeArgs = "--new-window --window-position=0,0 --window-size=$halfW,$workH `"$uriTarget`""
+            Set-EdgeFirstRunPolicies
+            $edgeArgs = "--app=`"$uriTarget`" --no-first-run --no-default-browser-check --disable-features=msEdgeFirstRunExperience,msEdgeWelcomeExperience,msEdgeFre,msHubsSidebar,msEdgeWidgets --disable-search-engine-choice-screen --disable-sync --window-position=0,0 --window-size=$halfW,$workH"
             $edgeProc = Start-Process -FilePath $edgePath -ArgumentList $edgeArgs -PassThru -ErrorAction SilentlyContinue
             for ($i = 0; $i -lt 5; $i++) {
                 Start-Sleep -Milliseconds 200
                 $edgeWindows = Get-Process -Name "msedge" -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
                 foreach ($ew in $edgeWindows) {
-                    if ($ew.MainWindowTitle -like "*Unieuro*" -or $ew.MainWindowTitle -like "*Pannello*" -or ($edgeProc -and $ew.Id -eq $edgeProc.Id)) {
+                    if ($ew.MainWindowTitle -like "*Unieuro*" -or $ew.MainWindowTitle -like "*Pannello*" -or $ew.MainWindowTitle -like "*PC Facile*" -or ($edgeProc -and $ew.Id -eq $edgeProc.Id)) {
                         [WinSplit]::ShowWindow($ew.MainWindowHandle, 9)
                         [WinSplit]::MoveWindow($ew.MainWindowHandle, 0, 0, $halfW, $workH, $true) | Out-Null
                         [WinSplit]::SetWindowPos($ew.MainWindowHandle, [IntPtr]::Zero, 0, 0, $halfW, $workH, 0x0040) | Out-Null
@@ -4778,40 +4879,7 @@ function Save-SchedaConsegna {
     }
 }
 
-# Disattiva schermate iniziali di benvenuto e tour di Edge per un avvio immediato
-function Set-EdgeFirstRunPolicies {
-    if (-not $RunReale) { return }
-    try {
-        Enable-PreventSleep
-        $edgePol = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'
-        if (-not (Test-Path $edgePol)) { New-Item -Path $edgePol -Force | Out-Null }
-        Set-ItemProperty -Path $edgePol -Name 'HideFirstRunExperience'        -Value 1 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'BrowserSignin'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SyncDisabled'                  -Value 1 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ImportOnEachLaunch'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'AutoImportAtFirstRun'          -Value 4 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'DefaultBrowserSettingEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'HubsSidebarEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ShowMicrosoftRewards'          -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'EdgeShoppingAssistantEnabled'  -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        # Schermata "dati di esplorazione" (Consenti / Non consentire), schede promozionali e inviti all'accesso.
-        Set-ItemProperty -Path $edgePol -Name 'PersonalizationReportingEnabled'            -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'PromotionalTabsEnabled'                     -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SpotlightExperiencesAndRecommendationsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'ShowRecommendationsEnabled'                 -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'SignInCtaOnNtpEnabled'                      -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $edgePol -Name 'UserFeedbackAllowed'                        -Value 0 -Type DWord -ErrorAction SilentlyContinue
-
-        $userProfileKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\UserProfileEngagement'
-        if (-not (Test-Path $userProfileKey)) { New-Item -Path $userProfileKey -Force | Out-Null }
-        Set-ItemProperty -Path $userProfileKey -Name 'ScoobeSystemSettingEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
-
-        $cdmKey = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
-        if (-not (Test-Path $cdmKey)) { New-Item -Path $cdmKey -Force | Out-Null }
-        Set-ItemProperty -Path $cdmKey -Name 'SubscribedContent-310093Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path $cdmKey -Name 'SubscribedContent-338389Enabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue
-    } catch {}
-}
+# (Set-EdgeFirstRunPolicies definita all'inizio con Set-SplitScreenLayout)
 
 # =============================================================================
 # INIZIALIZZAZIONE VARIABILI GLOBALI E RIPRESA SESSIONE
@@ -5683,6 +5751,9 @@ function Repair-DesktopShortcuts {
                 Get-ChildItem -Path $dir -Directory -ErrorAction SilentlyContinue |
                     Where-Object { $_.Name -like '*OpenOffice*' -or $_.Name -like '*Installation Files*' } |
                     ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue }
+                Get-ChildItem -Path $dir -Filter "*.lnk" -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.BaseName -like '*OpenOffice*Install*' -or $_.BaseName -like '*Installation Files*' } |
+                    ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue }
             } catch {}
         }
 
@@ -6270,10 +6341,36 @@ if ($RunReale) {
         Write-Host "I pacchetti offline presenti su chiavetta verranno installati comunque." -ForegroundColor Yellow
         Write-Host "Per lingua e aggiornamenti online, connetti il Wi-Fi appena possibile." -ForegroundColor White
         Write-Host ""
-        if (Test-Rete) { Write-OK "Connessione a Internet OK." }
+        if (Test-Rete) {
+            Write-OK "Connessione a Internet OK."
+            if (-not $Global:USBUpdated -and -not $AggiornaUSB -and -not $Test -and -not $env:PESTER_TEST) {
+                $kitDir = if ($TargetDir -and (Test-CartellaKitUSB $TargetDir)) { $TargetDir }
+                          elseif (Test-CartellaKitUSB $PSScriptRoot) { $PSScriptRoot }
+                          else { $null }
+                if ($kitDir) {
+                    $Global:USBUpdated = $true
+                    try {
+                        Write-Info "Verifico e aggiorno la chiavetta USB con l'ultima versione di PC Facile..."
+                        [void](Invoke-AggiornamentoUSB -Destinazione $kitDir -LauncherInEsecuzione $LauncherPath)
+                    } catch {}
+                }
+            }
+        }
         else { Write-Info "Proseguo in modalita' autonoma (priorita' pacchetti offline USB)." }
     } else {
         Write-OK "Connessione a Internet OK."
+        if (-not $Global:USBUpdated -and -not $AggiornaUSB -and -not $Test -and -not $env:PESTER_TEST) {
+            $kitDir = if ($TargetDir -and (Test-CartellaKitUSB $TargetDir)) { $TargetDir }
+                      elseif (Test-CartellaKitUSB $PSScriptRoot) { $PSScriptRoot }
+                      else { $null }
+            if ($kitDir) {
+                $Global:USBUpdated = $true
+                try {
+                    Write-Info "Verifico e aggiorno la chiavetta USB con l'ultima versione di PC Facile..."
+                    [void](Invoke-AggiornamentoUSB -Destinazione $kitDir -LauncherInEsecuzione $LauncherPath)
+                } catch {}
+            }
+        }
     }
 }
 
@@ -6939,6 +7036,11 @@ trap {
         Get-ChildItem -Path $dir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*OpenOffice*' -or $_.Name -like '*Installation Files*' } | ForEach-Object {
             Write-Info "Elimino cartella residua installer dal desktop: $($_.Name)"
             Remove-Item -LiteralPath $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            $rimosse++
+        }
+        Get-ChildItem -Path $dir -Filter "*.lnk" -File -ErrorAction SilentlyContinue | Where-Object { $_.BaseName -like '*OpenOffice*Install*' -or $_.BaseName -like '*Installation Files*' } | ForEach-Object {
+            Write-Info "Elimino collegamento temporaneo installer: $($_.Name)"
+            Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
             $rimosse++
         }
     }
@@ -8296,9 +8398,9 @@ switch ($gpuDed) {
     'NVIDIA' {
         if (Confirm-Winget) {
             Write-Info "Scheda video NVIDIA (dedicata): installo l'app NVIDIA per i driver..."
-            winget install --exact --id Nvidia.NvidiaApp --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
+            winget install --exact --id Nvidia.NvidiaApp --source winget --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
             if ($LASTEXITCODE -ne 0) {
-                winget install --exact --id Nvidia.GeForceExperience --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
+                winget install --exact --id Nvidia.GeForceExperience --source winget --silent --accept-package-agreements --accept-source-agreements 2>$null | Out-Null
             }
             if ($LASTEXITCODE -eq 0) {
                 Write-OK "App NVIDIA installata: APRILA per scaricare i driver piu' recenti."
