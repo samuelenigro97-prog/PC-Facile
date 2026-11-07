@@ -48,6 +48,8 @@ allineati come flusso e funzioni.
 - **Rimozione antivirus di prova**: quasi mai preinstallato su Mac.
 - **Attivazione Office/driver**: Office da web, driver inclusi in macOS.
 - **GeForce se NVIDIA**: i Mac recenti non hanno GPU NVIDIA.
+- **Soppressione Schermata Benvenuto Edge (FRE) e popup widget**: disabilitazione policy HKLM/HKCU, file sentinella First Run, modalita' app `--app` e disattivazione widget Windows 11 / Bing (su Mac Safari/Chrome non hanno questo blocco).
+- **Auto-aggiornamento USB affidabile con attesa Wi-Fi**: loop di attesa connessione Internet fino a 15s in `PC Facile.bat`, chiusura automatica dopo 5s del prompt UAC non concesso e aggiornamento automatico dei file della chiavetta USB appena la rete e' attiva.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
