@@ -2,6 +2,14 @@
 
 Formato ispirato a [Keep a Changelog](https://keepachangelog.com/it/1.1.0/).
 
+## [13.5.3] - 2026-11-09
+
+### Modificato — Accessibilità e Design Pannello Operatore (Impeccable)
+- Risolti i contrasti WCAG AA nel pannello operatore: testo scuro ad alto contrasto (`#00122b`) su arancione Unieuro (`#EE7203`) nei badge, logo e pulsanti; testo grigio leggibile (`#94a3b8`) su blu notte; sfondo pulsante avvio verde a contrasto certificato (`#15803d`).
+- Rimosso l'anti-pattern del bordo inferiore spesso su intestazione arrotondata (`border-bottom: 4px` su `border-radius: 12px`), sostituito da un'elevazione uniforme con ombra morbida.
+- Rafforzata la gerarchia tipografica portando il titolo principale `h1` a 20-22px per una chiara distinzione visiva rispetto al corpo testo.
+- Parità completa garantita tra `pannello/pannello-operatore.html`, `setup-pc.ps1` e `setup-mac.sh`.
+
 ## [Unreleased]
 
 ### Modificato
