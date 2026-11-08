@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.2 (2026-11-06)"
+SCRIPT_VERSION="2.3 (2026-11-09)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -408,10 +408,10 @@ open_pannello_mac() {
         body { background: #000d20; color: #f8fafc; padding: 12px; min-height: 100vh; line-height: 1.45; font-size: 15px; }
         .container { max-width: 980px; margin: 0 auto; }
         button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
-        .header { background: #001a3a; border: 1.5px solid #00458C; border-radius: 12px; padding: 10px 14px; border-bottom: 3.5px solid #EE7203; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .header { background: #001a3a; border: 1.5px solid #00458C; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
         .brand-box { display: flex; align-items: center; gap: 10px; }
-        .u-logo { background: #EE7203; color: #fff; font-weight: 900; font-size: 16px; letter-spacing: 1px; padding: 6px 12px; border-radius: 7px; }
-        .brand-titles h1 { font-size: 16px; color: #fff; font-weight: 700; }
+        .u-logo { background: #EE7203; color: #00122b; font-weight: 900; font-size: 16px; letter-spacing: 1px; padding: 6px 12px; border-radius: 7px; }
+        .brand-titles h1 { font-size: 20px; color: #fff; font-weight: 700; }
         .badge-stato { font-weight: 800; font-size: 14px; padding: 7px 14px; border-radius: 20px; border: 1.5px solid #38bdf8; background: #082f49; color: #e0f2fe; white-space: nowrap; }
         .badge-stato.ok { border-color: #22c55e; background: #14532d; color: #dcfce7; }
         .hw-bar { background: #00142e; border: 1px solid #003366; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; gap: 6px 16px; font-size: 14px; color: #b6c3d4; flex-wrap: wrap; }
@@ -439,14 +439,14 @@ open_pannello_mac() {
         .servizi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
         .svc { min-height: 44px; display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 15px; padding: 6px 8px; border: 1px solid #003B7A; border-radius: 8px; }
         .svc input { width: 22px; height: 22px; accent-color: #EE7203; }
-        .btn-avvia { min-height: 52px; background: #16a34a; font-weight: 800; font-size: 17px; padding: 10px 14px; width: 100%; border: none; cursor: pointer; border-radius: 8px; color: #fff; }
+        .btn-avvia { min-height: 52px; background: #15803d; font-weight: 800; font-size: 17px; padding: 10px 14px; width: 100%; border: none; cursor: pointer; border-radius: 8px; color: #fff; }
         .step-card { background: #00142E; border: 1px solid #003B7A; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
         .step-card.highlight { border-color: #EE7203; background: #001a38; }
         .step-title { font-size: 15px; font-weight: 800; color: #f8fafc; margin-bottom: 4px; }
         .step-desc { font-size: 13px; color: #94a3b8; margin-bottom: 10px; }
         .step-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .btn-step { min-height: 40px; background: #0284c7; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 700; cursor: pointer; }
-        .btn-step.arancio { background: #EE7203; }
+        .btn-step.arancio { background: #EE7203; color: #00122b; font-weight: 800; }
         .esito { display: none; margin-top: 8px; padding: 10px 12px; border-radius: 8px; font-size: 15px; font-weight: 700; }
         .esito.ok { display: block; background: #052e16; border: 1.5px solid #22c55e; color: #bbf7d0; }
         .esito.errore { display: block; background: #2a0a0a; border: 1.5px solid #ef4444; color: #fecaca; }

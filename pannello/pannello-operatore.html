@@ -23,7 +23,6 @@
         .header {
             background: #001a3a;
             border: 2px solid #00458C;
-            border-bottom: 4px solid #EE7203;
             border-radius: 12px;
             padding: 10px 14px;
             margin-bottom: 12px;
@@ -32,11 +31,12 @@
             align-items: center;
             gap: 10px;
             flex-wrap: wrap;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
         }
         .brand-box { display: flex; align-items: center; gap: 12px; min-width: 0; }
         .u-logo {
             background: #EE7203;
-            color: #fff;
+            color: #00122b;
             font-weight: 900;
             font-size: 16px;
             letter-spacing: 1px;
@@ -44,7 +44,7 @@
             border-radius: 8px;
             flex-shrink: 0;
         }
-        .brand-titles h1 { font-size: 17px; color: #fff; font-weight: 800; line-height: 1.2; }
+        .brand-titles h1 { font-size: 22px; color: #fff; font-weight: 800; line-height: 1.2; }
         .brand-titles p { font-size: 13px; color: #b6c3d4; }
         .badge-stato {
             font-weight: 800;
@@ -175,7 +175,7 @@
             border-radius: 12px;
             font-weight: 800;
         }
-        .tab-btn[aria-selected="true"] .tab-badge-num { background: #EE7203; color: #fff; }
+        .tab-btn[aria-selected="true"] .tab-badge-num { background: #EE7203; color: #00122b; }
 
         .section-view { display: none; }
         .section-view.active-view { display: block; }
@@ -217,7 +217,7 @@
         .badge-pending { background: #00122B; color: #cbd5e1; border: 1px solid #003B7A; }
         .task-item.running { background: #2a1606; border-color: #EE7203; }
         .task-item.running .task-name { color: #fff; font-weight: 800; }
-        .badge-running { background: #EE7203; color: #fff; }
+        .badge-running { background: #EE7203; color: #00122b; font-weight: 800; }
         .task-item.done .task-icon { color: #22c55e; }
         .badge-done-task { background: #052e16; color: #86efac; border: 1px solid #22c55e; }
         .task-item.error { background: #2a0a0a; border-color: #ef4444; }
@@ -247,7 +247,7 @@
         }
         .cred-step-box.evidenza { border-color: #EE7203; }
         .cred-step-title { font-size: 15px; color: #fed7aa; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .step-badge { background: #EE7203; color: #fff; font-size: 13px; padding: 1px 8px; border-radius: 4px; }
+        .step-badge { background: #EE7203; color: #00122b; font-size: 13px; font-weight: 800; padding: 1px 8px; border-radius: 4px; }
         .campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 8px; }
         .cred-label { display: block; font-size: 14px; color: #bfdbfe; margin-bottom: 4px; font-weight: 700; }
         .obbligo { color: #fca5a5; font-weight: 700; font-size: 13px; }
@@ -280,7 +280,7 @@
             cursor: pointer;
         }
         .dom-btn:hover { border-color: #EE7203; }
-        .dom-btn[aria-pressed="true"] { background: #EE7203; border-color: #EE7203; color: #fff; }
+        .dom-btn[aria-pressed="true"] { background: #EE7203; border-color: #EE7203; color: #00122b; font-weight: 800; }
         .btn-sec {
             min-height: 44px;
             background: #002b5c;
@@ -316,7 +316,7 @@
         .svc-item input { width: 22px; height: 22px; accent-color: #EE7203; cursor: pointer; flex-shrink: 0; }
         .btn-avvia {
             min-height: 56px;
-            background: #16a34a;
+            background: #15803d;
             color: #fff;
             font-weight: 800;
             font-size: 17px;
@@ -326,8 +326,8 @@
             border-radius: 10px;
             width: 100%;
         }
-        .btn-avvia:hover { background: #15803d; }
-        .btn-avvia:disabled { background: #166534; cursor: wait; }
+        .btn-avvia:hover { background: #166534; }
+        .btn-avvia:disabled { background: #14532d; cursor: wait; }
         .esito {
             display: none;
             margin-top: 8px;
@@ -404,8 +404,8 @@
             white-space: nowrap;
         }
         .btn-tool:hover:not(:disabled) { background: #003B7A; border-color: #EE7203; }
-        .btn-tool.primary { background: #EE7203; border-color: #ff8c24; color: #fff; }
-        .btn-tool.primary:hover:not(:disabled) { background: #d46200; }
+        .btn-tool.primary { background: #EE7203; border-color: #ff8c24; color: #00122b; font-weight: 800; }
+        .btn-tool.primary:hover:not(:disabled) { background: #d46200; color: #00122b; }
         .btn-tool:disabled { opacity: 0.6; cursor: wait; }
         .step-esito {
             display: none;
@@ -445,7 +445,7 @@
         @media (max-width: 700px) {
             body { padding: 8px; }
             .brand-titles p { display: none; }
-            .brand-titles h1 { font-size: 15px; }
+            .brand-titles h1 { font-size: 20px; }
             .progress-pct { font-size: 24px; }
             .tab-btn { font-size: 14px; padding: 6px; }
             .tab-lungo { display: none; }
@@ -554,7 +554,7 @@
                         </div>
                     </div>
                     <div style="margin-bottom: 12px;">
-                        <label class="cred-label" for="inTelefono">Cellulare <span style="color:#64748b; font-weight:normal;">(opzionale)</span></label>
+                        <label class="cred-label" for="inTelefono">Cellulare <span style="color:#94a3b8; font-weight:normal;">(opzionale)</span></label>
                         <input type="tel" id="inTelefono" class="cred-input" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
                     </div>
                     <button type="button" id="btnAvvia" class="btn-avvia" onclick="avviaConfigurazione()">&#10004; CONFERMA DATI CLIENTE</button>
