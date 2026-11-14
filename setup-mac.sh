@@ -1229,8 +1229,8 @@ PROFILO_APP=""
 
 $RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
 
-titolo "FASE 1 di 3 - Programmi e lingua (automatico)"
-info "Intanto inserisci i dati del cliente nel pannello operatore."
+titolo "FASE 1 di 2 - Lingua, programmi e aggiornamenti (automatico)"
+info "Intanto puoi inserire i dati del cliente nel pannello operatore (verranno chiesti per ultimi)."
 
 # =============================================================================
 # PASSO 1: LINGUA & REGIONE ITALIANA
@@ -1366,36 +1366,10 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
 fi
 
 # =============================================================================
-# FASE 2: PASSI MANUALI (dati del cliente dal pannello, una volta sola)
+# PASSO 7: AGGIORNAMENTI (app Homebrew e macOS)
 # =============================================================================
-titolo "FASE 2 di 3 - Passi manuali (operatore)"
-update_pannello_mac_status 80 "Passi manuali" "Dati cliente, account e servizi..."
-$RUN_REALE && attendi_credenziali_mac
-if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || "${NOME_PROPRIO_CLIENTE:l}" == "clt" ]]; then
-    IS_CLT_MODE=true
-    NOME_CLIENTE="Utente"
-    NOME_PROPRIO_CLIENTE="Utente"
-    CRED_ACCOUNT=""
-    CRED_PASSWORD=""
-elif ! $IS_CLT_MODE; then
-    [[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
-    [[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
-fi
-
-titolo "7. Nome del Mac"
-if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
-    imposta_nome_mac "${NOME_PROPRIO_CLIENTE:-${NOME_CLIENTE##* }}"
-fi
-
-# Account e servizi indicati nel pannello (Proton, Office, antivirus, Cyber
-# Protection): pagina giusta + dati pronti, conferma con INVIO.
-invoke_auto_signup_mac "${NOME_CLIENTE:-Utente}"
-
-# =============================================================================
-# FASE 3: AGGIORNAMENTI (sempre per ultimi)
-# =============================================================================
-titolo "FASE 3 di 3 - Aggiornamenti (ultimo passo)"
-update_pannello_mac_status 90 "Aggiornamenti" "App (Homebrew) e macOS..."
+titolo "7. Aggiornamenti app (Homebrew) e macOS"
+update_pannello_mac_status 80 "Aggiornamenti" "App (Homebrew) e macOS..."
 if $RUN_REALE; then
     if command -v brew >/dev/null 2>&1; then
         info "Aggiorno le app installate con Homebrew..."
@@ -1410,6 +1384,32 @@ if $RUN_REALE; then
         add_report "Aggiornamenti macOS" "AVVISO"
     fi
 fi
+
+# =============================================================================
+# FASE 2: DATI CLIENTE & PASSI MANUALI (ultimo passo)
+# =============================================================================
+titolo "FASE 2 di 2 - Dati cliente e passi manuali (ultimo passo)"
+update_pannello_mac_status 90 "Dati cliente & Passi manuali" "Dati cliente, account e servizi..."
+$RUN_REALE && attendi_credenziali_mac
+if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || "${NOME_PROPRIO_CLIENTE:l}" == "clt" ]]; then
+    IS_CLT_MODE=true
+    NOME_CLIENTE="Utente"
+    NOME_PROPRIO_CLIENTE="Utente"
+    CRED_ACCOUNT=""
+    CRED_PASSWORD=""
+elif ! $IS_CLT_MODE; then
+    [[ -z "$CRED_ACCOUNT" || "$CRED_ACCOUNT" == "utente@icloud.com" ]] && CRED_ACCOUNT="$(email_cliente "$NOME_CLIENTE")"
+    [[ -z "$CRED_PASSWORD" || "$CRED_PASSWORD" == "Utente123!" ]] && CRED_PASSWORD="$(password_cliente "$NOME_CLIENTE")"
+fi
+
+titolo "8. Nome del Mac"
+if $RUN_REALE && [[ -n "$NOME_CLIENTE" ]]; then
+    imposta_nome_mac "${NOME_PROPRIO_CLIENTE:-${NOME_CLIENTE##* }}"
+fi
+
+# Account e servizi indicati nel pannello (Proton, Office, antivirus, Cyber
+# Protection): pagina giusta + dati pronti, conferma con INVIO.
+invoke_auto_signup_mac "${NOME_CLIENTE:-Utente}"
 
 # =============================================================================
 # PASSO 8: FILEVAULT & DIAGNOSTICA
