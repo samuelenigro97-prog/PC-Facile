@@ -1,8 +1,8 @@
 # manifest.txt - file della chiavetta PC Facile con il loro SHA256.
 # Generato da tools/aggiorna-manifest.ps1: NON modificare a mano.
 # Include i file Wi-Fi del negozio (wifi/wifi.txt, wifi/UNIEURO_EXPO.xml).
-59fabcf67e8001f67b6354ed514069c1aaf524863bab64c4f38599664fbfc938  setup-pc.ps1
-ce352a3407a89aba29c125b2843ce6159c2a376c0023e13f6d4f3ee860a79195  setup-pc.ps1.sha256
+59fb031545cc8ce6ea087368c0da56e7e29807ccebfeef79d91aa30db0a6a6cf  setup-pc.ps1
+f15717d2569e25de1ecc9307725ba7304b9e6df3422e5d130ecd1aa6f8696f4e  setup-pc.ps1.sha256
 aa6febd7ec3ce7316eb619686fbf3bcfc1ef5539d146070afe81eb8d3a6a9ef3  PC Facile.bat
 427bd218885cf29519bf0ef45cbbe4c44c39584462bf1a7992e61e0474e8cef7  PC Facile.command
 3d5e41aba59321beef6a726760b31f13e3f2559b4547b1428bd7e0d215edab01  setup-mac.sh
