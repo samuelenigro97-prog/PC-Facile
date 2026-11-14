@@ -230,14 +230,7 @@ echo Premi un tasto quando MCPR ha finito...
 pause >nul
 :mcafee_riavvio
 echo.
-echo ============================================================
-echo   Per completare la rimozione di McAfee serve un RIAVVIO.
-echo   Dopo il riavvio riapri "PC Facile.bat" dalla chiavetta.
-echo ============================================================
-choice /c RC /n /m "[R] Riavvia ora (consigliato)   [C] Continua senza riavviare: "
-if errorlevel 2 goto :mcafee_fine
-shutdown /r /t 10 /c "PC Facile: riavvio per completare la rimozione di McAfee. Poi riapri PC Facile.bat"
-exit
+echo [OK] Rimozione McAfee completata: proseguo senza riavviare.
 :mcafee_fine
 endlocal
 exit /b 0

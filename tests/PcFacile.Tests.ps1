@@ -16,7 +16,7 @@ BeforeAll {
     $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:SetupPath, [ref]$null, [ref]$null)
 
     $script:FunzioniTestate = @(
-        'Write-Titolo', 'Write-OK', 'Write-Info', 'Write-Errore', 'Add-Report',
+        'Reset-ConsoleMode', 'Write-Titolo', 'Write-OK', 'Write-Info', 'Write-Errore', 'Add-Report',
         'New-PasswordCliente', 'New-EmailCliente',
         'Test-NomeSimile', 'Test-LnkJunk',
         'Get-OfflineDirs', 'Find-OfflineInstaller', 'Install-OfflinePackage', 'Stop-AppPopups', 'Select-DestinazioneUSB', 'Test-IsAppInstalled',
@@ -979,13 +979,13 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
 }
 
 Describe 'Test-DatiClienteConfermati' {
-    It 'accetta dati con Conferma, Nome e servizi (cognome e telefono opzionali)' {
+    It 'accetta dati con Conferma e servizi (nome, cognome e telefono opzionali)' {
         $ok = [pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = [pscustomobject]@{ Cyber = $true } }
         Test-DatiClienteConfermati $ok | Should -BeTrue
         $senzaCognome = [pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = ''; Servizi = [pscustomobject]@{ Cyber = $false } }
         Test-DatiClienteConfermati $senzaCognome | Should -BeTrue
-        $senzaNome = [pscustomobject]@{ Conferma = $true; Nome = ''; Cognome = 'Rossi'; Servizi = [pscustomobject]@{ Cyber = $false } }
-        Test-DatiClienteConfermati $senzaNome | Should -BeFalse
+        $senzaNome = [pscustomobject]@{ Conferma = $true; Nome = ''; Cognome = ''; Servizi = [pscustomobject]@{ Cyber = $false } }
+        Test-DatiClienteConfermati $senzaNome | Should -BeTrue
         Test-DatiClienteConfermati ([pscustomobject]@{ Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = $true; Nome = 'Mario'; Cognome = 'Rossi' }) | Should -BeFalse
         Test-DatiClienteConfermati ([pscustomobject]@{ Conferma = 'true'; Nome = 'Mario'; Cognome = 'Rossi'; Servizi = @{ Cyber = $true } }) | Should -BeFalse
