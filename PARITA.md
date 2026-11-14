@@ -52,6 +52,7 @@ allineati come flusso e funzioni.
 - **Auto-aggiornamento USB affidabile con attesa Wi-Fi**: loop di attesa connessione Internet fino a 15s in `PC Facile.bat`, chiusura automatica dopo 5s del prompt UAC non concesso e aggiornamento automatico dei file della chiavetta USB appena la rete e' attiva.
 - **Leggibilità console e zero riavvio AV**: `Reset-ConsoleMode` (rimuove `DISABLE_NEWLINE_AUTO_RETURN` lasciato da `winget`), barre titolo adattive a metà schermo, soppressione barra blu `Install-Language` e nessun prompt di riavvio dopo rimozione McAfee in `PC Facile.bat`.
 - **Campi cliente tutti opzionali (Win & Mac)**: `Nome`, `Cognome` e `Cellulare` sono sempre facoltativi (anche con Cyber Protection); se lasciati vuoti, la configurazione prosegue e termina come `Utente`.
+- **Avviso immediato fine ultima procedura (Win & Mac — v13.5.5)**: al termine dell'ultima procedura (dopo l'ultimo Windows Update su Windows e dopo l'ultimo passo su Mac), entrambi gli script mostrano subito il messaggio esplicito `TUTTE LE PROCEDURE SONO TERMINATE: CONFIGURAZIONE COMPLETATA AL 100%!` e riproducono il segnale acustico (`Beep-Completato` + titolo finestra + Pannello Operatore al 100% su Windows, `\a` su Mac) prima di attendere al menu `Scelta (1-3)`.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.

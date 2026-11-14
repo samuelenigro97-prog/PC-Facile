@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.4 (2026-11-14)"
+$SCRIPT_VERSION = "13.5.5 (2026-11-14)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -9259,7 +9259,11 @@ if ($RunReale -and $Global:JobWinUpdate) {
 # MENU DI CHIUSURA: Check Salute PC oppure Riavvio (il pannello web resta collegato!)
 if ($RunReale) {
     Set-PreventSleep $false
+    try { $host.UI.RawUI.WindowTitle = "PC Facile [100%] - CONFIGURAZIONE COMPLETATA!" } catch {}
+    Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "CONFIGURAZIONE COMPLETATA!" -Dettaglio "Tutte le procedure sono terminate. Puoi chiudere o riavviare." -Completato
     Write-Titolo "COMPLETAMENTO PC FACILE"
+    Write-OK "TUTTE LE PROCEDURE SONO TERMINATE: CONFIGURAZIONE COMPLETATA AL 100%!"
+    Beep-Completato   # melodia "tutto finito" subito appena termina l'ultima procedura
     Write-Host "Configurazione e ottimizzazione completate con successo!" -ForegroundColor Green
     Write-Host "  (Il Pannello Operatore resta attivo: puoi usare la scheda '4. Passaggi' per ripetere qualsiasi operazione)" -ForegroundColor Cyan
     Write-Host ""

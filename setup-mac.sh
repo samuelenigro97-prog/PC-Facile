@@ -1523,6 +1523,9 @@ if $RUN_REALE && ! $MODO_TEST; then
     titolo "COMPLETAMENTO PC FACILE (MAC)"
     print -r -- "${C_OK}   Tutti i lavori di setup Mac sono terminati con successo!${C_RST}"
     print -r -- ""
+    ok "TUTTE LE PROCEDURE SONO TERMINATE: CONFIGURAZIONE COMPLETATA AL 100%!"
+    printf '\a'
+    print -r -- ""
     
     while true; do
         print -r -- "${C_TXT}   Scegli come procedere (o usa la scheda '3. Passaggi' nel pannello):${C_RST}"
