@@ -549,7 +549,7 @@
                             <input type="text" id="inCognome" class="cred-input" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                         <div>
-                            <label class="cred-label" for="inNome">Nome <span class="obbligo">(obbligatorio)</span></label>
+                            <label class="cred-label" for="inNome">Nome <span style="color:#94a3b8; font-weight:normal;">(opzionale)</span></label>
                             <input type="text" id="inNome" class="cred-input" value="" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                     </div>
@@ -1139,11 +1139,6 @@
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
-            if (!nome) {
-                segnaErrore('inNome');
-                mostraEsito('Il nome del cliente \u00e8 obbligatorio.', 'errore');
-                return null;
-            }
             var cyber = el('chkSvcCyber').checked;
             var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
             var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';

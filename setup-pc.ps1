@@ -43,7 +43,7 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.3 (2026-11-09)"
+$SCRIPT_VERSION = "13.5.3 (2026-11-14)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -119,9 +119,45 @@ try {
 # FUNZIONI UTILITY
 # =============================================================================
 
+function Reset-ConsoleMode {
+    if ($Global:Test -or $env:PESTER_TEST) { return }
+    try {
+        if (-not ([System.Management.Automation.PSTypeName]'WinConsoleMode').Type) {
+            Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class WinConsoleMode {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr GetStdHandle(int nStdHandle);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+    public static void Fix() {
+        IntPtr hOut = GetStdHandle(-11);
+        uint mode;
+        if (GetConsoleMode(hOut, out mode)) {
+            mode = (mode | 0x0007u) & ~0x0008u; // ENABLE_PROCESSED_OUTPUT | WRAP | VT, clear DISABLE_NEWLINE_AUTO_RETURN
+            SetConsoleMode(hOut, mode);
+        }
+    }
+}
+"@ -ErrorAction SilentlyContinue
+        }
+        [WinConsoleMode]::Fix()
+    } catch {}
+    try {
+        if ([Console]::CursorLeft -gt 0) { [Console]::Write("`r") }
+    } catch {}
+}
+
 function Write-Titolo {
     param([string]$Testo)
-    $barra = ([string]$BOX_FULL) * 54
+    Reset-ConsoleMode
+    $winW = 70
+    try { if ([Console]::WindowWidth -gt 20) { $winW = [Console]::WindowWidth } } catch {}
+    $barLen = [Math]::Min(54, [Math]::Max(24, $winW - 6))
+    $barra = ([string]$BOX_FULL) * $barLen
     Write-Host ""
     Write-Host ""
     if ($vtOn) {
@@ -138,6 +174,7 @@ function Write-Titolo {
 
 function Write-OK {
     param([string]$Testo)
+    Reset-ConsoleMode
     if ($vtOn) {
         Write-Host "   $U_GREEN$SYM_OK$U_RESET  $U_WHITE$Testo$U_RESET"
     } else {
@@ -147,6 +184,7 @@ function Write-OK {
 
 function Write-Info {
     param([string]$Testo)
+    Reset-ConsoleMode
     if ($vtOn) {
         Write-Host "   $U_ORANGE$SYM_INFO$U_RESET  $U_BLUE$Testo$U_RESET"
     } else {
@@ -156,6 +194,7 @@ function Write-Info {
 
 function Write-Errore {
     param([string]$Testo)
+    Reset-ConsoleMode
     if ($vtOn) {
         Write-Host "   $U_ERR$SYM_ERR$U_RESET  $U_ERR$Testo$U_RESET"
     } else {
@@ -1582,12 +1621,11 @@ function Update-PannelloStatus {
 
 function Test-DatiClienteConfermati {
     # Il pannello avvia/aggiorna la configurazione SOLO con il pulsante "CONFERMA
-    # DATI CLIENTE": i dati devono avere Conferma = true, Nome obbligatorio e Servizi.
+    # DATI CLIENTE": i dati devono avere Conferma = true e Servizi (Nome, Cognome e Cellulare sono opzionali).
     param($Dati)
     if (-not $Dati) { return $false }
     if (-not ($Dati.Conferma -is [bool] -and $Dati.Conferma)) { return $false }
     if (-not $Dati.Servizi) { return $false }
-    if (-not $Dati.Nome -or -not [string]$Dati.Nome.Trim()) { return $false }
     return $true
 }
 
@@ -2391,7 +2429,7 @@ function Open-PannelloOperatore {
                             <input type="text" id="inCognome" class="cred-input" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                         <div>
-                            <label class="cred-label" for="inNome">Nome <span class="obbligo">(obbligatorio)</span></label>
+                            <label class="cred-label" for="inNome">Nome <span style="color:#94a3b8; font-weight:normal;">(opzionale)</span></label>
                             <input type="text" id="inNome" class="cred-input" value="$hNome" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCred()">
                         </div>
                     </div>
@@ -2981,11 +3019,6 @@ function Open-PannelloOperatore {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
-            if (!nome) {
-                segnaErrore('inNome');
-                mostraEsito('Il nome del cliente \u00e8 obbligatorio.', 'errore');
-                return null;
-            }
             var cyber = el('chkSvcCyber').checked;
             var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
             var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
@@ -5424,6 +5457,7 @@ function Invoke-WingetConBarra {
             }
             Start-Sleep -Milliseconds 500
         }
+        Reset-ConsoleMode
         return $p.ExitCode
     } catch {
         try {
@@ -7832,6 +7866,7 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
                     # (rete filtrata o antivirus che blocca il download), NON lascio
                     # lo script fermo all'infinito - interrompo e proseguo.
                     $jobLingua = Start-Job -ScriptBlock {
+                        $ProgressPreference = 'SilentlyContinue'
                         try { Install-Language it-IT -CopyToSettings -ErrorAction Stop | Out-Null }
                         catch { Install-Language it-IT -ErrorAction Stop | Out-Null }
                     }

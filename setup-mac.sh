@@ -507,7 +507,7 @@ open_pannello_mac() {
                         <input type="text" class="cred-input" id="inCognome" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCredMac()">
                     </div>
                     <div>
-                        <label class="etichetta" for="inNome">Nome <span style="color:#fca5a5; font-size:13px;">(obbligatorio)</span></label>
+                        <label class="etichetta" for="inNome">Nome <span style="color:#94a3b8; font-size:13px;">(opzionale)</span></label>
                         <input type="text" class="cred-input" id="inNome" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCredMac()">
                     </div>
                 </div>
@@ -697,7 +697,6 @@ open_pannello_mac() {
             ['inCognome', 'inNome', 'inTelefono'].forEach(function(id) { document.getElementById(id).classList.remove('errore'); });
             var c = document.getElementById('inCognome').value.trim();
             var n = document.getElementById('inNome').value.trim();
-            if (!n) { campoErrato('inNome', 'Il nome del cliente \u00e8 obbligatorio.'); return; }
             var isClt = (c.toLowerCase() === 'clt' && n.toLowerCase() === 'clt');
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
@@ -707,7 +706,6 @@ open_pannello_mac() {
             var mcafee = document.getElementById('chkSvcMcAfee').checked;
             var norton = document.getElementById('chkSvcNorton').checked;
             var cyber = document.getElementById('chkSvcCyber').checked;
-            if (cyber && t.replace(/\D/g, '').length < 6) { campoErrato('inTelefono', 'Con Cyber Protection il cellulare del cliente \u00e8 obbligatorio.'); return; }
             var nomeCliente = (c + ' ' + n).trim() || 'Utente';
             var payload = {
                 Conferma: true,
