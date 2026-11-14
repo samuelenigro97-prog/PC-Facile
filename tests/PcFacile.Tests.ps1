@@ -1153,8 +1153,9 @@ Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
     }
 }
 
-# Ordine dei passi: fase 1 app e lingua, fase 2 passi manuali, fase 3 resto;
-# aggiornamenti per ULTIMI. Stesso ordine nel pannello (script e pannello/pannello-operatore.html).
+# Ordine dei passi: fase 1 automatica con lingua per prima (poi ripristino, avprova,
+# app, pulizia, driver, aggiorna), fase 2 (ULTIMA) dati cliente, Office e attivazioni.
+# Stesso ordine nel pannello (script e pannello/pannello-operatore.html).
 Describe 'Ordine dei passi e pannello' {
     BeforeAll {
         $script:Radice = Split-Path $PSScriptRoot -Parent
@@ -1172,24 +1173,22 @@ Describe 'Ordine dei passi e pannello' {
         $blocco = $blocco.Substring(0, $blocco.IndexOf('"diagnostica"') + 40)
         $script:TaskScript = @([regex]::Matches($blocco, '"([a-z]+)"\s*=\s*\[ordered\]') | ForEach-Object { $_.Groups[1].Value })
     }
-    It 'gli aggiornamenti sono l''ultimo passo e i driver vengono prima' {
-        $script:Ids[-1] | Should -Be 'aggiorna'
+    It 'la lingua e'' il primo passo e gli aggiornamenti vengono dopo i driver' {
+        $script:Ids[0] | Should -Be 'lingua'
         [array]::IndexOf($script:Ids, 'driver') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'aggiorna'))
     }
-    It 'fase 1 = app e lingua, fase 2 = passi manuali, fase 3 = il resto (in ordine)' {
+    It 'fase 1 = automatica (lingua -> aggiorna), fase 2 (ultima) = dati cliente e attivazioni' {
         $gruppi = @($script:Passi | ForEach-Object { [int]$_.Gruppo })
         for ($i = 1; $i -lt $gruppi.Count; $i++) { $gruppi[$i] | Should -BeGreaterOrEqual $gruppi[$i - 1] }
-        @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id }) | Should -Contain 'app'
-        @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id }) | Should -Contain 'lingua'
-        $manuali = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
-        foreach ($id in @('nome', 'account', 'officeattiva', 'antivirus', 'cyber')) { $manuali | Should -Contain $id }
-        @($script:Passi | Where-Object { $_.Gruppo -eq 3 } | ForEach-Object { $_.Id }) | Should -Contain 'pulizia'
-    }
-    It 'Office e'' l''ultimo passo della fase 1 (il primo che usa i dati del cliente), dopo app e lingua' {
         $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
-        $fase1[-1] | Should -Be 'office'
-        [array]::IndexOf($script:Ids, 'app') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
-        [array]::IndexOf($script:Ids, 'lingua') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
+        ($fase1 -join ',') | Should -Be 'lingua,ripristino,avprova,app,pulizia,driver,aggiorna'
+        $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
+        ($fase2 -join ',') | Should -Be 'office,nome,account,officeattiva,antivirus,cyber'
+    }
+    It 'Office e i passi cliente aspettano i dati del cliente per ultimi (gruppo 2)' {
+        $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
+        $fase2[0] | Should -Be 'office'
+        [array]::IndexOf($script:Ids, 'aggiorna') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
     }
     It 'gli antivirus di prova si tolgono prima dell''antivirus definitivo' {
         [array]::IndexOf($script:Ids, 'avprova') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'antivirus'))
