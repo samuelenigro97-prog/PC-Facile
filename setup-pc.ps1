@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.8 (2026-11-15)"
+$SCRIPT_VERSION = "13.5.9 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3460,30 +3460,40 @@ function Read-DatiClienteConsole {
     return $true
 }
 
-# Aspetta i dati del cliente: si chiama SOLO quando un passo ne ha bisogno
-# (Office e passi manuali). Se sono gia' arrivati durante la fase 1 non si
-# ferma nulla. Nessun timeout: senza dati il passo non puo' partire; bip di
-# richiamo dopo 2 minuti. "P" riapre il pannello se e' stato chiuso.
+# Aspetta i dati del cliente (OPZIONALE, massimo 30s): si chiama solo alla fine.
+# Se sono gia' arrivati dal pannello non si ferma nulla. Se non arrivano entro
+# 30 secondi (o premi INVIO), prosegue automaticamente con profilo standard (Utente)
+# e completa tutta la configurazione senza bloccarsi.
 function Wait-DatiCliente {
     [CmdletBinding()]
-    param([string]$Motivo = "")
+    param([string]$Motivo = "", [int]$TimeoutSec = 30)
     if ($Global:DatiClienteRicevuti) { return $true }
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { return (Set-DatiCliente (Get-DatiClienteTest)) }
     if (Get-CredenzialiSalvatePannello) { return $true }
     if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
 
-    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Compila la scheda Cliente e premi CONFERMA DATI CLIENTE"
+    Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Dati cliente opzionali: conferma nel pannello entro ${TimeoutSec}s (altrimenti continuo da solo)"
     Write-Host ""
-    Write-Titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
+    Write-Titolo "DATI DEL CLIENTE OPZIONALI (PANNELLO OPERATORE)"
     if ($Motivo) { Write-Host "  $Motivo" -ForegroundColor White }
-    Write-Host "  -> Compila cognome, nome e servizi nel pannello (scheda Cliente)." -ForegroundColor Cyan
-    Write-Host "  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo." -ForegroundColor Green
-    Write-Host "     (INVIO = procedi subito con profilo standard e nessuna card)" -ForegroundColor Yellow
+    Write-Host "  -> Se vuoi inserirli, compila nel pannello e premi 'CONFERMA DATI CLIENTE'." -ForegroundColor Cyan
+    Write-Host "  -> Nessun obbligo: tra $TimeoutSec secondi (o premendo INVIO) proseguo e finisco automaticamente." -ForegroundColor Yellow
     Write-Host "     (P = riapri il pannello se l'hai chiuso)" -ForegroundColor Gray
     Beep-Attesa
-    Start-BipRipetuto
+    $swAttesa = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         while (-not (Get-CredenzialiSalvatePannello)) {
+            if ($swAttesa.Elapsed.TotalSeconds -ge $TimeoutSec) {
+                $std = [pscustomobject]@{
+                    Conferma = $true; Cliente = 'Utente'; Nome = 'Utente'; Cognome = ''
+                    Email = (New-EmailCliente -Base 'Utente' -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base 'Utente'); Provider = 'Microsoft'
+                    Telefono = ''; ProfiloApp = 'BASE'
+                    Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
+                }
+                [void](Set-DatiCliente $std)
+                Write-OK "Nessun dato cliente inserito entro ${TimeoutSec}s: proseguo automaticamente (Utente) e completo la configurazione."
+                return $true
+            }
             try {
                 if (Get-Command Invoke-PassiSingoliCoda -ErrorAction SilentlyContinue) { Invoke-PassiSingoliCoda }
             } catch {}
@@ -3498,7 +3508,7 @@ function Wait-DatiCliente {
                             Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
                         }
                         [void](Set-DatiCliente $std)
-                        Write-OK "Continuo con profilo standard (nessuna card Office)."
+                        Write-OK "Continuo subito con profilo standard (nessuna card Office)."
                         return $true
                     }
                     if ($k.Key -eq [ConsoleKey]::P -and $Global:PannelloFile) {
@@ -3510,7 +3520,6 @@ function Wait-DatiCliente {
             Start-Sleep -Milliseconds 400
         }
     } finally {
-        Stop-BipRipetuto
         Update-PannelloStatus -AttesaDati 'no'
     }
     return $true
