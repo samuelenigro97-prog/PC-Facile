@@ -57,6 +57,7 @@ allineati come flusso e funzioni.
 - **Avvio 100% automatico senza pause/McAfee e zero errori spuri Winget (Solo Windows — v13.5.7)**: `PC Facile.bat` rimuove McAfee in modalita' silenziosa automatica senza mai fermarsi su `pause` o chiedere di premere Invio; `setup-pc.ps1` imposta `$ProgressPreference = 'SilentlyContinue'` dall'inizio, evita interrogazioni `msstore` non necessarie (`0x8a15005e`), propaga sempre l'ExitCode in `Invoke-WingetConBarra` e gestisce `1618` con attesa di 10s prima del retry.
 - **Chiavetta USB rimossa durante l'esecuzione (Solo Windows — v13.5.8)**: `Get-OfflineDirs` verifica l'esistenza del percorso prima di comporlo con `[System.IO.Path]::Combine` evitando l'errore `Join-Path : Cannot find drive 'D'` se la chiavetta viene scollegata a script avviato.
 - **Dati cliente mai obbligatori nemmeno a fine script (Win & Mac — v13.5.9)**: `Wait-DatiCliente` (Windows) e `attendi_credenziali_mac` (Mac) attendono al massimo 30 secondi (o INVIO) e poi proseguono e completano automaticamente la configurazione come `Utente` se non sono stati inseriti dati nel pannello.
+- **Fallback diretto Spotify non elevato (Solo Windows — v13.5.10)**: se `winget`/`msstore` falliscono per contesto Admin o errore certificato (`0x8a15005e`), `Installa-Pacchetto` scarica `SpotifyFullSetup.exe` da `download.scdn.co` e lo installa tramite Task Scheduler non elevato (`Install-SpotifyDirect`).
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
