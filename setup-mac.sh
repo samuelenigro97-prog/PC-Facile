@@ -969,13 +969,13 @@ attendi_credenziali_mac() {
     $DATI_RICEVUTI && return 0
     if leggi_credenziali_salvate_mac; then return 0; fi
 
-    titolo "SERVONO I DATI DEL CLIENTE (PANNELLO OPERATORE)"
-    print -r -- "${C_CYAN}  -> Compila Cognome, Nome, Telefono e servizi nel pannello (scheda Cliente).${C_RST}"
-    print -r -- "${C_OK}  -> Premi 'CONFERMA DATI CLIENTE': si riparte da solo.${C_RST}"
-    print -r -- "${C_DIM}     (Se il pannello non funziona premi INVIO qui e scrivi il nome del cliente)${C_RST}"
+    titolo "DATI DEL CLIENTE OPZIONALI (PANNELLO OPERATORE)"
+    print -r -- "${C_CYAN}  -> Se vuoi inserirli, compila nel pannello e premi 'CONFERMA DATI CLIENTE'.${C_RST}"
+    print -r -- "${C_INFO}  -> Nessun obbligo: tra 30 secondi (o premendo INVIO) proseguo e finisco automaticamente.${C_RST}"
     print -r -- ""
     beep_attesa
-    while true; do
+    local _waited=0
+    while (( _waited < 30 )); do
         leggi_passo_singolo_mac
         if leggi_credenziali_salvate_mac; then
             ok "Dati cliente e servizi ricevuti dal pannello."
@@ -984,14 +984,16 @@ attendi_credenziali_mac() {
             return 0
         fi
         if read -t 0.5 -r tasto 2>/dev/null; then
-            chiedi_sempre "Cognome e nome del cliente:"
-            [[ -n "$REPLY" ]] && NOME_CLIENTE="$REPLY"
-            SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false
-            DATI_RICEVUTI=true
-            return 0
+            break
         fi
         sleep 0.5
+        (( _waited++ ))
     done
+    NOME_CLIENTE="${NOME_CLIENTE:-Utente}"
+    SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false
+    DATI_RICEVUTI=true
+    ok "Nessun dato cliente inserito: proseguo automaticamente (Utente) e completo la configurazione."
+    return 0
 }
 
 invoke_auto_signup_mac() {
