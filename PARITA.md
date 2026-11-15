@@ -58,6 +58,7 @@ allineati come flusso e funzioni.
 - **Chiavetta USB rimossa durante l'esecuzione (Solo Windows — v13.5.8)**: `Get-OfflineDirs` verifica l'esistenza del percorso prima di comporlo con `[System.IO.Path]::Combine` evitando l'errore `Join-Path : Cannot find drive 'D'` se la chiavetta viene scollegata a script avviato.
 - **Dati cliente mai obbligatori nemmeno a fine script (Win & Mac — v13.5.9)**: `Wait-DatiCliente` (Windows) e `attendi_credenziali_mac` (Mac) attendono al massimo 30 secondi (o INVIO) e poi proseguono e completano automaticamente la configurazione come `Utente` se non sono stati inseriti dati nel pannello.
 - **Fallback diretto Spotify non elevato (Solo Windows — v13.5.10)**: se `winget`/`msstore` falliscono per contesto Admin o errore certificato (`0x8a15005e`), `Installa-Pacchetto` scarica `SpotifyFullSetup.exe` da `download.scdn.co` e lo installa tramite Task Scheduler non elevato (`Install-SpotifyDirect`).
+- **Fallback diretto universale per tutte le app (Solo Windows — v13.5.11)**: `Install-AppDirectFallback` copre Chrome, Firefox, VLC, Adobe Reader, SumatraPDF, Spotify, AIMP, 7-Zip, WhatsApp, AnyDesk, Zoom e LibreOffice scaricando gli installer ufficiali quando `winget`/`msstore` falliscono su reti con proxy/filtri SSL.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
