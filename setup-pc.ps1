@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.7 (2026-11-15)"
+$SCRIPT_VERSION = "13.5.8 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3536,18 +3536,20 @@ function Get-OfflineDirs {
     $addDir = {
         param([string]$base)
         $b = & $clean $base
-        if ($b) {
-            $dirs.Add((Join-Path $b "installers"))
-            $dirs.Add((Join-Path $b "offline"))
-            $dirs.Add((Join-Path $b "cache"))
-            $dirs.Add($b)
-        }
+        try {
+            if ($b -and (Test-Path -LiteralPath $b -ErrorAction SilentlyContinue)) {
+                $dirs.Add([System.IO.Path]::Combine($b, "installers"))
+                $dirs.Add([System.IO.Path]::Combine($b, "offline"))
+                $dirs.Add([System.IO.Path]::Combine($b, "cache"))
+                $dirs.Add($b)
+            }
+        } catch {}
     }
 
     if ($Global:TargetDir) { & $addDir $Global:TargetDir }
     if ($TargetDir -and $TargetDir -ne $Global:TargetDir) { & $addDir $TargetDir }
     if ($PSScriptRoot) { & $addDir $PSScriptRoot }
-    $curr = (Get-Location).Path
+    $curr = try { (Get-Location).Path } catch { $null }
     if ($curr) { & $addDir $curr }
 
     try {
