@@ -40,10 +40,11 @@ if ($TargetDir) {
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+$ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.6 (2026-11-14)"
+$SCRIPT_VERSION = "13.5.7 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3909,7 +3910,10 @@ function Install-VisualCRuntime {
         $wingetInstalled = $false
         if (Confirm-Winget) {
             try {
-                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+                $vcOut = Join-Path $env:TEMP "winget-vc.out"
+                $vcErr = Join-Path $env:TEMP "winget-vc.err"
+                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $vcOut -RedirectStandardError $vcErr -ErrorAction SilentlyContinue
+                Remove-Item $vcOut, $vcErr -Force -ErrorAction SilentlyContinue
                 if ($p -and ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010 -or $p.ExitCode -eq 1641 -or $p.ExitCode -eq -1978335189)) {
                     $wingetInstalled = $true
                     Write-OK "$($rt.Nome) installato via Winget."
@@ -5454,8 +5458,11 @@ function Invoke-WingetConBarra {
             }
             Start-Sleep -Milliseconds 500
         }
+        try { $p.WaitForExit() } catch {}
         Reset-ConsoleMode
-        return $p.ExitCode
+        $exitCode = $p.ExitCode
+        if ($null -eq $exitCode) { $exitCode = -1 }
+        return $exitCode
     } catch {
         try {
             winget @WingetArgs
@@ -5998,10 +6005,11 @@ function Test-IsAppInstalled {
         } catch {}
     }
 
-    # 3. Controllo tramite Winget list
+    # 3. Controllo tramite Winget list (con --source winget per evitare errori msstore 0x8a15005e)
     if ($WingetId -and (Confirm-Winget)) {
         try {
-            & winget.exe list --exact --id $WingetId --accept-source-agreements 2>$null | Out-Null
+            $srcList = if ($WingetId -match '^[A-Z0-9]{12}$') { @('--source', 'msstore') } else { @('--source', 'winget') }
+            & winget.exe list --exact --id $WingetId @srcList --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) { return $true }
         } catch {}
     }
@@ -6058,11 +6066,9 @@ function Installa-Pacchetto {
     # cosi' il passo App puo' segnare come "fatta" solo cio' che e' riuscito.
     $Global:UltimaInstallOk = $false
 
-    # Gia' installato? SENZA --source: becca le app installate da QUALSIASI
-    # origine (winget, Store, OEM, installer), non solo da winget. Con la
-    # sorgente forzata, invece, un'app gia' presente da un'altra origine veniva
-    # considerata "da installare" e falliva con codici tipo "gia' installato".
-    winget list --exact --id $WingetId --accept-source-agreements 2>$null | Out-Null
+    # Gia' installato? Uso --source winget (o msstore per ID Store) per evitare
+    # errori di certificato su msstore (0x8a15005e) in console.
+    winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-OK "$Nome gia' installato. Salto."
         Add-Report "$Nome (installazione)" "OK"
@@ -6121,15 +6127,23 @@ function Installa-Pacchetto {
             return
         }
 
-        # Ricontrollo con 'winget list' SENZA sorgente forzata: se l'app risulta
-        # comunque presente (raro), non segno ERRORE per sbaglio.
-        winget list --exact --id $WingetId --accept-source-agreements 2>$null | Out-Null
+        # Ricontrollo con 'winget list' con la stessa sorgente: se l'app risulta
+        # comunque presente, non segno ERRORE per sbaglio.
+        winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-OK "$Nome installato."
             Add-Report "$Nome (installazione)" "OK"
             Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
             $Global:UltimaInstallOk = $true
             return
+        }
+
+        # Errore 1618 (ERROR_INSTALL_ALREADY_RUNNING): un altro installer MSI
+        # (es. Visual C++ o processo OEM) sta ancora rilasciando il mutex.
+        if ($codeInstall -eq 1618 -and $tentativo -lt $maxTentativi) {
+            Write-Info "Un altro installer Windows (MSI) e' in corso (1618): attendo 10s e riprovo..."
+            Start-Sleep -Seconds 10
+            continue
         }
 
         # App non trovata nella sorgente forzata (esiste solo in un'altra fonte,
