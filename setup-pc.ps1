@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.9 (2026-11-15)"
+$SCRIPT_VERSION = "13.5.10 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3811,11 +3811,11 @@ function Install-OfflinePackage {
             $spotExe = Join-Path $env:APPDATA "Spotify\Spotify.exe"
             $spotLocal = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\Spotify.exe"
             if ((Test-Path $spotExe) -or (Test-Path $spotLocal) -or (Get-Process "Spotify" -ErrorAction SilentlyContinue)) {
-                Write-OK "$Nome installato con successo da cache offline USB!"
+                Write-OK "$Nome installato con successo!"
                 Stop-AppPopups -Nome $Nome
                 return $true
             } else {
-                Write-Info "Installazione offline standard di Spotify non rilevata. Procedo con fallback..."
+                Write-Info "Installazione standard di Spotify non rilevata. Procedo con fallback..."
                 return $false
             }
         } else {
@@ -3872,6 +3872,39 @@ function Install-OfflinePackage {
     } catch {
         Write-Info "Installazione offline non riuscita ($($_.Exception.Message)). Procedo con Winget..."
     }
+    return $false
+}
+
+# Fallback diretto per Spotify quando Winget/msstore falliscono per contesto Admin
+# o errore certificato (0x8a15005e): scarica SpotifyFullSetup.exe e lo avvia
+# in contesto utente non elevato tramite Task Scheduler (Install-OfflinePackage).
+function Install-SpotifyDirect {
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) {
+        Write-OK "TEST: installazione diretta Spotify simulata."
+        return $true
+    }
+    $spDest = Join-Path $env:TEMP "SpotifyFullSetup.exe"
+    $urls = @(
+        "https://download.scdn.co/SpotifyFullSetup.exe",
+        "https://download.scdn.co/SpotifySetup.exe"
+    )
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13 } catch {}
+    foreach ($u in $urls) {
+        try {
+            Remove-Item -LiteralPath $spDest -Force -ErrorAction SilentlyContinue
+            Write-Info "Scarico installer ufficiale Spotify ($u)..."
+            Invoke-WebRequest -Uri $u -OutFile $spDest -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+            if ((Test-Path -LiteralPath $spDest) -and ((Get-Item -LiteralPath $spDest).Length -gt 102400)) {
+                if (Install-OfflinePackage -FilePath $spDest -Nome "Spotify") {
+                    Remove-Item -LiteralPath $spDest -Force -ErrorAction SilentlyContinue
+                    return $true
+                }
+            }
+        } catch {
+            Write-Info "Download Spotify da $u non riuscito: $($_.Exception.Message)"
+        }
+    }
+    Remove-Item -LiteralPath $spDest -Force -ErrorAction SilentlyContinue
     return $false
 }
 
@@ -6168,6 +6201,18 @@ function Installa-Pacchetto {
             continue
         }
 
+        # Spotify: winget/msstore falliscono spesso in contesto Admin o con 0x8a15005e.
+        # Passiamo subito al download diretto + Task Scheduler non elevato.
+        if ($WingetId -eq 'Spotify.Spotify' -or $Nome -eq 'Spotify') {
+            Write-Info "Winget non riuscito per Spotify (codice: $codeInstall): uso download diretto non elevato..."
+            if (Install-SpotifyDirect) {
+                Add-Report "$Nome (installazione)" "OK"
+                Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
+                $Global:UltimaInstallOk = $true
+                return
+            }
+        }
+
         Write-Errore "Installazione $Nome fallita (codice: $codeInstall)."
 
         if (($erroriSorgente -contains $codeInstall) -and -not $riparatoQui) {
@@ -6200,11 +6245,12 @@ function Installa-Pacchetto {
     # VERIFICA finale con 'winget list' SENZA sorgente forzata: a volte l'app si
     # installa davvero ma winget ritorna un codice strano (o era gia' presente
     # da un'altra origine). Se ora risulta presente, per noi e' un successo.
-    winget list --exact --id $WingetId --accept-source-agreements 2>$null | Out-Null
+    winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-OK "$Nome risulta installato (verificato)."
         Add-Report "$Nome (installazione)" "OK"
         Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
+        $Global:UltimaInstallOk = $true
         return
     }
 
