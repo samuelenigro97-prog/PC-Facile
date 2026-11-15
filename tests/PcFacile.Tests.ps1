@@ -972,9 +972,9 @@ Describe 'Avvio unico: niente menu ne'' modalita'' alternative' {
     It 'il server locale accetta solo il pannello aperto dallo script (niente GitHub Pages)' {
         $script:Src | Should -Not -Match 'github\.io'
     }
-    It 'Office e i passi manuali aspettano i dati del cliente (Wait-DatiCliente), la fase 1 no' {
+    It 'Office e i passi manuali aspettano i dati del cliente (Wait-DatiCliente) in fase 1, la fase 2 no' {
         $script:Src | Should -Match "Wait-DatiCliente -Motivo `"Office dipende"
-        $script:Src | Should -Match 'if \(\$voce\.Gruppo -eq 2\) \{'
+        $script:Src | Should -Match 'if \(\$voce\.Gruppo -eq 1\) \{'
     }
 }
 
@@ -1153,8 +1153,9 @@ Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
     }
 }
 
-# Ordine dei passi: fase 1 automatica con lingua per prima (poi ripristino, avprova,
-# app, pulizia, driver, aggiorna), fase 2 (ULTIMA) dati cliente, Office e attivazioni.
+# Ordine dei passi: fase 1 dati cliente, Office e attivazioni (office, nome, account,
+# officeattiva, antivirus, cyber), fase 2 automatica (lingua, ripristino, avprova,
+# app, pulizia, driver, aggiorna) cosi' poi prosegue diretto fino alla fine.
 # Stesso ordine nel pannello (script e pannello/pannello-operatore.html).
 Describe 'Ordine dei passi e pannello' {
     BeforeAll {
@@ -1173,25 +1174,23 @@ Describe 'Ordine dei passi e pannello' {
         $blocco = $blocco.Substring(0, $blocco.IndexOf('"diagnostica"') + 40)
         $script:TaskScript = @([regex]::Matches($blocco, '"([a-z]+)"\s*=\s*\[ordered\]') | ForEach-Object { $_.Groups[1].Value })
     }
-    It 'la lingua e'' il primo passo e gli aggiornamenti vengono dopo i driver' {
-        $script:Ids[0] | Should -Be 'lingua'
+    It 'la lingua apre la fase automatica e gli aggiornamenti vengono dopo i driver' {
+        $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
+        $fase2[0] | Should -Be 'lingua'
         [array]::IndexOf($script:Ids, 'driver') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'aggiorna'))
     }
-    It 'fase 1 = automatica (lingua -> aggiorna), fase 2 (ultima) = dati cliente e attivazioni' {
+    It 'fase 1 = dati cliente e attivazioni (office -> cyber), fase 2 = automatica (lingua -> aggiorna)' {
         $gruppi = @($script:Passi | ForEach-Object { [int]$_.Gruppo })
         for ($i = 1; $i -lt $gruppi.Count; $i++) { $gruppi[$i] | Should -BeGreaterOrEqual $gruppi[$i - 1] }
         $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
-        ($fase1 -join ',') | Should -Be 'lingua,ripristino,avprova,app,pulizia,driver,aggiorna'
+        ($fase1 -join ',') | Should -Be 'office,nome,account,officeattiva,antivirus,cyber'
         $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
-        ($fase2 -join ',') | Should -Be 'office,nome,account,officeattiva,antivirus,cyber'
+        ($fase2 -join ',') | Should -Be 'lingua,ripristino,avprova,app,pulizia,driver,aggiorna'
     }
-    It 'Office e i passi cliente aspettano i dati del cliente per ultimi (gruppo 2)' {
-        $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
-        $fase2[0] | Should -Be 'office'
-        [array]::IndexOf($script:Ids, 'aggiorna') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'office'))
-    }
-    It 'gli antivirus di prova si tolgono prima dell''antivirus definitivo' {
-        [array]::IndexOf($script:Ids, 'avprova') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'antivirus'))
+    It 'Office e i passi cliente aprono la procedura (gruppo 1) prima della fase automatica' {
+        $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
+        $fase1[0] | Should -Be 'office'
+        [array]::IndexOf($script:Ids, 'cyber') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'lingua'))
     }
     It 'ogni passo ha un id unico e un task presente nel pannello (script e HTML)' {
         @($script:Ids | Sort-Object -Unique).Count | Should -Be $script:Ids.Count

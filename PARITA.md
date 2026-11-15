@@ -8,7 +8,7 @@ allineati come flusso e funzioni.
 |-----------------------------|-------------------------------------------|-----------------------------------------------|------|
 | Avvio unico (no menu)       | doppio click `PC Facile.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
 | Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (unico canale); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (zsh non ha un server HTTP) ; INVIO = nome in console | canale diverso per limite tecnico |
-| Ordine                      | fase 1 app+lingua (+Office) · fase 2 manuali · fase 3 pulizia/driver/aggiornamenti per ultimi | fase 1 lingua/app · fase 2 nome+account/servizi · fase 3 aggiornamenti per ultimi | pari |
+| Ordine                      | fase 1 dati cliente, Office e attivazioni · fase 2 lingua, app, pulizia, driver e aggiornamenti (automatico fino alla fine) | fase 1 dati cliente, nome e servizi · fase 2 lingua, app e aggiornamenti (automatico fino alla fine) | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
 | Sincronizzazione orario     | `w32tm` + W32Time auto + tzautoupdate     | `systemsetup -setusingnetworktime on` + sntp  | pari |
 | Nome cliente + host         | `Set-NomeUtenteEPc` (`Set-LocalUser` + `ADSI` + pulizia cache `LogonUI` + `Rename-Computer`, sanitizza `clt clt` → `Utente`/`PC-Utente`) | `imposta_nome_mac` (`scutil --set ComputerName/HostName`, sanitizza `clt clt` → `Mac`) | pari |
@@ -60,6 +60,7 @@ allineati come flusso e funzioni.
 - **Fallback diretto Spotify non elevato (Solo Windows — v13.5.10)**: se `winget`/`msstore` falliscono per contesto Admin o errore certificato (`0x8a15005e`), `Installa-Pacchetto` scarica `SpotifyFullSetup.exe` da `download.scdn.co` e lo installa tramite Task Scheduler non elevato (`Install-SpotifyDirect`).
 - **Fallback diretto universale per tutte le app (Solo Windows — v13.5.11)**: `Install-AppDirectFallback` copre Chrome, Firefox, VLC, Adobe Reader, SumatraPDF, Spotify, AIMP, 7-Zip, WhatsApp, AnyDesk, Zoom e LibreOffice scaricando gli installer ufficiali quando `winget`/`msstore` falliscono su reti con proxy/filtri SSL.
 - **Riduzione al minimo dei tasti INVIO (Solo Windows — v13.5.12)**: `Installa-Antivirus` non blocca piu' prima del watcher download, `Attiva-ServizioWeb` rimuove la doppia conferma S/N, `Passo account` si salta automaticamente se i dati cliente non sono stati inseriti, la ripresa sessione scende a 5s e `INVIO` al menu finale esce subito.
+- **Inversione Fase 1 e Fase 2 (Win & Mac — v13.6.0)**: in entrambi gli script e nel pannello operatore, la **Fase 1** esegue subito i passi con i dati del cliente (Office, nome PC/Mac, account, antivirus e Cyber Protection) e poi la **Fase 2** prosegue dritta in automatico (lingua, ripristino, rimozione AV prova, app, pulizia, driver e aggiornamenti) fino alla fine senza ulteriori interruzioni.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
