@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.12 (2026-11-15)"
+$SCRIPT_VERSION = "13.6.0 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1565,8 +1565,13 @@ function Update-PannelloStatus {
                 Versione      = [string]$versione
                 Hardware      = $null
                 # Stesso ordine dei passi ($Global:Passi): fase 1 lingua, app, pulizia, driver e aggiornamenti;
-                # fase 2 (ultima): dati cliente, Office e attivazioni operatore.
+                # fase 1: dati cliente, Office e attivazioni operatore;
+                # fase 2 (automatica): lingua, programmi, pulizia, driver e aggiornamenti fino alla fine.
                 Tasks         = [ordered]@{
+                    "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "account"     = [ordered]@{ Nome = "Nome PC e account cliente"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "antivirus"   = [ordered]@{ Nome = "Sicurezza & Antivirus Definitivo (Defender / Card)"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "cyber"       = [ordered]@{ Nome = "Servizio Unieuro Cyber Protection"; Stato = "pending"; Dettaglio = "In attesa" }
                     "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "ripristino"  = [ordered]@{ Nome = "Punto di Ripristino di Sicurezza"; Stato = "pending"; Dettaglio = "In attesa" }
                     "avprova"     = [ordered]@{ Nome = "Rimozione Antivirus di Prova"; Stato = "pending"; Dettaglio = "In attesa" }
@@ -1575,10 +1580,6 @@ function Update-PannelloStatus {
                     "pulizia"     = [ordered]@{ Nome = "Pulizia Bloatware OEM & Ottimizzazione SSD"; Stato = "pending"; Dettaglio = "In attesa" }
                     "driver"      = [ordered]@{ Nome = "Driver Hardware (Windows Update)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "aggiorna"    = [ordered]@{ Nome = "Aggiornamenti App e Windows"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "account"     = [ordered]@{ Nome = "Nome PC e account cliente"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "antivirus"   = [ordered]@{ Nome = "Sicurezza & Antivirus Definitivo (Defender / Card)"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "cyber"       = [ordered]@{ Nome = "Servizio Unieuro Cyber Protection"; Stato = "pending"; Dettaglio = "In attesa" }
                     "diagnostica" = [ordered]@{ Nome = "Diagnostica Hardware, BitLocker & Scheda Consegna"; Stato = "pending"; Dettaglio = "In attesa" }
                 }
             }
@@ -2513,22 +2514,22 @@ function Open-PannelloOperatore {
         <!-- SCHEDA 2: AVANZAMENTO -->
         <div id="view-tab-live" class="section-view" role="tabpanel" aria-labelledby="btn-tab-live">
             <div class="card">
-                <div class="card-subtitle">La Fase 1 va da sola dalla lingua fino agli aggiornamenti; nella Fase 2 (ultima) inserisci i dati del cliente e completi Office, antivirus e servizi. I passi gi&agrave; fatti vengono saltati.</div>
+                <div class="card-subtitle">Nella Fase 1 inserisci i dati del cliente e completi Office, antivirus e servizi; poi la Fase 2 va dritta da sola dalla lingua fino agli aggiornamenti. I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
-                    <li class="task-gruppo">Fase 1 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li class="task-gruppo">Fase 2 &middot; Dati cliente, Office e attivazioni (ultimo passo)</li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 1 &middot; Dati cliente, Office e attivazioni (operatore)</li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 2 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                 </ul>
             </div>
@@ -2564,12 +2565,85 @@ function Open-PannelloOperatore {
                 <div class="card-subtitle">Esegui o ripeti singolarmente qualsiasi passaggio nello stesso ordine della procedura (1..13). Utile se un passo &egrave; andato male o se devi correggere subito il <strong>nome utente / nome PC</strong> (es. rimasto <code>clt clt</code>).</div>
 
                 <div class="step-tool-list">
-                    <div class="task-gruppo">Fase 1 &middot; Lingua, programmi, pulizia e aggiornamenti</div>
+                    <div class="task-gruppo">Fase 1 &middot; Dati cliente, Office e attivazioni operatore</div>
 
-                    <!-- 1. Lingua italiana e tastiera -->
+                    <!-- 1. Office: installazione e attivazione -->
+                    <div class="step-tool-card" id="stepcard-office">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">1</span> Office: installazione e attivazione</div>
+                            <span id="step-badge-office" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Installa la suite Office scelta (con collegamenti Word, Excel, PowerPoint sul Desktop) o avvia il riscatto della card.</div>
+                        <div class="step-tool-actions">
+                            <select id="selStepOffice" class="cred-input" aria-label="Suite Office da installare">
+                                <option value="m365">Microsoft 365 (abbonamento it-IT)</option>
+                                <option value="perpetuo">Office 2024 / 2021 (perpetuo)</option>
+                                <option value="libreoffice">LibreOffice (gratuito in italiano)</option>
+                                <option value="openoffice">Apache OpenOffice (gratuito in italiano)</option>
+                            </select>
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('office')">&#9654; Installa Office</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('officeattiva')">&#128273; Attiva / Riscatta Card</button>
+                        </div>
+                        <div id="esitoStep-office" class="step-esito"></div>
+                    </div>
+
+                    <!-- 2. Nome PC e account cliente -->
+                    <div class="step-tool-card highlight" id="stepcard-account">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">2</span> Nome PC e account cliente</div>
+                            <span id="step-badge-account" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Cambia immediatamente il <strong>nome visualizzato dell'utente Windows</strong> (es. se era rimasto <code>clt clt</code> o <code>OEM</code>) e il <strong>nome del PC</strong>, senza passare dalle Impostazioni di Windows.</div>
+                        <div class="campi-2" style="margin-bottom: 6px;">
+                            <div>
+                                <label class="cred-label" for="inStepNomeUtente">Nome visualizzato Utente Windows</label>
+                                <input type="text" id="inStepNomeUtente" class="cred-input" placeholder="Es. Mario Rossi (o Utente)" autocomplete="off" oninput="_stepNomeEdited = true">
+                            </div>
+                            <div>
+                                <label class="cred-label" for="inStepNomePc">Nome del PC (max 15 caratteri)</label>
+                                <input type="text" id="inStepNomePc" class="cred-input cred-mono" placeholder="Es. PC-Mario" maxlength="15" autocomplete="off" oninput="_stepNomeEdited = true">
+                            </div>
+                        </div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('account')">&#10004; Applica Nome Utente e PC</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('netplwiz')">&#128100; Utenti Windows (netplwiz)</button>
+                        </div>
+                        <div id="esitoStep-account" class="step-esito"></div>
+                    </div>
+
+                    <!-- 3. Protezione antivirus -->
+                    <div class="step-tool-card" id="stepcard-antivirus">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">3</span> Protezione antivirus</div>
+                            <span id="step-badge-antivirus" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Apre la pagina di riscatto card McAfee o Norton e copia l'email del cliente negli appunti.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('antivirus', 'mcafee')">&#128737; Attiva McAfee</button>
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('antivirus', 'norton')">&#128737; Attiva Norton</button>
+                        </div>
+                        <div id="esitoStep-antivirus" class="step-esito"></div>
+                    </div>
+
+                    <!-- 4. Unieuro Cyber Protection -->
+                    <div class="step-tool-card" id="stepcard-cyber">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">4</span> Unieuro Cyber Protection</div>
+                            <span id="step-badge-cyber" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Apre il portale Covercare e copia negli appunti i dati cliente + seriale del PC per la registrazione rapida.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('cyber')">&#9654; Apri e copia dati Cyber Protection</button>
+                        </div>
+                        <div id="esitoStep-cyber" class="step-esito"></div>
+                    </div>
+
+                    <div class="task-gruppo">Fase 2 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</div>
+
+                    <!-- 5. Lingua italiana e tastiera -->
                     <div class="step-tool-card" id="stepcard-lingua">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">1</span> Lingua italiana e tastiera</div>
+                            <div class="step-tool-title"><span class="step-badge">5</span> Lingua italiana e tastiera</div>
                             <span id="step-badge-lingua" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Imposta lingua di sistema, tastiera IT (0410:00000410), area geografica Italia e fuso orario Roma.</div>
@@ -2579,10 +2653,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-lingua" class="step-esito"></div>
                     </div>
 
-                    <!-- 2. Punto di ripristino -->
+                    <!-- 6. Punto di ripristino -->
                     <div class="step-tool-card" id="stepcard-ripristino">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">2</span> Punto di ripristino</div>
+                            <div class="step-tool-title"><span class="step-badge">6</span> Punto di ripristino</div>
                             <span id="step-badge-ripristino" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Abilita Ripristino configurazione di sistema su C: e crea un punto di sicurezza.</div>
@@ -2593,10 +2667,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-ripristino" class="step-esito"></div>
                     </div>
 
-                    <!-- 3. Rimozione antivirus di prova -->
+                    <!-- 7. Rimozione antivirus di prova -->
                     <div class="step-tool-card" id="stepcard-avprova">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">3</span> Rimozione antivirus di prova</div>
+                            <div class="step-tool-title"><span class="step-badge">7</span> Rimozione antivirus di prova</div>
                             <span id="step-badge-avprova" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Cerca e disinstalla McAfee, Norton o Avast di prova preinstallati sul PC e riattiva Windows Defender.</div>
@@ -2606,10 +2680,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-avprova" class="step-esito"></div>
                     </div>
 
-                    <!-- 4. Componenti Microsoft (Visual C++) -->
+                    <!-- 8. Componenti Microsoft (Visual C++) -->
                     <div class="step-tool-card" id="stepcard-runtime">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">4</span> Componenti Microsoft (Visual C++)</div>
+                            <div class="step-tool-title"><span class="step-badge">8</span> Componenti Microsoft (Visual C++)</div>
                             <span id="step-badge-runtime" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Verifica e installa i runtime Microsoft Visual C++ 2015-2022 (64 bit e 32 bit).</div>
@@ -2619,10 +2693,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-runtime" class="step-esito"></div>
                     </div>
 
-                    <!-- 5. Programmi -->
+                    <!-- 9. Programmi -->
                     <div class="step-tool-card" id="stepcard-app">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">5</span> Programmi e icone Desktop</div>
+                            <div class="step-tool-title"><span class="step-badge">9</span> Programmi e icone Desktop</div>
                             <span id="step-badge-app" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Reinstalla l'intero profilo di applicazioni o un singolo programma andato in errore, e ripara le icone bianche sul Desktop.</div>
@@ -2655,10 +2729,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-app" class="step-esito"></div>
                     </div>
 
-                    <!-- 6. Pulizia programmi inutili e velocizzazione -->
+                    <!-- 10. Pulizia programmi inutili e velocizzazione -->
                     <div class="step-tool-card" id="stepcard-pulizia">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">6</span> Pulizia programmi inutili e velocizzazione</div>
+                            <div class="step-tool-title"><span class="step-badge">10</span> Pulizia programmi inutili e velocizzazione</div>
                             <span id="step-badge-pulizia" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Rimuove bloatware, OneDrive, collegamenti sponsorizzati, disattiva widget/telemetria e imposta il piano energetico Bilanciato.</div>
@@ -2668,10 +2742,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-pulizia" class="step-esito"></div>
                     </div>
 
-                    <!-- 7. Driver hardware -->
+                    <!-- 11. Driver hardware -->
                     <div class="step-tool-card" id="stepcard-driver">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">7</span> Driver hardware</div>
+                            <div class="step-tool-title"><span class="step-badge">11</span> Driver hardware</div>
                             <span id="step-badge-driver" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Cerca e installa i driver mancanti (dalla chiavetta o tramite Windows Update) oppure apre Gestione Dispositivi.</div>
@@ -2682,10 +2756,10 @@ function Open-PannelloOperatore {
                         <div id="esitoStep-driver" class="step-esito"></div>
                     </div>
 
-                    <!-- 8. Aggiornamenti app e Windows -->
+                    <!-- 12. Aggiornamenti app e Windows -->
                     <div class="step-tool-card" id="stepcard-aggiorna">
                         <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">8</span> Aggiornamenti app e Windows</div>
+                            <div class="step-tool-title"><span class="step-badge">12</span> Aggiornamenti app e Windows</div>
                             <span id="step-badge-aggiorna" class="task-badge badge-pending">Pronto</span>
                         </div>
                         <div class="step-tool-desc">Aggiorna tutte le app via Winget, le firme di Windows Defender e installa le patch rapide di Windows Update.</div>
@@ -2694,79 +2768,6 @@ function Open-PannelloOperatore {
                             <button type="button" class="btn-tool" onclick="eseguiPasso('winupdate')">&#9881; Apri Windows Update</button>
                         </div>
                         <div id="esitoStep-aggiorna" class="step-esito"></div>
-                    </div>
-
-                    <div class="task-gruppo">Fase 2 &middot; Dati cliente, Office e attivazioni operatore (ultimo passo)</div>
-
-                    <!-- 9. Office: installazione e attivazione -->
-                    <div class="step-tool-card" id="stepcard-office">
-                        <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">9</span> Office: installazione e attivazione</div>
-                            <span id="step-badge-office" class="task-badge badge-pending">Pronto</span>
-                        </div>
-                        <div class="step-tool-desc">Installa la suite Office scelta (con collegamenti Word, Excel, PowerPoint sul Desktop) o avvia il riscatto della card.</div>
-                        <div class="step-tool-actions">
-                            <select id="selStepOffice" class="cred-input" aria-label="Suite Office da installare">
-                                <option value="m365">Microsoft 365 (abbonamento it-IT)</option>
-                                <option value="perpetuo">Office 2024 / 2021 (perpetuo)</option>
-                                <option value="libreoffice">LibreOffice (gratuito in italiano)</option>
-                                <option value="openoffice">Apache OpenOffice (gratuito in italiano)</option>
-                            </select>
-                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('office')">&#9654; Installa Office</button>
-                            <button type="button" class="btn-tool" onclick="eseguiPasso('officeattiva')">&#128273; Attiva / Riscatta Card</button>
-                        </div>
-                        <div id="esitoStep-office" class="step-esito"></div>
-                    </div>
-
-                    <!-- 10. Nome PC e account cliente -->
-                    <div class="step-tool-card highlight" id="stepcard-account">
-                        <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">10</span> Nome PC e account cliente</div>
-                            <span id="step-badge-account" class="task-badge badge-pending">Pronto</span>
-                        </div>
-                        <div class="step-tool-desc">Cambia immediatamente il <strong>nome visualizzato dell'utente Windows</strong> (es. se era rimasto <code>clt clt</code> o <code>OEM</code>) e il <strong>nome del PC</strong>, senza passare dalle Impostazioni di Windows.</div>
-                        <div class="campi-2" style="margin-bottom: 6px;">
-                            <div>
-                                <label class="cred-label" for="inStepNomeUtente">Nome visualizzato Utente Windows</label>
-                                <input type="text" id="inStepNomeUtente" class="cred-input" placeholder="Es. Mario Rossi (o Utente)" autocomplete="off" oninput="_stepNomeEdited = true">
-                            </div>
-                            <div>
-                                <label class="cred-label" for="inStepNomePc">Nome del PC (max 15 caratteri)</label>
-                                <input type="text" id="inStepNomePc" class="cred-input cred-mono" placeholder="Es. PC-Mario" maxlength="15" autocomplete="off" oninput="_stepNomeEdited = true">
-                            </div>
-                        </div>
-                        <div class="step-tool-actions">
-                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('account')">&#10004; Applica Nome Utente e PC</button>
-                            <button type="button" class="btn-tool" onclick="eseguiPasso('netplwiz')">&#128100; Utenti Windows (netplwiz)</button>
-                        </div>
-                        <div id="esitoStep-account" class="step-esito"></div>
-                    </div>
-
-                    <!-- 11. Protezione antivirus -->
-                    <div class="step-tool-card" id="stepcard-antivirus">
-                        <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">11</span> Protezione antivirus</div>
-                            <span id="step-badge-antivirus" class="task-badge badge-pending">Pronto</span>
-                        </div>
-                        <div class="step-tool-desc">Apre la pagina di riscatto card McAfee o Norton e copia l'email del cliente negli appunti.</div>
-                        <div class="step-tool-actions">
-                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('antivirus', 'mcafee')">&#128737; Attiva McAfee</button>
-                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('antivirus', 'norton')">&#128737; Attiva Norton</button>
-                        </div>
-                        <div id="esitoStep-antivirus" class="step-esito"></div>
-                    </div>
-
-                    <!-- 12. Unieuro Cyber Protection -->
-                    <div class="step-tool-card" id="stepcard-cyber">
-                        <div class="step-tool-head">
-                            <div class="step-tool-title"><span class="step-badge">12</span> Unieuro Cyber Protection</div>
-                            <span id="step-badge-cyber" class="task-badge badge-pending">Pronto</span>
-                        </div>
-                        <div class="step-tool-desc">Apre il portale Covercare e copia negli appunti i dati cliente + seriale del PC per la registrazione rapida.</div>
-                        <div class="step-tool-actions">
-                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('cyber')">&#9654; Apri e copia dati Cyber Protection</button>
-                        </div>
-                        <div id="esitoStep-cyber" class="step-esito"></div>
                     </div>
 
                     <!-- 13. Controllo finale e scheda di consegna -->
@@ -2800,7 +2801,7 @@ function Open-PannelloOperatore {
         var isScriptConnected = false;
         var lastStatusPing = 0;
         var schedaScelta = false;
-        var TASK_KEYS = ['lingua', 'ripristino', 'avprova', 'runtime', 'app', 'pulizia', 'driver', 'aggiorna', 'office', 'account', 'antivirus', 'cyber', 'diagnostica'];
+        var TASK_KEYS = ['office', 'account', 'antivirus', 'cyber', 'lingua', 'ripristino', 'avprova', 'runtime', 'app', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
@@ -5212,18 +5213,18 @@ if (-not $Diagnostica) {
         Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH - Setup Tecnico Dedicato v$SCRIPT_VERSION      $U_ORANGE$([char]0x2551)$U_RESET"
         Write-Host "  $U_ORANGE$([char]0x255A)$boxLine$([char]0x255D)$U_RESET"
         Write-Host ""
-        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (LINGUA, PROGRAMMI, PULIZIA E AGGIORNAMENTI) IN CORSO$U_RESET"
-        Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Intanto puoi inserire i dati del cliente nel pannello operatore (una volta sola).$U_RESET"
-        Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Per ultimi vengono chiesti i dati del cliente e completati Office, account e servizi.$U_RESET"
+        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (DATI CLIENTE, OFFICE E ATTIVAZIONI)$U_RESET"
+        Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Inserisci i dati del cliente nel pannello operatore (una volta sola).$U_RESET"
+        Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Poi la Fase 2 prosegue dritta in automatico fino alla fine.$U_RESET"
         Write-Host ""
     } else {
         Write-Host "  $([char]0x2554)$boxLine$([char]0x2557)" -ForegroundColor DarkYellow
         Write-Host "  $([char]0x2551)$(" " * $padSx)$titoloB$(" " * $padDx)$([char]0x2551)" -ForegroundColor White
         Write-Host "  $([char]0x255A)$boxLine$([char]0x255D)" -ForegroundColor DarkYellow
         Write-Host ""
-        Write-Host "  CONFIGURAZIONE AVVIATA: FASE 1 (LINGUA, PROGRAMMI, PULIZIA E AGGIORNAMENTI) IN CORSO" -ForegroundColor Green
-        Write-Host "  Intanto puoi inserire i dati del cliente nel pannello operatore (una volta sola)." -ForegroundColor White
-        Write-Host "  Per ultimi vengono chiesti i dati del cliente e completati Office, account e servizi." -ForegroundColor Cyan
+        Write-Host "  CONFIGURAZIONE AVVIATA: FASE 1 (DATI CLIENTE, OFFICE E ATTIVAZIONI)" -ForegroundColor Green
+        Write-Host "  Inserisci i dati del cliente nel pannello operatore (una volta sola)." -ForegroundColor White
+        Write-Host "  Poi la Fase 2 prosegue dritta in automatico fino alla fine." -ForegroundColor Cyan
         Write-Host ""
     }
 }
@@ -7444,21 +7445,21 @@ trap {
 # Checkpoint: Fase = numero di passi completati (Schema 3 = quest'ordine).
 # =============================================================================
 $Global:Passi = @(
-    @{ Id = 'lingua';       Nome = 'Lingua e regione';              Gruppo = 1; Task = 'lingua' }
-    @{ Id = 'ripristino';   Nome = 'Punto di ripristino';           Gruppo = 1; Task = 'ripristino' }
-    @{ Id = 'avprova';      Nome = 'Rimozione antivirus di prova';  Gruppo = 1; Task = 'avprova' }
-    @{ Id = 'app';          Nome = 'Applicazioni + browser';        Gruppo = 1; Task = 'app' }
-    @{ Id = 'pulizia';      Nome = 'Pulizia e ottimizzazione';      Gruppo = 1; Task = 'pulizia' }
-    @{ Id = 'driver';       Nome = 'Driver';                        Gruppo = 1; Task = 'driver' }
-    @{ Id = 'aggiorna';     Nome = 'Aggiornamenti (app + Windows)'; Gruppo = 1; Task = 'aggiorna' }
-    @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 2; Task = 'office' }
-    @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 2; Task = 'account' }
-    @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 2; Task = 'account' }
-    @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 2; Task = 'office' }
-    @{ Id = 'antivirus';    Nome = 'Antivirus';                     Gruppo = 2; Task = 'antivirus' }
-    @{ Id = 'cyber';        Nome = 'Unieuro Cyber Protection';      Gruppo = 2; Task = 'cyber' }
+    @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
+    @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 1; Task = 'account' }
+    @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 1; Task = 'account' }
+    @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 1; Task = 'office' }
+    @{ Id = 'antivirus';    Nome = 'Antivirus';                     Gruppo = 1; Task = 'antivirus' }
+    @{ Id = 'cyber';        Nome = 'Unieuro Cyber Protection';      Gruppo = 1; Task = 'cyber' }
+    @{ Id = 'lingua';       Nome = 'Lingua e regione';              Gruppo = 2; Task = 'lingua' }
+    @{ Id = 'ripristino';   Nome = 'Punto di ripristino';           Gruppo = 2; Task = 'ripristino' }
+    @{ Id = 'avprova';      Nome = 'Rimozione antivirus di prova';  Gruppo = 2; Task = 'avprova' }
+    @{ Id = 'app';          Nome = 'Applicazioni + browser';        Gruppo = 2; Task = 'app' }
+    @{ Id = 'pulizia';      Nome = 'Pulizia e ottimizzazione';      Gruppo = 2; Task = 'pulizia' }
+    @{ Id = 'driver';       Nome = 'Driver';                        Gruppo = 2; Task = 'driver' }
+    @{ Id = 'aggiorna';     Nome = 'Aggiornamenti (app + Windows)'; Gruppo = 2; Task = 'aggiorna' }
 )
-$gruppiNomi = @{ 1 = 'FASE 1 di 2 - Lingua, programmi, pulizia, driver e aggiornamenti (automatico)'; 2 = 'FASE 2 di 2 - Dati cliente, Office e attivazioni (ultimo passo)' }
+$gruppiNomi = @{ 1 = 'FASE 1 di 2 - Dati cliente, Office e attivazioni (operatore)'; 2 = 'FASE 2 di 2 - Lingua, programmi, pulizia, driver e aggiornamenti (automatico)' }
 $totPassi = $Global:Passi.Count
 
 # Ripresa: si riparte dal primo passo non completato; nel pannello i passi gia'
@@ -7672,9 +7673,9 @@ if ($voce.Gruppo -ne $gruppoMostrato) {
 # Dati del cliente e singoli passaggi dal pannello: non bloccano.
 [void](Get-CredenzialiSalvatePannello)
 Invoke-PassiSingoliCoda
-# Passi finali: se non sono ancora arrivati, si aspettano i dati del cliente (ultimo blocco).
-if ($voce.Gruppo -eq 2) {
-    [void](Wait-DatiCliente -Motivo "I passi finali (Office, nome, account, attivazioni) usano i dati del cliente.")
+# Passi iniziali (operatore): si aspettano i dati del cliente, poi la fase 2 va dritta in automatico.
+if ($voce.Gruppo -eq 1) {
+    [void](Wait-DatiCliente -Motivo "I passi iniziali (Office, nome, account, attivazioni) usano i dati del cliente.")
 }
 
 Write-Host ""
