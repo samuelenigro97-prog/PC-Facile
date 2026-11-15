@@ -157,25 +157,21 @@ if exist "%~dp0setup-pc.ps1" (
     echo   2. Oppure copia 'setup-pc.ps1' sulla chiavetta USB accanto
     echo      a 'PC Facile.bat' per farlo funzionare sempre al 100%% OFFLINE!
     echo ============================================================
+    echo.
+    echo Premi un tasto per chiudere...
+    pause >nul
 )
 
 :fine
-echo.
-echo ============================================================
-echo   Operazione terminata. Premi un tasto per chiudere.
-echo ============================================================
-pause >nul
-
 REM Auto-aggiornamento del launcher: sostituisco questo file con la nuova
 REM versione verificata ed esco nello STESSO blocco (cmd non rilegge il file).
 if exist "%~f0.nuovo" (
-    move /y "%~f0.nuovo" "%~f0" >nul 2>&1
-    exit /b
+    move /y "%~f0.nuovo" "%~f0" >nul 2>&1 && "%~f0" %*
 )
 exit /b
 
 REM ============================================================
-REM  McAfee: rilevamento e rimozione con gli strumenti ufficiali
+REM  McAfee: rilevamento e rimozione automatica silenziosa
 REM ============================================================
 :mcafee
 setlocal EnableDelayedExpansion
@@ -185,52 +181,24 @@ if "!MC_N!"=="0" if not defined MC_SVC (
     exit /b 0
 )
 echo.
-echo ============================================================
-echo   ATTENZIONE: su questo PC e' installato McAfee.
-echo   McAfee blocca PC Facile ^(lo segnala come "contenuto dannoso"^):
-echo   va rimosso PRIMA di continuare, con il suo disinstallatore ufficiale.
-echo ============================================================
+echo [AUTO] Rilevato McAfee preinstallato: rimozione automatica silenziosa in corso...
 for /l %%I in (1,1,!MC_N!) do echo     - !MC_NOME_%%I!
-if defined MC_SVC echo     - servizi McAfee attivi
-echo.
-echo [AUTO] Rimozione automatica McAfee in corso per velocizzare la procedura...
 if "!MC_N!"=="0" goto :mcafee_mcpr
 for /l %%I in (1,1,!MC_N!) do call :mcafee_uno %%I
 call :mcafee_rileva
 if "!MC_N!"=="0" if not defined MC_SVC goto :mcafee_riavvio
-echo.
-echo McAfee risulta ancora presente ^(a volte serve un riavvio per completare^).
 :mcafee_mcpr
-echo.
-echo Strumento ufficiale di rimozione McAfee ^(MCPR^): toglie McAfee del tutto.
-echo [AUTO] Avvio automatico MCPR...
 set "MCPR="
 if exist "%~dp0installers\MCPR.exe" set "MCPR=%~dp0installers\MCPR.exe"
-if defined MCPR goto :mcafee_mcpr_firma
-set "MCPR=%TEMP%\MCPR.exe"
-del "%MCPR%" /f /q >nul 2>&1
-echo Scarico MCPR dal sito ufficiale McAfee...
-curl.exe -fsSL -o "%MCPR%" "https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe" >nul 2>&1
-if not exist "%MCPR%" powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://download.mcafee.com/molbin/iss-loc/SupportTools/MCPR/MCPR.exe' -OutFile '%MCPR%' -UseBasicParsing" >nul 2>&1
-:mcafee_mcpr_firma
+if not defined MCPR goto :mcafee_riavvio
 set "MC_OK="
-if exist "%MCPR%" powershell -NoProfile -Command "$s=Get-AuthenticodeSignature -LiteralPath '%MCPR%'; if ($s.Status -eq 'Valid' -and $s.SignerCertificate.Subject -match 'McAfee') { exit 0 } else { exit 1 }" >nul 2>&1 && set "MC_OK=1"
-if not defined MC_OK (
-    echo [ATTENZIONE] MCPR non scaricato o firma McAfee non valida: non lo avvio.
-    echo     Si apre la pagina ufficiale: scaricalo ed eseguilo a mano.
-    start "" "https://www.mcafee.com/support/s/article/000002766"
-    echo Premi un tasto quando hai finito...
-    pause >nul
-    goto :mcafee_riavvio
+powershell -NoProfile -Command "$s=Get-AuthenticodeSignature -LiteralPath '%MCPR%'; if ($s.Status -eq 'Valid' -and $s.SignerCertificate.Subject -match 'McAfee') { exit 0 } else { exit 1 }" >nul 2>&1 && set "MC_OK=1"
+if defined MC_OK (
+    echo [AUTO] Avvio rimozione McAfee ^(MCPR^)...
+    start "" /wait "%MCPR%" /quiet >nul 2>&1
 )
-echo Avvio MCPR: Avanti, accetta, scrivi il codice di verifica mostrato, poi attendi
-echo "CleanUp Successful". Quando MCPR chiede di riavviare, chiudilo e torna qui.
-start "" /wait "%MCPR%"
-echo Premi un tasto quando MCPR ha finito...
-pause >nul
 :mcafee_riavvio
-echo.
-echo [OK] Rimozione McAfee completata: proseguo senza riavviare.
+echo [OK] Procedura McAfee completata: proseguo automaticamente senza riavviare.
 :mcafee_fine
 endlocal
 exit /b 0
@@ -258,12 +226,9 @@ set "MC_NOME_!MC_N!=!MC_NOME!"
 set "MC_UNS_!MC_N!=!MC_UNS!"
 exit /b 0
 
-REM Avvia il disinstallatore ufficiale registrato da McAfee e aspetta l'operatore.
+REM Avvia il disinstallatore McAfee in modalita' silenziosa senza attendere tasti.
 :mcafee_uno
-echo.
-echo Avvio la disinstallazione di: !MC_NOME_%1!
-echo Segui la finestra di McAfee fino alla fine ^(Rimuovi / Avanti^).
-cmd /c "!MC_UNS_%1!"
-echo Quando la disinstallazione e' finita, premi un tasto per continuare...
-pause >nul
+echo     Rimozione silenziosa di: !MC_NOME_%1!
+cmd /c "!MC_UNS_%1! /quiet /silent /norestart" >nul 2>&1
+winget uninstall --name "!MC_NOME_%1!" --silent --accept-source-agreements --disable-interactivity >nul 2>&1
 exit /b 0
