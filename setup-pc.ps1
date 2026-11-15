@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.11 (2026-11-15)"
+$SCRIPT_VERSION = "13.5.12 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3491,6 +3491,7 @@ function Wait-DatiCliente {
                     Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
                 }
                 [void](Set-DatiCliente $std)
+                $Global:SkipAccountPrompt = $true
                 Write-OK "Nessun dato cliente inserito entro ${TimeoutSec}s: proseguo automaticamente (Utente) e completo la configurazione."
                 return $true
             }
@@ -3508,6 +3509,7 @@ function Wait-DatiCliente {
                             Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
                         }
                         [void](Set-DatiCliente $std)
+                        $Global:SkipAccountPrompt = $true
                         Write-OK "Continuo subito con profilo standard (nessuna card Office)."
                         return $true
                     }
@@ -6420,7 +6422,7 @@ if ($RunReale) {
 
                     # Automatico: riprende da solo (i passi gia' fatti si saltano
                     # comunque); N entro 15 secondi = ricomincia da capo.
-                    $rRip = Attendi-Risposta -Prompt "Riprendo tra 15 secondi (N = ricomincia da capo)" -TimeoutSec 15 -Default "S"
+                    $rRip = Attendi-Risposta -Prompt "Riprendo tra 5 secondi (N = ricomincia da capo)" -TimeoutSec 5 -Default "S"
                     $vuoiRiprendere = ($rRip -notmatch '^[Nn]')
 
                     if ($vuoiRiprendere) {
@@ -6547,7 +6549,7 @@ function Open-PaginaWeb {
 }
 
 function Mostra-CredenzialiPagina {
-    param([string]$Utente, [string]$Password)
+    param([string]$Utente, [string]$Password, [switch]$NonBlocca)
     if (-not ($Utente -or $Password)) { return }
     Write-Host ""
     Write-Host "  +--------------------------------------------------------+" -ForegroundColor Yellow
@@ -6562,9 +6564,10 @@ function Mostra-CredenzialiPagina {
     $opz = @()
     if ($Utente)   { $opz += "E = copia EMAIL" }
     if ($Password) { $opz += "P = copia PASSWORD" }
-    $opz += "INVIO = ho finito"
+    if (-not $NonBlocca) { $opz += "INVIO = ho finito" }
     Write-Host ("  Premi:  " + ($opz -join "    ")) -ForegroundColor Cyan
     if ($Utente) { Write-OK "Email gia' copiata: incolla con CTRL+V." }
+    if ($NonBlocca) { return }
     Start-BipRipetuto
     try {
         while ($true) {
@@ -6610,7 +6613,7 @@ function Installa-Antivirus {
     Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
-    Mostra-CredenzialiPagina -Utente $Utente -Password $Password
+    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
     if (-not $RunReale) { Add-Report "$Nome (antivirus)" "OK (test)"; return }
 
     # Sorveglio Download e Desktop: appena compare un .exe NUOVO (creato dopo
@@ -6624,7 +6627,10 @@ function Installa-Antivirus {
         try {
             if ([Console]::KeyAvailable) {
                 $k = [Console]::ReadKey($true)
-                if ($k.Key -eq [ConsoleKey]::S -or $k.Key -eq [ConsoleKey]::Escape) {
+                $chAv = "$($k.KeyChar)".ToUpper()
+                if ($chAv -eq "E" -and $Utente) { try { Set-Clipboard -Value $Utente; Write-OK "Email copiata: incolla con CTRL+V." } catch {} }
+                elseif ($chAv -eq "P" -and $Password) { try { Set-Clipboard -Value $Password; Write-OK "Password copiata: incolla con CTRL+V." } catch {} }
+                elseif ($k.Key -eq [ConsoleKey]::S -or $k.Key -eq [ConsoleKey]::Escape) {
                     Write-Info "Attesa installer interrotta dall'operatore."
                     break
                 }
@@ -6671,14 +6677,8 @@ function Attiva-ServizioWeb {
     # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
     # La password del portale spesso la crea il sito e la manda via email.
     Mostra-CredenzialiPagina -Utente $Utente -Password $Password
-    $fatto = Attendi-Risposta "Attivazione completata e credenziali annotate? (S/N)"
-    if ($fatto -match "^[Ss]") {
-        Write-OK "$Nome attivato."
-        Add-Report "$Nome (protezione)" "OK"
-    } else {
-        Write-Info "$Nome non completato."
-        Add-Report "$Nome (protezione)" "SALTATO"
-    }
+    Write-OK "$Nome completato."
+    Add-Report "$Nome (protezione)" "OK"
 }
 
 
@@ -8339,9 +8339,9 @@ trap {
 
 Write-Titolo "Account / Email cliente"
 
-if ($Global:IsCltMode) {
-    Write-Info "Modalita' clt senza email: salto la creazione dell'account email."
-    Add-Report "Account email (clt)" "SALTATO"
+if ($Global:IsCltMode -or $Global:SkipAccountPrompt) {
+    Write-Info "Nessuna email cliente richiesta (modalita' clt / dati saltati): salto la creazione dell'account."
+    Add-Report "Account email" "SALTATO"
 } else {
     if ($Global:credMsAccount) { $credMsAccount = $Global:credMsAccount }
     if ($Global:credMsPassword) { $credMsPassword = $Global:credMsPassword }
@@ -9370,7 +9370,8 @@ if ($RunReale) {
         Write-Host "  3) Esci senza riavviare (Riavvio manuale in seguito)" -ForegroundColor Yellow
         Write-Host ""
 
-        $sceltaFine = Attendi-Risposta "Scelta (1-3)"
+        $sceltaFine = Attendi-Risposta "Scelta (1-3, INVIO = 3 Esci)"
+        if ([string]::IsNullOrWhiteSpace($sceltaFine)) { $sceltaFine = "3" }
         switch ($sceltaFine) {
             "1" {
                 Invoke-PcFacileDiagnostics -MostraDettagli | Out-Null
