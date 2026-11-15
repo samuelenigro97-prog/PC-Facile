@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.5.10 (2026-11-15)"
+$SCRIPT_VERSION = "13.5.11 (2026-11-15)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3829,6 +3829,7 @@ function Install-OfflinePackage {
             elseif ($FilePath -like "*AnyDesk*") { $arg = "--install `"C:\Program Files (x86)\AnyDesk`" --silent --create-shortcuts" }
             elseif ($FilePath -like "*TeamViewer*") { $arg = "/S" }
             elseif ($FilePath -like "*Zoom*") { $arg = "/silent" }
+            elseif ($FilePath -like "*WhatsApp*") { $arg = "/silent" }
             elseif ($FilePath -like "*LibreOffice*" -or $FilePath -like "*OpenOffice*") { $arg = "/S" }
             elseif ($FilePath -like "*aimp*") { $arg = "/AUTO" }
             elseif ($FilePath -like "*gimp*") { $arg = "/VERYSILENT /NORESTART /ALLUSERS" }
@@ -3862,12 +3863,12 @@ function Install-OfflinePackage {
             }
         }
         if ($proc -and ($proc.ExitCode -eq 0 -or $proc.ExitCode -eq 3010 -or $proc.ExitCode -eq 1641)) {
-            Write-OK "$Nome installato con successo da cache offline USB!"
+            Write-OK "$Nome installato con successo!"
             Stop-AppPopups -Nome $Nome
             return $true
         } else {
             $code = if ($proc) { $proc.ExitCode } else { "sconosciuto" }
-            Write-Info "Installazione offline di $Nome uscita con codice $code. Procedo con Winget..."
+            Write-Info "Installazione pacchetto per $Nome uscita con codice $code."
         }
     } catch {
         Write-Info "Installazione offline non riuscita ($($_.Exception.Message)). Procedo con Winget..."
@@ -3875,37 +3876,55 @@ function Install-OfflinePackage {
     return $false
 }
 
-# Fallback diretto per Spotify quando Winget/msstore falliscono per contesto Admin
-# o errore certificato (0x8a15005e): scarica SpotifyFullSetup.exe e lo avvia
-# in contesto utente non elevato tramite Task Scheduler (Install-OfflinePackage).
-function Install-SpotifyDirect {
+# Fallback diretto ufficiale per le app del catalogo quando Winget/msstore
+# falliscono (es. contesto Admin per Spotify, errore certificato 0x8a15005e
+# su reti negozio con proxy/filtro, o sorgente msstore bloccata).
+function Install-AppDirectFallback {
+    param([string]$WingetId, [string]$Nome)
     if ($Test -or $Global:Test -or $env:PESTER_TEST) {
-        Write-OK "TEST: installazione diretta Spotify simulata."
+        Write-OK "TEST: fallback diretto $Nome simulato."
         return $true
     }
-    $spDest = Join-Path $env:TEMP "SpotifyFullSetup.exe"
-    $urls = @(
-        "https://download.scdn.co/SpotifyFullSetup.exe",
-        "https://download.scdn.co/SpotifySetup.exe"
-    )
+    $mappa = @{
+        'Google.Chrome'                 = @{ File = 'ChromeStandaloneSetup64.exe'; Urls = @('https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF5-1A09E5037969%7D%26iid%3D%7B00000000-0000-0000-0000-000000000000%7D%26lang%3Dit%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dprefers%26ap%3Dx64-stable-statsdef_1/chrome/install/ChromeStandaloneSetup64.exe', 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi') }
+        'Mozilla.Firefox'               = @{ File = 'Firefox_Setup.exe'; Urls = @('https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=it') }
+        'VideoLAN.VLC'                  = @{ File = 'vlc-win64.exe'; Urls = @('https://download.videolan.org/pub/videolan/vlc/last/win64/vlc-3.0.21-win64.exe', 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.exe') }
+        'Adobe.Acrobat.Reader.64-bit'   = @{ File = 'AcroRdrDCx64_it_IT.exe'; Urls = @('https://ardownload2.adobe.com/pub/adobe/acrobat/win/AcrobatDC/2600322075/AcroRdrDCx642600322075_MUI.exe', 'https://ardownload2.adobe.com/pub/adobe/acrobat/win/AcrobatDC/2500120744/AcroRdrDCx642500120744_MUI.exe') }
+        'SumatraPDF.SumatraPDF'         = @{ File = 'SumatraPDF-install.exe'; Urls = @('https://www.sumatrapdfreader.org/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe', 'https://files2.sumatrapdfreader.org/software/sumatrapdf/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe') }
+        'Spotify.Spotify'               = @{ File = 'SpotifyFullSetup.exe'; Urls = @('https://download.scdn.co/SpotifyFullSetup.exe', 'https://download.scdn.co/SpotifySetup.exe') }
+        'AIMP.AIMP'                     = @{ File = 'aimp.exe'; Urls = @('https://aimp.ru/?do=download.file&id=3', 'https://aimp.ru/files/desktop/builds/aimp_5.40.2726_w64.exe') }
+        '7zip.7zip'                     = @{ File = '7z-x64.msi'; Urls = @('https://www.7-zip.org/a/7z2409-x64.msi', 'https://www.7-zip.org/a/7z2408-x64.msi') }
+        '9NKSQGP7F2NH'                  = @{ File = 'WhatsAppInstaller.exe'; Urls = @('https://get.microsoft.com/installer/download/9NKSQGP7F2NH?cid=website_cta_psi') }
+        'AnyDesk.AnyDesk'               = @{ File = 'AnyDesk.exe'; Urls = @('https://download.anydesk.com/AnyDesk.exe') }
+        'Zoom.Zoom'                     = @{ File = 'ZoomInstallerFull.msi'; Urls = @('https://zoom.us/client/latest/ZoomInstallerFull.msi', 'https://zoom.us/client/latest/ZoomInstaller.msi') }
+        'TheDocumentFoundation.LibreOffice' = @{ File = 'LibreOffice_Win_x86-64.msi'; Urls = @('https://download.documentfoundation.org/libreoffice/stable/26.8.0/win/x86_64/LibreOffice_26.8.0_Win_x86-64.msi', 'https://download.documentfoundation.org/libreoffice/stable/25.8.7/win/x86_64/LibreOffice_25.8.7_Win_x86-64.msi') }
+    }
+    $entry = if ($WingetId -and $mappa.ContainsKey($WingetId)) { $mappa[$WingetId] } else { $null }
+    if (-not $entry) { return $false }
+
+    $dest = Join-Path $env:TEMP $entry.File
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13 } catch {}
-    foreach ($u in $urls) {
+    foreach ($u in $entry.Urls) {
         try {
-            Remove-Item -LiteralPath $spDest -Force -ErrorAction SilentlyContinue
-            Write-Info "Scarico installer ufficiale Spotify ($u)..."
-            Invoke-WebRequest -Uri $u -OutFile $spDest -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-            if ((Test-Path -LiteralPath $spDest) -and ((Get-Item -LiteralPath $spDest).Length -gt 102400)) {
-                if (Install-OfflinePackage -FilePath $spDest -Nome "Spotify") {
-                    Remove-Item -LiteralPath $spDest -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
+            Write-Info "Scarico installer ufficiale $Nome ($u)..."
+            Invoke-WebRequest -Uri $u -OutFile $dest -UseBasicParsing -TimeoutSec 90 -ErrorAction Stop
+            if ((Test-Path -LiteralPath $dest) -and ((Get-Item -LiteralPath $dest).Length -gt 102400)) {
+                if (Install-OfflinePackage -FilePath $dest -Nome $Nome) {
+                    Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
                     return $true
                 }
             }
         } catch {
-            Write-Info "Download Spotify da $u non riuscito: $($_.Exception.Message)"
+            Write-Info "Download diretto $Nome da $u non riuscito: $($_.Exception.Message)"
         }
     }
-    Remove-Item -LiteralPath $spDest -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
     return $false
+}
+
+function Install-SpotifyDirect {
+    return (Install-AppDirectFallback -WingetId 'Spotify.Spotify' -Nome 'Spotify')
 }
 
 # Visual C++ 2015-2022 gia' installato per l'architettura indicata (x64/x86).
@@ -6201,11 +6220,10 @@ function Installa-Pacchetto {
             continue
         }
 
-        # Spotify: winget/msstore falliscono spesso in contesto Admin o con 0x8a15005e.
-        # Passiamo subito al download diretto + Task Scheduler non elevato.
-        if ($WingetId -eq 'Spotify.Spotify' -or $Nome -eq 'Spotify') {
-            Write-Info "Winget non riuscito per Spotify (codice: $codeInstall): uso download diretto non elevato..."
-            if (Install-SpotifyDirect) {
+        # Spotify o pacchetti msstore/certificato: passaggio diretto all'installer ufficiale.
+        if ($WingetId -eq 'Spotify.Spotify' -or $Nome -eq 'Spotify' -or ($WingetId -match '^[A-Z0-9]{12}$' -and $erroriSorgente -contains $codeInstall)) {
+            Write-Info "Winget/Store non riuscito per $Nome (codice: $codeInstall): provo download diretto ufficiale..."
+            if (Install-AppDirectFallback -WingetId $WingetId -Nome $Nome) {
                 Add-Report "$Nome (installazione)" "OK"
                 Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
                 $Global:UltimaInstallOk = $true
@@ -6248,6 +6266,15 @@ function Installa-Pacchetto {
     winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-OK "$Nome risulta installato (verificato)."
+        Add-Report "$Nome (installazione)" "OK"
+        Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
+        $Global:UltimaInstallOk = $true
+        return
+    }
+
+    # Fallback finale: se tutti i tentativi Winget sono falliti, prova il download
+    # diretto dell'installer ufficiale prima di segnalare l'app come non installata.
+    if (Install-AppDirectFallback -WingetId $WingetId -Nome $Nome) {
         Add-Report "$Nome (installazione)" "OK"
         Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
         $Global:UltimaInstallOk = $true
