@@ -1119,7 +1119,7 @@ Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
     BeforeAll {
         $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile.bat'))
         $i = $bat.IndexOf("`n:mcafee_rileva") + 1   # la definizione, non 'call :mcafee_rileva'
-        $j = $bat.IndexOf("REM Avvia il disinstallatore ufficiale")
+        $j = $bat.IndexOf("`n:mcafee_uno", $i)
         $corpo = $bat.Substring($i, $j - $i)
         $testa = "@echo off`r`nsetlocal EnableDelayedExpansion`r`ncall :mcafee_rileva`r`necho N=!MC_N!`r`necho NOME=!MC_NOME_1!`r`necho UNS=!MC_UNS_1!`r`nexit /b 0`r`n"
         $script:BatProva = Join-Path ([System.IO.Path]::GetTempPath()) ('pcf-mcafee-' + [guid]::NewGuid().ToString('N') + '.bat')
