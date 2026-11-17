@@ -1179,17 +1179,17 @@ Describe 'Ordine dei passi e pannello' {
         $fase2[0] | Should -Be 'lingua'
         [array]::IndexOf($script:Ids, 'driver') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'aggiorna'))
     }
-    It 'fase 1 = dati cliente e attivazioni (office -> cyber), fase 2 = automatica (lingua -> aggiorna)' {
+    It 'fase 1 = dati cliente, Everyday Digital e attivazioni (everyday -> cyber), fase 2 = automatica (lingua -> aggiorna)' {
         $gruppi = @($script:Passi | ForEach-Object { [int]$_.Gruppo })
         for ($i = 1; $i -lt $gruppi.Count; $i++) { $gruppi[$i] | Should -BeGreaterOrEqual $gruppi[$i - 1] }
         $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
-        ($fase1 -join ',') | Should -Be 'office,nome,account,officeattiva,antivirus,cyber'
+        ($fase1 -join ',') | Should -Be 'everyday,office,nome,account,officeattiva,antivirus,cyber'
         $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
         ($fase2 -join ',') | Should -Be 'lingua,ripristino,avprova,app,pulizia,driver,aggiorna'
     }
-    It 'Office e i passi cliente aprono la procedura (gruppo 1) prima della fase automatica' {
+    It 'Unieuro Everyday Digital apre la procedura (gruppo 1) prima della fase automatica' {
         $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
-        $fase1[0] | Should -Be 'office'
+        $fase1[0] | Should -Be 'everyday'
         [array]::IndexOf($script:Ids, 'cyber') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'lingua'))
     }
     It 'ogni passo ha un id unico e un task presente nel pannello (script e HTML)' {
@@ -1214,9 +1214,11 @@ Describe 'Ordine dei passi e pannello' {
 
 Describe 'Controlli "gia'' fatto"' {
     AfterEach { Remove-Variable -Name serviziSelezionati -Scope Global -ErrorAction SilentlyContinue }
-    It 'Test-AvDaTenere tiene solo l''antivirus della card scelta nel pannello' {
-        $Global:serviziSelezionati = [pscustomobject]@{ McAfee = $true; Norton = $false }
+    It 'Test-AvDaTenere tiene solo l''antivirus della card scelta nel pannello (incluso Unieuro Secure / F-Secure)' {
+        $Global:serviziSelezionati = [pscustomobject]@{ McAfee = $true; Norton = $false; Everyday = $true }
         Test-AvDaTenere 'McAfee LiveSafe' | Should -BeTrue
+        Test-AvDaTenere 'Unieuro Secure' | Should -BeTrue
+        Test-AvDaTenere 'F-Secure Total' | Should -BeTrue
         Test-AvDaTenere 'Norton 360' | Should -BeFalse
         Test-AvDaTenere 'Avast Free Antivirus' | Should -BeFalse
     }

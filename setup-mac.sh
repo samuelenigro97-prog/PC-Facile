@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.3 (2026-11-09)"
+SCRIPT_VERSION="2.4 (2026-11-17)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -526,11 +526,12 @@ open_pannello_mac() {
                 <div class="servizi">
                     <span class="etichetta" style="color:#fed7aa;">Servizi sullo scontrino</span>
                     <div class="servizi-grid">
+                        <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203; background:rgba(238,114,3,0.14); font-weight:700;"><input type="checkbox" id="chkSvcEveryday" checked> <span>Unieuro Everyday Digital (Secure + Cyber) &mdash; PRIORIT&Agrave;</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203;"><input type="checkbox" id="chkSvcCyber"> <span>Unieuro Cyber Protection</span></label>
+                        <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203;"><input type="checkbox" id="chkSvcCyber"> <span>Solo Unieuro Cyber Protection</span></label>
                     </div>
                     <label class="etichetta" for="selProfilo" style="margin-top:10px;">Programmi</label>
                     <select id="selProfilo" class="cred-input">
@@ -550,6 +551,7 @@ open_pannello_mac() {
                 <a href="https://account.microsoft.com/services" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Installa Office dall&rsquo;account Microsoft</span> <span>&rarr;</span></a>
                 <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span> <span>&rarr;</span></a>
                 <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span> <span>&rarr;</span></a>
+                <a href="https://my.f-secure.com" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Everyday Digital (F-Secure)</span> <span>&rarr;</span></a>
                 <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Cyber Protection</span> <span>&rarr;</span></a>
             </div>
         </div>
@@ -701,6 +703,7 @@ open_pannello_mac() {
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
             var t = document.getElementById('inTelefono').value.trim();
+            var everyday = document.getElementById('chkSvcEveryday').checked;
             var proton = document.getElementById('chkSvcProton').checked;
             var office = document.getElementById('chkSvcOffice').checked;
             var mcafee = document.getElementById('chkSvcMcAfee').checked;
@@ -718,6 +721,7 @@ open_pannello_mac() {
                 Telefono: t,
                 ProfiloApp: document.getElementById('selProfilo').value,
                 Servizi: {
+                    Everyday: everyday,
                     Proton: proton,
                     Office: office,
                     McAfee: mcafee,
@@ -804,7 +808,7 @@ try:
             print(nome + '\t' + pulito(d[k]))
     svcs = d.get('Servizi', {})
     if isinstance(svcs, dict):
-        for k, nome, predef in (('Proton', 'SVC_PROTON', True), ('Office', 'SVC_OFFICE', False),
+        for k, nome, predef in (('Everyday', 'SVC_EVERYDAY', True), ('Proton', 'SVC_PROTON', True), ('Office', 'SVC_OFFICE', False),
                                 ('McAfee', 'SVC_MCAFEE', False), ('Norton', 'SVC_NORTON', False),
                                 ('Cyber', 'SVC_CYBER', True)):
             print(nome + '\t' + ('true' if svcs.get(k, predef) else 'false'))
@@ -817,7 +821,7 @@ PYEOF
                         chiave="${riga%%$'\t'*}"
                         valore="${riga#*$'\t'}"
                         case "$chiave" in
-                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
+                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_EVERYDAY|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
                                 typeset -g "$chiave=$valore" ;;
                         esac
                     done <<< "$res"
@@ -1022,11 +1026,45 @@ invoke_auto_signup_mac() {
 
     local email_proton="${EMAIL_CLIENTE:-${nome_c//[^a-zA-Z0-9]/}@proton.me}"
     local pass_gen="${PASS_CLIENTE:-$(password_cliente "$nome_c")}"
+    local do_everyday="${SVC_EVERYDAY:-true}"
     local do_proton="${SVC_PROTON:-true}"
     local do_office="${SVC_OFFICE:-false}"
     local do_mcafee="${SVC_MCAFEE:-false}"
     local do_norton="${SVC_NORTON:-false}"
     local do_cyber="${SVC_CYBER:-true}"
+    [[ "$do_everyday" == "true" ]] && do_cyber="true"
+
+    # 0. UNIEURO EVERYDAY DIGITAL (PRIORITA' - UNIEURO SECURE / F-SECURE)
+    if [[ "$do_everyday" == "true" ]]; then
+        titolo "0. UNIEURO EVERYDAY DIGITAL (PRIORITA' - UNIEURO SECURE)"
+        if [[ -d "/Applications/Unieuro Secure.app" ]] || ls /Applications/*F-Secure* >/dev/null 2>&1; then
+            ok "Unieuro Secure (F-Secure) risulta gia' installato."
+            add_report "Unieuro Secure (F-Secure)" "OK (gia' installato)"
+        else
+            echo -n "$email_proton" | pbcopy 2>/dev/null
+            info "Email $email_proton copiata negli appunti (Cmd+V per incollare)."
+            info "Apertura portale Unieuro Secure (my.f-secure.com) in Safari..."
+            set_split_screen_mac "https://my.f-secure.com"
+            printf '\a'
+            info "Scarica l'installer Mac da my.f-secure.com: verra' avviato da solo (premi INVIO/S per proseguire subito)..."
+            local start_ts=$(date +%s)
+            local pkg_trovato=""
+            for _ in {1..120}; do
+                pkg_trovato=$(find "$HOME/Downloads" -maxdepth 1 \( -iname "*.pkg" -o -iname "*.dmg" \) -newerct "@$start_ts" 2>/dev/null | head -n1)
+                if [[ -n "$pkg_trovato" ]]; then
+                    sleep 2
+                    open "$pkg_trovato" 2>/dev/null
+                    ok "Installer Unieuro Secure avviato: $(basename "$pkg_trovato")"
+                    add_report "Unieuro Secure (F-Secure)" "OK"
+                    break
+                fi
+                if read -t 2 -k 1 _; then
+                    info "Attesa installer interrotta dall'operatore."
+                    break
+                fi
+            done
+        fi
+    fi
 
     # 1. CREAZIONE ACCOUNT PROTON MAIL (SE SELEZIONATO)
     if [[ "$do_proton" == "true" ]]; then
