@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.6.1 (2026-11-15)"
+$SCRIPT_VERSION = "13.7.0 (2026-11-17)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1568,6 +1568,7 @@ function Update-PannelloStatus {
                 # fase 1: dati cliente, Office e attivazioni operatore;
                 # fase 2 (automatica): lingua, programmi, pulizia, driver e aggiornamenti fino alla fine.
                 Tasks         = [ordered]@{
+                    "everyday"    = [ordered]@{ Nome = "Unieuro Everyday Digital (Secure + Cyber)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
                     "account"     = [ordered]@{ Nome = "Nome PC e account cliente"; Stato = "pending"; Dettaglio = "In attesa" }
                     "antivirus"   = [ordered]@{ Nome = "Sicurezza & Antivirus Definitivo (Defender / Card)"; Stato = "pending"; Dettaglio = "In attesa" }
@@ -1673,7 +1674,7 @@ function Start-ServerPannello {
                 $Res.ContentLength64 = $b.Length
                 $Res.OutputStream.Write($b, 0, $b.Length)
             }
-            $passiValidi = @('ripristino','sysdm','avprova','lingua','runtime','app','icone','office','officeattiva','account','netplwiz','antivirus','cyber','pulizia','driver','devmgmt','aggiorna','winupdate','scheda','diagnostica')
+            $passiValidi = @('everyday','ripristino','sysdm','avprova','lingua','runtime','app','icone','office','officeattiva','account','netplwiz','antivirus','cyber','pulizia','driver','devmgmt','aggiorna','winupdate','scheda','diagnostica')
             while ($Listener.IsListening) {
                 try { $ctx = $Listener.GetContext() } catch { break }
                 $res = $ctx.Response
@@ -2498,10 +2499,11 @@ function Open-PannelloOperatore {
                         </div>
                     </div>
                     <div class="services-grid">
+                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203; background: rgba(238, 114, 3, 0.14); font-weight: 700;"><input type="checkbox" id="chkSvcEveryday" checked> <span>Unieuro Everyday Digital (Unieuro Secure + Cyber) &mdash; PRIORIT&Agrave;</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
-                        <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203;"><input type="checkbox" id="chkSvcCyber"> <span>Unieuro Cyber Protection (inclusa)</span></label>
+                        <label class="svc-item"><input type="checkbox" id="chkSvcCyber"> <span>Solo Cyber Protection</span></label>
                     </div>
                 </div>
 
@@ -2516,21 +2518,22 @@ function Open-PannelloOperatore {
             <div class="card">
                 <div class="card-subtitle">Nella Fase 1 inserisci i dati del cliente e completi Office, antivirus e servizi; poi la Fase 2 va dritta da sola dalla lingua fino agli aggiornamenti. I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
-                    <li class="task-gruppo">Fase 1 &middot; Dati cliente, Office e attivazioni (operatore)</li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li class="task-gruppo">Fase 1 &middot; Dati cliente, Everyday Digital, Office e attivazioni (operatore)</li>
+                    <li id="task-everyday" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Unieuro Everyday Digital (Secure + Cyber)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                     <li class="task-gruppo">Fase 2 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
                 </ul>
             </div>
         </div>
@@ -2553,8 +2556,9 @@ function Open-PannelloOperatore {
                     <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span><span class="portal-tag">Apri &rarr;</span></a>
                     <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span><span class="portal-tag">Apri &rarr;</span></a>
 
-                    <div class="portal-divider">Servizio Unieuro</div>
-                    <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Cyber Protection</span><span class="portal-tag">Apri &rarr;</span></a>
+                    <div class="portal-divider">Servizio Unieuro (Priorit&agrave;)</div>
+                    <a href="https://my.f-secure.com" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Everyday Digital (Unieuro Secure / F-Secure)</span><span class="portal-tag">Apri &rarr;</span></a>
+                    <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Cyber Protection (Covercare)</span><span class="portal-tag">Apri &rarr;</span></a>
                 </div>
             </div>
         </div>
@@ -2565,9 +2569,22 @@ function Open-PannelloOperatore {
                 <div class="card-subtitle">Esegui o ripeti singolarmente qualsiasi passaggio nello stesso ordine della procedura (1..13). Utile se un passo &egrave; andato male o se devi correggere subito il <strong>nome utente / nome PC</strong> (es. rimasto <code>clt clt</code>).</div>
 
                 <div class="step-tool-list">
-                    <div class="task-gruppo">Fase 1 &middot; Dati cliente, Office e attivazioni operatore</div>
+                    <div class="task-gruppo">Fase 1 &middot; Dati cliente, Everyday Digital, Office e attivazioni operatore</div>
 
-                    <!-- 1. Office: installazione e attivazione -->
+                    <!-- 1. Unieuro Everyday Digital (Priorita') -->
+                    <div class="step-tool-card highlight" id="stepcard-everyday">
+                        <div class="step-tool-head">
+                            <div class="step-tool-title"><span class="step-badge">1</span> Unieuro Everyday Digital (Secure + Cyber)</div>
+                            <span id="step-badge-everyday" class="task-badge badge-pending">Pronto</span>
+                        </div>
+                        <div class="step-tool-desc">Apre <strong>Unieuro Secure (F-Secure)</strong> su <code>my.f-secure.com</code>, avvia in automatico l&rsquo;installer scaricato (o offline da USB) e apre <strong>Unieuro Cyber Protection</strong> con i dati cliente pronti negli appunti.</div>
+                        <div class="step-tool-actions">
+                            <button type="button" class="btn-tool primary" onclick="eseguiPasso('everyday')">&#128737; Installa / Attiva Everyday Digital</button>
+                        </div>
+                        <div id="esitoStep-everyday" class="step-esito"></div>
+                    </div>
+
+                    <!-- 2. Office: installazione e attivazione -->
                     <div class="step-tool-card" id="stepcard-office">
                         <div class="step-tool-head">
                             <div class="step-tool-title"><span class="step-badge">1</span> Office: installazione e attivazione</div>
@@ -2801,7 +2818,7 @@ function Open-PannelloOperatore {
         var isScriptConnected = false;
         var lastStatusPing = 0;
         var schedaScelta = false;
-        var TASK_KEYS = ['office', 'account', 'antivirus', 'cyber', 'lingua', 'ripristino', 'avprova', 'runtime', 'app', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
+        var TASK_KEYS = ['everyday', 'office', 'account', 'antivirus', 'cyber', 'lingua', 'ripristino', 'avprova', 'runtime', 'app', 'pulizia', 'driver', 'aggiorna', 'diagnostica'];
 
         function el(id) { return document.getElementById(id); }
         function val(id) { var e = el(id); return e ? e.value.trim() : ''; }
@@ -3018,6 +3035,7 @@ function Open-PannelloOperatore {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
+            var everyday = el('chkSvcEveryday').checked;
             var cyber = el('chkSvcCyber').checked;
             var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
             var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
@@ -3035,6 +3053,7 @@ function Open-PannelloOperatore {
                 Telefono: telefono,
                 ProfiloApp: el('selProfilo').value,
                 Servizi: {
+                    Everyday: everyday,
                     Proton: el('chkSvcProton').checked,
                     Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
                     OfficeTipo: el('selOffice').value,
@@ -6740,10 +6759,45 @@ function Add-CollegamentiOffice {
 
 # Antivirus della card acquistata dal cliente (scelta nel pannello): da TENERE,
 # non e' un antivirus di prova da rimuovere.
+function Invoke-EverydayDigital {
+    param(
+        [string]$Utente = "",
+        [string]$Password = ""
+    )
+    # 1. Unieuro Secure (powered by F-Secure)
+    $giainst = $false
+    try {
+        if ((Get-AntivirusTerzi | Where-Object { $_ -match 'F-Secure|Unieuro\s*Secure' }) -or
+            (Test-Path (Join-Path $env:ProgramFiles "F-Secure")) -or
+            (Test-Path (Join-Path ${env:ProgramFiles(x86)} "F-Secure"))) {
+            $giainst = $true
+        }
+    } catch {}
+    if ($giainst) {
+        Write-OK "Unieuro Secure (F-Secure) risulta gia' installato."
+        Add-Report "Unieuro Secure (F-Secure)" "OK (gia' installato)"
+    } else {
+        $off = Find-OfflineInstaller -Nome "Unieuro Secure" -WingetId "F-Secure"
+        if ($off) {
+            Write-Info "Trovato installer offline Unieuro Secure: $($off.Name)"
+            if (Install-OfflinePackage -Nome "Unieuro Secure" -Percorso $off.FullName) {
+                Add-Report "Unieuro Secure (F-Secure)" "OK (offline)"
+            }
+        } else {
+            Installa-Antivirus -Nome "Unieuro Secure (F-Secure)" -UrlRiscatto "https://my.f-secure.com" -Utente $Utente -Password $Password
+        }
+    }
+    # 2. Unieuro Cyber Protection (inclusa in Everyday Digital)
+    if ($Global:telefonoCliente) { Write-Info "Cellulare del cliente: $($Global:telefonoCliente)" }
+    Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $Utente
+    Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Incluso in Everyday Digital"
+}
+
 function Test-AvDaTenere {
     param([string]$Nome)
     $sv = $Global:serviziSelezionati
     if (-not $sv -or -not $Nome) { return $false }
+    if ($sv.Everyday -and $Nome -match 'F-Secure|Unieuro\s*Secure') { return $true }
     if ($sv.McAfee -and $Nome -match 'McAfee') { return $true }
     if ($sv.Norton -and $Nome -match 'Norton') { return $true }
     return $false
@@ -7445,7 +7499,8 @@ trap {
 # Checkpoint: Fase = numero di passi completati (Schema 3 = quest'ordine).
 # =============================================================================
 $Global:Passi = @(
-    @{ Id = 'office';       Nome = 'Office (installazione)';        Gruppo = 1; Task = 'office' }
+    @{ Id = 'everyday';     Nome = 'Unieuro Everyday Digital (Priorita'')'; Gruppo = 1; Task = 'everyday' }
+    @{ Id = 'office';       Nome = 'Office (installazione)';                Gruppo = 1; Task = 'office' }
     @{ Id = 'nome';         Nome = 'Nome cliente e PC';             Gruppo = 1; Task = 'account' }
     @{ Id = 'account';      Nome = 'Account/email cliente';         Gruppo = 1; Task = 'account' }
     @{ Id = 'officeattiva'; Nome = 'Office (attivazione)';          Gruppo = 1; Task = 'office' }
@@ -7602,6 +7657,11 @@ function Invoke-PassoSingolo {
             }
             Update-PannelloStatus -TaskId "antivirus" -Stato "done" -Dettaglio "Antivirus avviato"
         }
+        'everyday' {
+            Update-PannelloStatus -TaskId "everyday" -Stato "running" -Dettaglio "Attivazione Unieuro Everyday Digital..."
+            Invoke-EverydayDigital -Utente $Global:credMsAccount -Password $Global:credMsPassword
+            Update-PannelloStatus -TaskId "everyday" -Stato "done" -Dettaglio "Configurato"
+        }
         'cyber' {
             Update-PannelloStatus -TaskId "cyber" -Stato "running" -Dettaglio "Apertura Cyber Protection..."
             Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $Global:credMsAccount
@@ -7700,6 +7760,26 @@ if ($giaFatto) {
 
 Update-PannelloStatus -TaskId $voce.Task -Stato "running"
 switch ($voce.Id) {
+'everyday' {
+trap {
+    Register-ErroreImprevisto $_
+    try { Write-Host "   [!] Imprevisto gestito: $($_.Exception.Message)" -ForegroundColor DarkYellow } catch {}
+    continue
+}
+# =============================================================================
+# UNIEURO EVERYDAY DIGITAL (PRIORITA' - Unieuro Secure + Cyber Protection)
+# =============================================================================
+Write-Titolo "Unieuro Everyday Digital (Priorita')"
+Update-PannelloStatus -TaskId "everyday" -Stato "running" -Percentuale 8 -FaseCorrente "Unieuro Everyday Digital" -Dettaglio "Installazione/attivazione Unieuro Secure + Cyber Protection..."
+if ($Global:serviziSelezionati -and $Global:serviziSelezionati.Everyday) {
+    Invoke-EverydayDigital -Utente $credMsAccount -Password $credMsPassword
+    Update-PannelloStatus -TaskId "everyday" -Stato "done" -Dettaglio "Configurato"
+} else {
+    Write-Info "Unieuro Everyday Digital non selezionato: saltato."
+    Add-Report "Unieuro Everyday Digital" "SALTATO (non selezionato)"
+    Update-PannelloStatus -TaskId "everyday" -Stato "skipped" -Dettaglio "Non selezionato (saltato)"
+}
+}
 'ripristino' {
 trap {
     # Come il trap globale: registra l'imprevisto e prosegue con l'istruzione
@@ -8466,7 +8546,10 @@ Write-Titolo "Unieuro Cyber Protection"
 Update-PannelloStatus -TaskId "cyber" -Stato "running" -Percentuale 94 -FaseCorrente "Unieuro Cyber Protection" -Dettaglio "Configurazione servizio web..."
 
 # Opzionale: solo se indicato nel pannello (servizio venduto su richiesta).
-if ($Global:serviziSelezionati -and $Global:serviziSelezionati.Cyber) {
+if ($Global:serviziSelezionati -and $Global:serviziSelezionati.Everyday) {
+    Write-Info "Unieuro Cyber Protection gia' configurata con Everyday Digital."
+    Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Incluso in Everyday Digital"
+} elseif ($Global:serviziSelezionati -and $Global:serviziSelezionati.Cyber) {
     if ($Global:telefonoCliente) { Write-Info "Cellulare del cliente: $($Global:telefonoCliente)" }
     Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $credMsAccount
     Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Configurato"
