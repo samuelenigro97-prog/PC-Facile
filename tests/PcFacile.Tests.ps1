@@ -30,7 +30,7 @@ BeforeAll {
         'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb',
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
-        'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Test-CartellaKitUSB',
+        'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Invoke-SelfUpdateIfOutdated', 'Test-CartellaKitUSB',
         'Test-DatiClienteConfermati', 'Start-ServerPannello',
         'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
         'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
@@ -903,6 +903,13 @@ Describe 'Invoke-AggiornamentoUSB' {
         $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1, $script:Base2) -Scarica $script:Scarica
         $r.Ok | Should -BeFalse
         (Get-Content -LiteralPath (Join-Path $script:Usb 'setup-pc.ps1') -Raw).Trim() | Should -Be 'vecchio'
+    }
+
+    It 'Invoke-SelfUpdateIfOutdated ritorna false in modalita test senza errori' {
+        $Global:Test = $true
+        try {
+            Invoke-SelfUpdateIfOutdated | Should -BeFalse
+        } finally { Remove-Variable -Name Test -Scope Global -ErrorAction SilentlyContinue }
     }
 }
 
