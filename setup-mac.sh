@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.4 (2026-11-17)"
+SCRIPT_VERSION="2.5 (2026-11-18)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -26,10 +26,12 @@ fi
 # l'operatore; i vecchi --veloce/--auto sono accettati e ignorati.
 MODO="CONFIGURA"  # CONFIGURA | DIAGNOSTICA | TEST
 MODO_TEST=false
+NO_SELF_UPDATE=false
 for arg in "$@"; do
   case "$arg" in
-    --test|-t)        MODO_TEST=true; MODO="TEST" ;;
-    --diagnostica|-d) [[ "$MODO" != "TEST" ]] && MODO="DIAGNOSTICA" ;;
+    --test|-t)           MODO_TEST=true; MODO="TEST" ;;
+    --diagnostica|-d)    [[ "$MODO" != "TEST" ]] && MODO="DIAGNOSTICA" ;;
+    --no-self-update)    NO_SELF_UPDATE=true ;;
   esac
 done
 
@@ -1271,6 +1273,28 @@ CRED_PASSWORD="Utente123!"
 DATI_RICEVUTI=false
 IS_CLT_MODE=false
 PROFILO_APP=""
+
+if $RUN_REALE && ! $NO_SELF_UPDATE && [[ -f "$0" ]]; then
+    _loc_sha=$(shasum -a 256 "$0" 2>/dev/null | awk '{print $1}')
+    _rem_sha=""
+    _base_ok=""
+    for _base in "https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main" "https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main"; do
+        _rem_sha=$(curl -fsSL --max-time 4 -H "Cache-Control: no-cache" "${_base}/setup-mac.sh.sha256?t=$(date +%s)" 2>/dev/null | awk '{print $1}' | tr '[:upper:]' '[:lower:]')
+        if [[ "$_rem_sha" =~ ^[0-9a-f]{64}$ ]]; then _base_ok="$_base"; break; fi
+    done
+    if [[ -n "$_base_ok" && -n "$_loc_sha" && "$_rem_sha" != "$_loc_sha" ]]; then
+        info "Trovata versione piu' recente su GitHub: aggiorno e riavvio..."
+        _tmp_mac="/tmp/setup-mac-updated-$$.sh"
+        if curl -fsSL --max-time 15 -H "Cache-Control: no-cache" "${_base_ok}/setup-mac.sh?t=$(date +%s)" -o "$_tmp_mac" 2>/dev/null; then
+            _dl_sha=$(shasum -a 256 "$_tmp_mac" 2>/dev/null | awk '{print $1}')
+            if [[ "$_dl_sha" == "$_rem_sha" ]]; then
+                [[ -w "$0" ]] && cp "$_tmp_mac" "$0" 2>/dev/null
+                exec /bin/zsh "$_tmp_mac" --no-self-update "$@"
+            fi
+        fi
+        rm -f "$_tmp_mac" 2>/dev/null
+    fi
+fi
 
 $RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
 

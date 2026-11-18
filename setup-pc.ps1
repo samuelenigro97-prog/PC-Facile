@@ -27,6 +27,8 @@ param(
     # Percorso del .bat che ha lanciato lo script (passato dal launcher recente;
     # se manca con -TargetDir, lo script e' stato avviato da un launcher vecchio).
     [string]$LauncherPath,
+    # Evita loop infiniti dopo un auto-aggiornamento post-connessione.
+    [switch]$NoSelfUpdate,
     # Parametri delle vecchie modalita' (-Espresso, -Manuale, -Menu, -AgenteIA,
     # -Migrazione, -Veloce...): accettati e IGNORATI, il flusso e' uno solo.
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -44,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.8.0 (2026-11-18)"
+$SCRIPT_VERSION = "13.9.0 (2026-11-18)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -365,6 +367,62 @@ function Invoke-AggiornamentoUSB {
     $esito.Ok = ($esito.Falliti -eq 0)
     Write-Info ("Chiavetta: {0} aggiornati, {1} gia' aggiornati, {2} non riusciti." -f ($esito.Aggiornati + $esito.InAttesa), $esito.GiaAggiornati, $esito.Falliti)
     return $esito
+}
+
+# Dopo la connessione Wi-Fi: se lo script avviato era una copia locale/vecchia,
+# controlla l'impronta SHA256 su GitHub; se trova una versione piu' recente,
+# aggiorna la chiavetta e si riavvia automaticamente con l'ultima versione.
+function Invoke-SelfUpdateIfOutdated {
+    param(
+        [string]$TargetDir,
+        [string]$LauncherPath,
+        [string[]]$Basi = @(
+            'https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main',
+            'https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main'
+        )
+    )
+    if ($Test -or $Global:Test -or $env:PESTER_TEST -or $Diagnostica -or $NoSelfUpdate) { return $false }
+    $scriptCorrente = $PSCommandPath
+    if (-not $scriptCorrente -or -not (Test-Path -LiteralPath $scriptCorrente -PathType Leaf)) { return $false }
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+    $hashLocale = (Get-FileHash -LiteralPath $scriptCorrente -Algorithm SHA256).Hash.ToLower()
+    $t = (Get-Date).Ticks
+    $hashRemoto = $null
+    $baseOk = $null
+    foreach ($base in $Basi) {
+        try {
+            $raw = [string](Invoke-WebRequest -Uri ($base + '/setup-pc.ps1.sha256?t=' + $t) -UseBasicParsing -TimeoutSec 4 -Headers @{ 'Cache-Control' = 'no-cache' } -ErrorAction Stop).Content
+            $h = ($raw.Trim() -split '\s+')[0].ToLower()
+            if ($h -match '^[0-9a-f]{64}$') { $hashRemoto = $h; $baseOk = $base; break }
+        } catch {}
+    }
+    if (-not $hashRemoto -or $hashRemoto -eq $hashLocale) { return $false }
+
+    Write-Host ""
+    Write-Info "Trovata versione piu' recente su GitHub: aggiorno la chiavetta e riavvio lo script..."
+    if ($TargetDir -and (Test-Path -LiteralPath $TargetDir -PathType Container)) {
+        try { [void](Invoke-AggiornamentoUSB -Destinazione $TargetDir -LauncherInEsecuzione $LauncherPath) } catch {}
+    }
+    $tmpDir = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+    $tmpScript = Join-Path $tmpDir ("setup-pc-updated-{0}.ps1" -f [guid]::NewGuid().ToString('N'))
+    try {
+        Invoke-WebRequest -Uri ($baseOk + '/setup-pc.ps1?t=' + $t) -OutFile $tmpScript -UseBasicParsing -TimeoutSec 20 -Headers @{ 'Cache-Control' = 'no-cache' } -ErrorAction Stop
+        $reale = (Get-FileHash -LiteralPath $tmpScript -Algorithm SHA256).Hash.ToLower()
+        if ($reale -ne $hashRemoto) {
+            Remove-Item -LiteralPath $tmpScript -Force -ErrorAction SilentlyContinue
+            return $false
+        }
+        $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $tmpScript, '-NoSelfUpdate')
+        if ($TargetDir) { $argList += @('-TargetDir', $TargetDir) }
+        if ($LauncherPath) { $argList += @('-LauncherPath', $LauncherPath) }
+        if ($CreaRipristino) { $argList += '-CreaRipristino' }
+        $pwshExe = if ($PSVersionTable.PSVersion.Major -ge 6) { 'pwsh.exe' } else { 'powershell.exe' }
+        & $pwshExe @argList
+        return $true
+    } catch {
+        Remove-Item -LiteralPath $tmpScript -Force -ErrorAction SilentlyContinue
+        return $false
+    }
 }
 
 # Cartella "kit" da aggiornare in automatico dal launcher: NON la cartella
@@ -5270,6 +5328,9 @@ if ($RunReale) {
     try { Set-PreventSleep $true } catch {}
     try { Set-EdgeFirstRunPolicies } catch {}
     try { Connect-AutoWiFi -TargetDir $TargetDir } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
+    if (-not $NoSelfUpdate) {
+        if (Invoke-SelfUpdateIfOutdated -TargetDir $TargetDir -LauncherPath $LauncherPath) { return }
+    }
     # Il pannello NON blocca: la fase 1 parte subito. I dati del cliente
     # arrivano dal pannello mentre la fase 1 lavora (Get-CredenzialiSalvatePannello
     # a ogni passo); servono davvero solo da Office in poi (Wait-DatiCliente).
