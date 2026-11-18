@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.9.0 (2026-11-18)"
+$SCRIPT_VERSION = "13.10.0 (2026-11-18)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2631,7 +2631,7 @@ function Open-PannelloOperatore {
                     <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span><span class="portal-tag">Apri &rarr;</span></a>
 
                     <div class="portal-divider">Servizio Unieuro (Priorit&agrave;)</div>
-                    <a href="https://my.f-secure.com" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Everyday Digital (Unieuro Secure / F-Secure)</span><span class="portal-tag">Apri &rarr;</span></a>
+                    <a href="https://safeavenue.f-secure.com/iframe/-installers/unieuro/" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Everyday Digital (Unieuro Secure / F-Secure)</span><span class="portal-tag">Apri &rarr;</span></a>
                     <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Cyber Protection (Covercare)</span><span class="portal-tag">Apri &rarr;</span></a>
                 </div>
             </div>
@@ -2651,7 +2651,7 @@ function Open-PannelloOperatore {
                             <div class="step-tool-title"><span class="step-badge">1</span> Unieuro Everyday Digital (Secure + Cyber)</div>
                             <span id="step-badge-everyday" class="task-badge badge-pending">Pronto</span>
                         </div>
-                        <div class="step-tool-desc">Apre <strong>Unieuro Secure (F-Secure)</strong> su <code>my.f-secure.com</code>, avvia in automatico l&rsquo;installer scaricato (o offline da USB) e apre <strong>Unieuro Cyber Protection</strong> con i dati cliente pronti negli appunti.</div>
+                        <div class="step-tool-desc">Scarica e avvia in automatico <strong>Unieuro Secure</strong> (<code>UnieuroSecure.exe</code> ufficiale F-Secure/Unieuro) e apre <strong>Unieuro Cyber Protection</strong> con i dati cliente pronti negli appunti.</div>
                         <div class="step-tool-actions">
                             <button type="button" class="btn-tool primary" onclick="eseguiPasso('everyday')">&#128737; Installa / Attiva Everyday Digital</button>
                         </div>
@@ -6861,7 +6861,30 @@ function Invoke-EverydayDigital {
                 Add-Report "Unieuro Secure (F-Secure)" "OK (offline)"
             }
         } else {
-            Installa-Antivirus -Nome "Unieuro Secure (F-Secure)" -UrlRiscatto "https://my.f-secure.com" -Utente $Utente -Password $Password
+            $tmpDir = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+            $exeUrl = "https://download.sp.f-secure.com/SE/Unieuro/installer/UnieuroSecure.exe"
+            $exePath = Join-Path $tmpDir "UnieuroSecure.exe"
+            $scaricato = $false
+            if ($RunReale) {
+                Write-Info "Download diretto installer ufficiale Unieuro Secure..."
+                try {
+                    Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                    if ((Test-Path -LiteralPath $exePath) -and ((Get-Item -LiteralPath $exePath).Length -gt 200KB)) {
+                        $scaricato = $true
+                    }
+                } catch {}
+            } else {
+                Add-Report "Unieuro Secure (F-Secure)" "OK (test)"
+                $scaricato = $true
+            }
+            if ($scaricato -and $RunReale) {
+                Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
+                Start-Process -FilePath $exePath
+                Write-OK "Installer Unieuro Secure scaricato e avviato AUTOMATICAMENTE."
+                Add-Report "Unieuro Secure (F-Secure)" "OK (download diretto)"
+            } elseif (-not $scaricato) {
+                Installa-Antivirus -Nome "Unieuro Secure (F-Secure)" -UrlRiscatto "https://safeavenue.f-secure.com/iframe/-installers/unieuro/" -Utente $Utente -Password $Password
+            }
         }
     }
     # 2. Unieuro Cyber Protection (inclusa in Everyday Digital)

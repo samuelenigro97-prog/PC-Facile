@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.5 (2026-11-18)"
+SCRIPT_VERSION="2.6 (2026-11-18)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -558,7 +558,7 @@ open_pannello_mac() {
                 <a href="https://account.microsoft.com/services" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Installa Office dall&rsquo;account Microsoft</span> <span>&rarr;</span></a>
                 <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span> <span>&rarr;</span></a>
                 <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span> <span>&rarr;</span></a>
-                <a href="https://my.f-secure.com" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Everyday Digital (F-Secure)</span> <span>&rarr;</span></a>
+                <a href="https://safeavenue.f-secure.com/iframe/-installers/unieuro/" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Everyday Digital (Unieuro Secure)</span> <span>&rarr;</span></a>
                 <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Cyber Protection</span> <span>&rarr;</span></a>
             </div>
         </div>
@@ -1050,26 +1050,25 @@ invoke_auto_signup_mac() {
         else
             echo -n "$email_proton" | pbcopy 2>/dev/null
             info "Email $email_proton copiata negli appunti (Cmd+V per incollare)."
-            info "Apertura portale Unieuro Secure (my.f-secure.com) in Safari..."
-            set_split_screen_mac "https://my.f-secure.com"
-            printf '\a'
-            info "Scarica l'installer Mac da my.f-secure.com: verra' avviato da solo (premi INVIO/S per proseguire subito)..."
-            local start_ts=$(date +%s)
-            local pkg_trovato=""
-            for _ in {1..120}; do
-                pkg_trovato=$(find "$HOME/Downloads" -maxdepth 1 \( -iname "*.pkg" -o -iname "*.dmg" \) -newerct "@$start_ts" 2>/dev/null | head -n1)
-                if [[ -n "$pkg_trovato" ]]; then
-                    sleep 2
-                    open "$pkg_trovato" 2>/dev/null
-                    ok "Installer Unieuro Secure avviato: $(basename "$pkg_trovato")"
-                    add_report "Unieuro Secure (F-Secure)" "OK"
-                    break
+            local pkg_url="https://download.sp.f-secure.com/SE/Unieuro/installer/UnieuroSecure.mpkg"
+            local pkg_tmp="/tmp/UnieuroSecure.mpkg"
+            info "Download diretto installer ufficiale Unieuro Secure per Mac..."
+            if curl -fsSL --max-time 90 "$pkg_url" -o "$pkg_tmp" 2>/dev/null && [[ -s "$pkg_tmp" ]]; then
+                ok "Installer Unieuro Secure scaricato: avvio installazione..."
+                if sudo installer -pkg "$pkg_tmp" -target / >/dev/null 2>&1; then
+                    ok "Unieuro Secure installato automaticamente su Mac!"
+                    add_report "Unieuro Secure (F-Secure)" "OK (installazione automatica)"
+                else
+                    open "$pkg_tmp" 2>/dev/null
+                    ok "Installer Unieuro Secure aperto: completa l'installazione guidata."
+                    add_report "Unieuro Secure (F-Secure)" "OK (avviato)"
                 fi
-                if read -t 2 -k 1 _; then
-                    info "Attesa installer interrotta dall'operatore."
-                    break
-                fi
-            done
+                rm -f "$pkg_tmp" 2>/dev/null
+            else
+                info "Download diretto non riuscito: apro il portale Unieuro Secure in Safari..."
+                set_split_screen_mac "https://safeavenue.f-secure.com/iframe/-installers/unieuro/"
+                printf '\a'
+            fi
         fi
     fi
 
