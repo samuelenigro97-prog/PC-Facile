@@ -44,7 +44,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.7.1 (2026-11-18)"
+$SCRIPT_VERSION = "13.8.0 (2026-11-18)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1976,6 +1976,19 @@ function Open-PannelloOperatore {
         .hw-item .etichetta { color: #b6c3d4; }
         .hw-item strong { color: #fff; }
 
+        /* BARRA FISSA (Avanzamento + Schede sempre visibili allo scorrimento) */
+        .sticky-top-bar {
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            background: #000c20;
+            padding: 4px 0 6px;
+            margin-bottom: 6px;
+            box-shadow: 0 8px 18px rgba(0, 12, 32, 0.92);
+        }
+        .sticky-top-bar .progress-card { margin-bottom: 8px; }
+        .sticky-top-bar .tab-bar { margin-bottom: 0; }
+
         /* AVANZAMENTO */
         .progress-card {
             background: #001a3a;
@@ -2375,21 +2388,40 @@ function Open-PannelloOperatore {
             <div class="hw-item"><span class="etichetta">Seriale:</span> <strong id="hwSerialVal"></strong> <button type="button" class="btn-sec" onclick="copiaSeriale()">&#128203; Copia seriale</button></div>
         </div>
 
-        <!-- AVANZAMENTO -->
-        <div class="progress-card">
-            <div class="progress-header">
-                <div class="progress-title">Avanzamento configurazione</div>
-                <div class="progress-meta">
-                    <div class="progress-timer-box">Tempo: <span id="elapsedTimerText" class="progress-timer">--:--</span></div>
-                    <div id="progressPercentText" class="progress-pct">0%</div>
+        <!-- BARRA FISSA: AVANZAMENTO + SCHEDE -->
+        <div class="sticky-top-bar">
+            <!-- AVANZAMENTO -->
+            <div class="progress-card">
+                <div class="progress-header">
+                    <div class="progress-title">Avanzamento configurazione</div>
+                    <div class="progress-meta">
+                        <div class="progress-timer-box">Tempo: <span id="elapsedTimerText" class="progress-timer">--:--</span></div>
+                        <div id="progressPercentText" class="progress-pct">0%</div>
+                    </div>
+                </div>
+                <div class="progress-bar-bg" role="progressbar" aria-label="Avanzamento configurazione" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
+                    <div id="progressBarFill" class="progress-bar-fill"></div>
+                </div>
+                <div class="progress-status-row" aria-live="polite">
+                    <div><span class="muted">Ora:</span> <span id="currentFaseText" class="current-fase">In attesa dello script</span></div>
+                    <div id="currentDetailText" class="current-detail"></div>
                 </div>
             </div>
-            <div class="progress-bar-bg" role="progressbar" aria-label="Avanzamento configurazione" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
-                <div id="progressBarFill" class="progress-bar-fill"></div>
-            </div>
-            <div class="progress-status-row" aria-live="polite">
-                <div><span class="muted">Ora:</span> <span id="currentFaseText" class="current-fase">In attesa dello script</span></div>
-                <div id="currentDetailText" class="current-detail"></div>
+
+            <!-- SCHEDE -->
+            <div class="tab-bar" role="tablist" aria-label="Sezioni del pannello">
+                <button type="button" class="tab-btn" role="tab" id="btn-tab-cred" aria-controls="view-tab-cred" aria-selected="true" onclick="apriScheda('tab-cred')">
+                    <span><span class="tab-lungo">&#128100; </span>1. Cliente</span>
+                </button>
+                <button type="button" class="tab-btn" role="tab" id="btn-tab-live" aria-controls="view-tab-live" aria-selected="false" onclick="apriScheda('tab-live')">
+                    <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/13</span>
+                </button>
+                <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
+                    <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
+                </button>
+                <button type="button" class="tab-btn" role="tab" id="btn-tab-passaggi" aria-controls="view-tab-passaggi" aria-selected="false" onclick="apriScheda('tab-passaggi')">
+                    <span><span class="tab-lungo">&#128295; </span>4. Passaggi</span>
+                </button>
             </div>
         </div>
 
@@ -2401,22 +2433,6 @@ function Open-PannelloOperatore {
             <div style="margin-top: 8px;">
                 <button type="button" class="btn-sec" onclick="apriScheda('tab-passaggi')">&#128295; Ripeti o correggi singoli passaggi</button>
             </div>
-        </div>
-
-        <!-- SCHEDE -->
-        <div class="tab-bar" role="tablist" aria-label="Sezioni del pannello">
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-cred" aria-controls="view-tab-cred" aria-selected="true" onclick="apriScheda('tab-cred')">
-                <span><span class="tab-lungo">&#128100; </span>1. Cliente</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-live" aria-controls="view-tab-live" aria-selected="false" onclick="apriScheda('tab-live')">
-                <span><span class="tab-lungo">&#128202; </span>2. Avanzamento</span> <span id="taskCountBadge" class="tab-badge-num">0/13</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-portali" aria-controls="view-tab-portali" aria-selected="false" onclick="apriScheda('tab-portali')">
-                <span><span class="tab-lungo">&#127760; </span>3. Portali</span>
-            </button>
-            <button type="button" class="tab-btn" role="tab" id="btn-tab-passaggi" aria-controls="view-tab-passaggi" aria-selected="false" onclick="apriScheda('tab-passaggi')">
-                <span><span class="tab-lungo">&#128295; </span>4. Passaggi</span>
-            </button>
         </div>
 
         <!-- SCHEDA 1: DATI CLIENTE -->

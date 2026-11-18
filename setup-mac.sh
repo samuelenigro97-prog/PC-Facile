@@ -416,6 +416,9 @@ open_pannello_mac() {
         .badge-stato.ok { border-color: #22c55e; background: #14532d; color: #dcfce7; }
         .hw-bar { background: #00142e; border: 1px solid #003366; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; gap: 6px 16px; font-size: 14px; color: #b6c3d4; flex-wrap: wrap; }
         .hw-val { color: #fff; font-weight: 600; }
+        .sticky-top-bar { position: sticky; top: 0; z-index: 60; background: #000c20; padding: 4px 0 6px; margin-bottom: 6px; box-shadow: 0 8px 18px rgba(0, 12, 32, 0.92); }
+        .sticky-top-bar .progress-card { margin-bottom: 8px; }
+        .sticky-top-bar .tab-bar { margin-bottom: 0; }
         .progress-card { background: #001a3a; border: 1.5px solid #00458C; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; }
         .progress-bar-bg { background: #000c1c; border: 1px solid #003B7A; height: 16px; border-radius: 8px; overflow: hidden; }
         .progress-bar-fill { background: linear-gradient(90deg, #EE7203 0%, #ff9d42 100%); height: 100%; width: 0%; transition: width 0.4s ease; }
@@ -469,26 +472,28 @@ open_pannello_mac() {
             <div>S/N: <span class="hw-val">__HW_SN__</span></div>
         </div>
 
-        <div class="progress-card">
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:15px;">
-                <span style="color:#fed7aa; font-weight:700;">Avanzamento configurazione</span>
-                <span id="pctText" style="color:#EE7203; font-weight:900; font-size:18px;">0%</span>
+        <div class="sticky-top-bar">
+            <div class="progress-card">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:15px;">
+                    <span style="color:#fed7aa; font-weight:700;">Avanzamento configurazione</span>
+                    <span id="pctText" style="color:#EE7203; font-weight:900; font-size:18px;">0%</span>
+                </div>
+                <div class="progress-bar-bg"><div id="barFill" class="progress-bar-fill"></div></div>
+                <div style="margin-top:6px; font-size:14px;" aria-live="polite">
+                    <div><span style="color:#b6c3d4;">Ora:</span> <strong id="faseText">In attesa</strong></div>
+                    <div id="dettText" style="color:#d6dee8;"></div>
+                </div>
             </div>
-            <div class="progress-bar-bg"><div id="barFill" class="progress-bar-fill"></div></div>
-            <div style="margin-top:6px; font-size:14px;" aria-live="polite">
-                <div><span style="color:#b6c3d4;">Ora:</span> <strong id="faseText">In attesa</strong></div>
-                <div id="dettText" style="color:#d6dee8;"></div>
+
+            <div class="tab-bar">
+                <button type="button" class="tab-btn active" onclick="showTab('tab-cred', this)">&#128100; 1. Cliente</button>
+                <button type="button" class="tab-btn" onclick="showTab('tab-portali', this)">&#127760; 2. Portali</button>
+                <button type="button" class="tab-btn" onclick="showTab('tab-passaggi', this)">&#128295; 3. Passaggi</button>
             </div>
         </div>
 
         <div id="bannerFine" class="banner-fine" role="status">
             <strong>&#10003; Configurazione completata.</strong> La scheda di consegna &egrave; sulla Scrivania del Mac: <strong>Scheda-Consegna-Mac.html</strong>.
-        </div>
-
-        <div class="tab-bar">
-            <button type="button" class="tab-btn active" onclick="showTab('tab-cred', this)">&#128100; 1. Cliente</button>
-            <button type="button" class="tab-btn" onclick="showTab('tab-portali', this)">&#127760; 2. Portali</button>
-            <button type="button" class="tab-btn" onclick="showTab('tab-passaggi', this)">&#128295; 3. Passaggi</button>
         </div>
 
         <div id="tab-cred" class="section-view active-view">
