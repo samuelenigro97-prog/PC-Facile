@@ -68,6 +68,7 @@ allineati come flusso e funzioni.
 - **Autoinstallazione diretta Unieuro Secure (Win & Mac — v13.10.0)**: `Invoke-EverydayDigital` (Windows) e `setup-mac.sh` (Mac) scaricano direttamente gli installer ufficiali F-Secure/Unieuro (`https://download.sp.f-secure.com/SE/Unieuro/installer/UnieuroSecure.exe` e `UnieuroSecure.mpkg`) e li avviano automaticamente senza passare manualmente dal portale (con fallback su `https://safeavenue.f-secure.com/iframe/-installers/unieuro/`).
 - **Rilevamento completo `clt clt` / `clt` nel Pannello (Win & Mac — v13.10.1)**: `isCltNome` riconosce `clt` / `clt clt` anche se digitato in un solo campo (es. solo Cognome), azzerando sempre email e password e proseguendo senza conferme.
 - **Riordino automatico chiavetta USB (Win & Mac — v13.11.0)**: `Invoke-OrdinaChiavetta` (chiamato da `Invoke-AggiornamentoUSB` in `setup-pc.ps1`) e `ordina_chiavetta_mac` (`setup-mac.sh`) ripuliscono automaticamente la chiavetta da cartelle/file di sviluppo (`.github`, `tests`, `tools`, `docs`, `pannello`, `README.md`, ecc.) e dai vecchi launcher duplicati (`1 - AVVIA PER WINDOWS.bat`, `2 - AVVIA PER MAC.command`, `3 - ISTRUZIONI.txt`), lasciando solo i file essenziali del kit, `wifi/` e `installers/`.
+- **Ordine scheda Portali (Win & Mac — v13.11.1)**: spostata la sezione **Servizio Unieuro** (senza etichetta `(Priorità)`) subito dopo **Account ed email** nella scheda `Portali`.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
