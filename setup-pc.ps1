@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.11.2 (2026-11-19)"
+$SCRIPT_VERSION = "13.12.0 (2026-11-19)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -6880,6 +6880,90 @@ function Add-CollegamentiOffice {
     }
 }
 
+# Crea il collegamento Desktop per Unieuro Cyber Protection con icona dedicata,
+# subito dopo Unieuro Secure.
+function Add-ShortcutCyberProtection {
+    if (-not $RunReale) { return }
+    $desktop = Get-DesktopDir
+    if (-not $desktop -or -not (Test-Path -LiteralPath $desktop)) { return }
+    $lnk = Join-Path $desktop "Unieuro Cyber Protection.lnk"
+    $icoDir = Join-Path $env:ProgramData "PCFacile"
+    if (-not (Test-Path -LiteralPath $icoDir)) { New-Item -ItemType Directory -Path $icoDir -Force | Out-Null }
+    $icoPath = Join-Path $icoDir "cyber-protection.ico"
+    $pngPath = Join-Path $icoDir "cyber-protection.png"
+
+    if (-not (Test-Path -LiteralPath $icoPath)) {
+        try {
+            Invoke-WebRequest -Uri "https://www.covercare.it/wp-content/uploads/2026/01/favicon-192x192-1.png" -OutFile $pngPath -UseBasicParsing -TimeoutSec 8 -ErrorAction SilentlyContinue
+        } catch {}
+        try {
+            Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+            $bmp = $null
+            if (Test-Path -LiteralPath $pngPath) {
+                try {
+                    $srcImg = [System.Drawing.Image]::FromFile($pngPath)
+                    $bmp = New-Object System.Drawing.Bitmap(64, 64)
+                    $g = [System.Drawing.Graphics]::FromImage($bmp)
+                    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+                    $g.DrawImage($srcImg, 0, 0, 64, 64)
+                    $g.Dispose(); $srcImg.Dispose()
+                } catch { $bmp = $null }
+            }
+            if (-not $bmp) {
+                $bmp = New-Object System.Drawing.Bitmap(64, 64)
+                $g = [System.Drawing.Graphics]::FromImage($bmp)
+                $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+                $g.Clear([System.Drawing.Color]::FromArgb(255, 0, 18, 43))
+                $br = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 238, 114, 3))
+                $pts = @(
+                    (New-Object System.Drawing.Point(32, 10)),
+                    (New-Object System.Drawing.Point(52, 18)),
+                    (New-Object System.Drawing.Point(48, 40)),
+                    (New-Object System.Drawing.Point(32, 54)),
+                    (New-Object System.Drawing.Point(16, 40)),
+                    (New-Object System.Drawing.Point(12, 18))
+                )
+                $g.FillPolygon($br, $pts)
+                $br.Dispose(); $g.Dispose()
+            }
+            $msPng = New-Object System.IO.MemoryStream
+            $bmp.Save($msPng, [System.Drawing.Imaging.ImageFormat]::Png)
+            $pngBytes = $msPng.ToArray()
+            $msPng.Dispose(); $bmp.Dispose()
+            $fs = [System.IO.File]::OpenWrite($icoPath)
+            $bw = New-Object System.IO.BinaryWriter($fs)
+            $bw.Write([uint16]0); $bw.Write([uint16]1); $bw.Write([uint16]1)
+            $bw.Write([byte]64); $bw.Write([byte]64); $bw.Write([byte]0); $bw.Write([byte]0)
+            $bw.Write([uint16]1); $bw.Write([uint16]32)
+            $bw.Write([uint32]$pngBytes.Length); $bw.Write([uint32]22)
+            $bw.Write($pngBytes)
+            $bw.Close(); $fs.Close()
+        } catch {}
+    }
+
+    try {
+        $url = "https://unieuro-cyber-protection.covercare.it"
+        $edge = @("$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe", "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+        $chrome = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+        $wsh = New-Object -ComObject WScript.Shell
+        $sc = $wsh.CreateShortcut($lnk)
+        if ($edge) {
+            $sc.TargetPath = $edge
+            $sc.Arguments = "--app=$url"
+        } elseif ($chrome) {
+            $sc.TargetPath = $chrome
+            $sc.Arguments = "--app=$url"
+        } else {
+            $sc.TargetPath = $env:ComSpec
+            $sc.Arguments = "/c start `"`" `"$url`""
+        }
+        if (Test-Path -LiteralPath $icoPath) { $sc.IconLocation = "$icoPath,0" }
+        $sc.Description = "Unieuro Cyber Protection"
+        $sc.Save()
+        Write-OK "Collegamento Desktop creato: Unieuro Cyber Protection"
+    } catch { Write-Info "Collegamento Unieuro Cyber Protection non creato: $_" }
+}
+
 # =============================================================================
 # CONTROLLI "GIA' FATTO" (ogni passo prima verifica se il lavoro c'e' gia')
 # =============================================================================
@@ -6940,6 +7024,7 @@ function Invoke-EverydayDigital {
     # 2. Unieuro Cyber Protection (inclusa in Everyday Digital)
     if ($Global:telefonoCliente) { Write-Info "Cellulare del cliente: $($Global:telefonoCliente)" }
     Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $Utente
+    Add-ShortcutCyberProtection
     Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Incluso in Everyday Digital"
 }
 
@@ -8702,6 +8787,7 @@ if ($Global:serviziSelezionati -and $Global:serviziSelezionati.Everyday) {
 } elseif ($Global:serviziSelezionati -and $Global:serviziSelezionati.Cyber) {
     if ($Global:telefonoCliente) { Write-Info "Cellulare del cliente: $($Global:telefonoCliente)" }
     Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $credMsAccount
+    Add-ShortcutCyberProtection
     Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Configurato"
 } else {
     Write-Info "Unieuro Cyber Protection non acquistato: saltato."

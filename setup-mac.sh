@@ -1230,6 +1230,14 @@ invoke_auto_signup_mac() {
             ok "Unieuro Cyber Protection registrato con successo per $nome_c ($email_proton)!"
             add_report "Unieuro Cyber Protection ($email_proton)" "OK"
         fi
+        if $RUN_REALE && [[ -d "$HOME/Desktop" ]]; then
+            cat > "$HOME/Desktop/Unieuro Cyber Protection.webloc" <<'WEBLOC'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict><key>URL</key><string>https://unieuro-cyber-protection.covercare.it</string></dict></plist>
+WEBLOC
+            ok "Collegamento Scrivania creato: Unieuro Cyber Protection"
+        fi
     fi
 
     printf '\a'

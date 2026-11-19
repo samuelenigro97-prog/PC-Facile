@@ -70,6 +70,7 @@ allineati come flusso e funzioni.
 - **Riordino automatico chiavetta USB (Win & Mac — v13.11.0)**: `Invoke-OrdinaChiavetta` (chiamato da `Invoke-AggiornamentoUSB` in `setup-pc.ps1`) e `ordina_chiavetta_mac` (`setup-mac.sh`) ripuliscono automaticamente la chiavetta da cartelle/file di sviluppo (`.github`, `tests`, `tools`, `docs`, `pannello`, `README.md`, ecc.) e dai vecchi launcher duplicati (`1 - AVVIA PER WINDOWS.bat`, `2 - AVVIA PER MAC.command`, `3 - ISTRUZIONI.txt`), lasciando solo i file essenziali del kit, `wifi/` e `installers/`.
 - **Ordine scheda Portali (Win & Mac — v13.11.1)**: spostata la sezione **Servizio Unieuro** (senza etichetta `(Priorità)`) subito dopo **Account ed email** nella scheda `Portali`.
 - **Avanzamento visibile durante `winget` (Solo Windows — v13.11.2)**: `Invoke-WingetConBarra` stampa ogni 5s lo stato live (`-> Nome: operazione in corso... (Xs)`) per evitare che la finestra di Windows Terminal sembri vuota durante i download/installazioni.
+- **Collegamento Desktop Unieuro Cyber Protection (Win & Mac — v13.12.0)**: `Add-ShortcutCyberProtection` (Windows, con icona `.ico` dedicata in modalità `--app` subito dopo `Unieuro Secure`) e `Unieuro Cyber Protection.webloc` (Mac) creano il collegamento diretto sul Desktop.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
