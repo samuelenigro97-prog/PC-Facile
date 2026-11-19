@@ -30,7 +30,7 @@ BeforeAll {
         'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb',
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
-        'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Invoke-SelfUpdateIfOutdated', 'Test-CartellaKitUSB',
+        'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Invoke-OrdinaChiavetta', 'Invoke-SelfUpdateIfOutdated', 'Test-CartellaKitUSB',
         'Test-DatiClienteConfermati', 'Start-ServerPannello',
         'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
         'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
@@ -910,6 +910,30 @@ Describe 'Invoke-AggiornamentoUSB' {
         try {
             Invoke-SelfUpdateIfOutdated | Should -BeFalse
         } finally { Remove-Variable -Name Test -Scope Global -ErrorAction SilentlyContinue }
+    }
+
+    It 'Invoke-OrdinaChiavetta rimuove file superflui/vecchi e lascia intatti kit, wifi e repo Git' {
+        $kit = Join-Path $script:Root 'kit-pulito'
+        New-Item -ItemType Directory -Path (Join-Path $kit '.github'), (Join-Path $kit 'tests'), (Join-Path $kit 'wifi'), (Join-Path $kit 'installers') -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $kit 'PC Facile.bat') -Value 'bat'
+        Set-Content -LiteralPath (Join-Path $kit 'setup-pc.ps1') -Value 'ps1'
+        Set-Content -LiteralPath (Join-Path $kit 'wifi\wifi.txt') -Value 'SSID=store'
+        Set-Content -LiteralPath (Join-Path $kit 'README.md') -Value 'readme'
+        Set-Content -LiteralPath (Join-Path $kit '1 - AVVIA PER WINDOWS.bat') -Value 'vecchio'
+        (Invoke-OrdinaChiavetta -Destinazione $kit) | Should -BeGreaterOrEqual 4
+        Test-Path -LiteralPath (Join-Path $kit '.github') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $kit 'tests') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $kit 'README.md') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $kit '1 - AVVIA PER WINDOWS.bat') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $kit 'PC Facile.bat') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $kit 'setup-pc.ps1') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $kit 'wifi\wifi.txt') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $kit 'installers') | Should -BeTrue
+        # Con .git presente non tocca nulla (sicurezza repo sviluppatore)
+        New-Item -ItemType Directory -Path (Join-Path $kit '.git') -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $kit 'README.md') -Value 'keep'
+        (Invoke-OrdinaChiavetta -Destinazione $kit) | Should -Be 0
+        Test-Path -LiteralPath (Join-Path $kit 'README.md') | Should -BeTrue
     }
 }
 
