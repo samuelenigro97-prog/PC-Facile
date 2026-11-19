@@ -656,7 +656,8 @@ open_pannello_mac() {
             var nRaw = document.getElementById('inNome') ? document.getElementById('inNome').value.trim() : '';
             var c = cRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
             var n = nRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
-            var isClt = ((c === 'clt' && n === 'clt') || (c === '' && n === 'clt'));
+            var fullClt = (c + ' ' + n).trim();
+            var isClt = (fullClt === 'clt clt' || fullClt === 'clt');
             var stepMac = document.getElementById('inStepNomeMac');
             if (stepMac && !stepMac.dataset.touched) {
                 stepMac.value = isClt ? 'Mac' : (nRaw || cRaw || '');
@@ -706,7 +707,8 @@ open_pannello_mac() {
             ['inCognome', 'inNome', 'inTelefono'].forEach(function(id) { document.getElementById(id).classList.remove('errore'); });
             var c = document.getElementById('inCognome').value.trim();
             var n = document.getElementById('inNome').value.trim();
-            var isClt = (c.toLowerCase() === 'clt' && n.toLowerCase() === 'clt');
+            var fullClt = (c.toLowerCase().trim() + ' ' + n.toLowerCase().trim()).trim();
+            var isClt = (fullClt === 'clt clt' || fullClt === 'clt');
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
             var t = document.getElementById('inTelefono').value.trim();

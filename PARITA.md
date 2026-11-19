@@ -66,6 +66,7 @@ allineati come flusso e funzioni.
 - **Barra fissa in alto nel Pannello Operatore (Win & Mac — v13.8.0)**: l'intestazione con **Avanzamento configurazione** e le schede **1. Cliente / 2. Avanzamento / 3. Portali / 4. Passaggi** resta fissa (`position: sticky; top: 0`) scorrendo insieme all'operatore nelle varie sezioni.
 - **Auto-allineamento post-connessione (Win & Mac — v13.9.0)**: dopo che il dispositivo si collega alla rete (`Connect-AutoWiFi`), `Invoke-SelfUpdateIfOutdated` (Windows) e il controllo SHA256 in `setup-mac.sh` (Mac) verificano se lo script in esecuzione è più vecchio di `main` su GitHub; in caso affermativo aggiornano automaticamente la chiavetta e si riavviano subito con l'ultima versione verificata.
 - **Autoinstallazione diretta Unieuro Secure (Win & Mac — v13.10.0)**: `Invoke-EverydayDigital` (Windows) e `setup-mac.sh` (Mac) scaricano direttamente gli installer ufficiali F-Secure/Unieuro (`https://download.sp.f-secure.com/SE/Unieuro/installer/UnieuroSecure.exe` e `UnieuroSecure.mpkg`) e li avviano automaticamente senza passare manualmente dal portale (con fallback su `https://safeavenue.f-secure.com/iframe/-installers/unieuro/`).
+- **Rilevamento completo `clt clt` / `clt` nel Pannello (Win & Mac — v13.10.1)**: `isCltNome` riconosce `clt` / `clt clt` anche se digitato in un solo campo (es. solo Cognome), azzerando sempre email e password e proseguendo senza conferme.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
