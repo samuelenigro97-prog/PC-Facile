@@ -1275,6 +1275,24 @@ DATI_RICEVUTI=false
 IS_CLT_MODE=false
 PROFILO_APP=""
 
+ordina_chiavetta_mac() {
+    local dir="$1"
+    [[ -z "$dir" || ! -d "$dir" || -d "$dir/.git" ]] && return 0
+    local c
+    for c in .agents .github docs pannello tests tools; do
+        [[ -e "$dir/$c" ]] && rm -rf -- "$dir/$c" 2>/dev/null
+    done
+    local f
+    for f in .gitattributes .gitignore AGENTS.md CHANGELOG.md CLAUDE.md LICENSE.md PARITA.md PSScriptAnalyzerSettings.psd1 README.md SECURITY.md "1 - AVVIA PER WINDOWS.bat" "2 - AVVIA PER MAC.command" "3 - ISTRUZIONI.txt"; do
+        [[ -f "$dir/$f" ]] && rm -f -- "$dir/$f" 2>/dev/null
+    done
+    return 0
+}
+
+if $RUN_REALE && [[ -f "$0" ]]; then
+    ordina_chiavetta_mac "$(cd "$(dirname "$0")" && pwd)"
+fi
+
 if $RUN_REALE && ! $NO_SELF_UPDATE && [[ -f "$0" ]]; then
     _loc_sha=$(shasum -a 256 "$0" 2>/dev/null | awk '{print $1}')
     _rem_sha=""

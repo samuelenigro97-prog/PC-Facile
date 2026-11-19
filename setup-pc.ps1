@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.10.1 (2026-11-19)"
+$SCRIPT_VERSION = "13.11.0 (2026-11-19)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -366,7 +366,42 @@ function Invoke-AggiornamentoUSB {
     }
     $esito.Ok = ($esito.Falliti -eq 0)
     Write-Info ("Chiavetta: {0} aggiornati, {1} gia' aggiornati, {2} non riusciti." -f ($esito.Aggiornati + $esito.InAttesa), $esito.GiaAggiornati, $esito.Falliti)
+    if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
+        try { [void](Invoke-OrdinaChiavetta -Destinazione $Destinazione) } catch {}
+    }
     return $esito
+}
+
+# Riordina la chiavetta USB lasciando SOLO i file essenziali del kit (mai tocca
+# un repo Git ne' le cartelle wifi/installers/offline/cache/drivers).
+function Invoke-OrdinaChiavetta {
+    param([Parameter(Mandatory = $true)][string]$Destinazione)
+    if (-not (Test-Path -LiteralPath $Destinazione -PathType Container)) { return 0 }
+    if (Test-Path -LiteralPath (Join-Path $Destinazione '.git')) { return 0 }
+    $rimossi = 0
+    $cartelleSuperflue = @('.agents', '.github', 'docs', 'pannello', 'tests', 'tools')
+    foreach ($c in $cartelleSuperflue) {
+        $p = Join-Path $Destinazione $c
+        if (Test-Path -LiteralPath $p) {
+            try { Remove-Item -LiteralPath $p -Recurse -Force -ErrorAction Stop; $rimossi++ } catch {}
+        }
+    }
+    $fileSuperflui = @(
+        '.gitattributes', '.gitignore', 'AGENTS.md', 'CHANGELOG.md', 'CLAUDE.md',
+        'LICENSE.md', 'PARITA.md', 'PSScriptAnalyzerSettings.psd1', 'README.md', 'SECURITY.md',
+        '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', '3 - ISTRUZIONI.txt'
+    )
+    foreach ($f in $fileSuperflui) {
+        $p = Join-Path $Destinazione $f
+        if (Test-Path -LiteralPath $p -PathType Leaf) {
+            try { Remove-Item -LiteralPath $p -Force -ErrorAction Stop; $rimossi++ } catch {}
+        }
+    }
+    foreach ($tmp in @(Get-ChildItem -LiteralPath $Destinazione -Filter '*.pcfacile-tmp' -File -ErrorAction SilentlyContinue)) {
+        try { Remove-Item -LiteralPath $tmp.FullName -Force -ErrorAction SilentlyContinue; $rimossi++ } catch {}
+    }
+    if ($rimossi -gt 0) { Write-OK "Chiavetta riordinata: rimossi $rimossi file/cartelle superflui." }
+    return $rimossi
 }
 
 # Dopo la connessione Wi-Fi: se lo script avviato era una copia locale/vecchia,
