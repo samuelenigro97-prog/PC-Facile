@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.10.0 (2026-11-18)"
+$SCRIPT_VERSION = "13.10.1 (2026-11-19)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3032,11 +3032,18 @@ function Open-PannelloOperatore {
             scriviAppunti(text, 'Dati copiati per il ticket');
         }
 
+        function isCltNome(cognome, nome) {
+            var c = (cognome || '').toLowerCase().trim();
+            var n = (nome || '').toLowerCase().trim();
+            var full = (c + ' ' + n).trim();
+            return (full === 'clt clt' || full === 'clt');
+        }
+
         var _stepNomeEdited = false;
         function aggiornaCampiStepNome() {
             if (_stepNomeEdited) return;
             var cognome = val('inCognome'), nome = val('inNome');
-            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
+            var isClt = isCltNome(cognome, nome);
             var inU = el('inStepNomeUtente'), inP = el('inStepNomePc');
             if (!inU || !inP) return;
             if (isClt || (!cognome && !nome)) {
@@ -3057,7 +3064,7 @@ function Open-PannelloOperatore {
             var cognome = val('inCognome');
             var nome = val('inNome');
             aggiornaCampiStepNome();
-            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
+            var isClt = isCltNome(cognome, nome);
             if (isClt) {
                 el('inEmail').value = '';
                 el('inPass').value = '';
@@ -3111,7 +3118,7 @@ function Open-PannelloOperatore {
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
             var everyday = el('chkSvcEveryday').checked;
             var cyber = el('chkSvcCyber').checked;
-            var isClt = (cognome.toLowerCase().trim() === 'clt' && nome.toLowerCase().trim() === 'clt');
+            var isClt = isCltNome(cognome, nome);
             var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
             var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
             var passEffettiva = isClt ? '' : (pass || 'Utente123!');
