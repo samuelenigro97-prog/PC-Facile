@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.11.1 (2026-11-19)"
+$SCRIPT_VERSION = "13.11.2 (2026-11-19)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -5649,8 +5649,11 @@ function Invoke-WingetConBarra {
         # L'alias App Installer puo' restituire ExitCode nullo; cmd.exe lo propaga correttamente.
         $p = Start-Process -FilePath $env:ComSpec -ArgumentList "/d /c winget $($WingetArgs -join ' ')" -NoNewWindow -PassThru -ErrorAction Stop
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $ultimoBeat = 0
         while (-not $p.HasExited) {
-            if ($sw.Elapsed.TotalSeconds -ge $TimeoutSec) {
+            $sec = [int]$sw.Elapsed.TotalSeconds
+            if ($sec -ge $TimeoutSec) {
+                Write-Host ""
                 Write-Errore "Tempo massimo superato ($($TimeoutSec)s) per ${Nome}: interrompo il processo per non bloccare il setup notturno."
                 try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
                 try {
@@ -5660,8 +5663,13 @@ function Invoke-WingetConBarra {
                 } catch {}
                 return -9999
             }
+            if ($sec -ge ($ultimoBeat + 5)) {
+                $ultimoBeat = $sec
+                try { Write-Host ("`r   -> {0}: operazione in corso... ({1}s / max {2}s)   " -f $Nome, $sec, $TimeoutSec) -NoNewline -ForegroundColor DarkGray } catch {}
+            }
             Start-Sleep -Milliseconds 500
         }
+        if ($ultimoBeat -gt 0) { try { Write-Host "" } catch {} }
         try { $p.WaitForExit() } catch {}
         Reset-ConsoleMode
         $exitCode = $p.ExitCode

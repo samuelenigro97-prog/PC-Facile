@@ -69,6 +69,7 @@ allineati come flusso e funzioni.
 - **Rilevamento completo `clt clt` / `clt` nel Pannello (Win & Mac — v13.10.1)**: `isCltNome` riconosce `clt` / `clt clt` anche se digitato in un solo campo (es. solo Cognome), azzerando sempre email e password e proseguendo senza conferme.
 - **Riordino automatico chiavetta USB (Win & Mac — v13.11.0)**: `Invoke-OrdinaChiavetta` (chiamato da `Invoke-AggiornamentoUSB` in `setup-pc.ps1`) e `ordina_chiavetta_mac` (`setup-mac.sh`) ripuliscono automaticamente la chiavetta da cartelle/file di sviluppo (`.github`, `tests`, `tools`, `docs`, `pannello`, `README.md`, ecc.) e dai vecchi launcher duplicati (`1 - AVVIA PER WINDOWS.bat`, `2 - AVVIA PER MAC.command`, `3 - ISTRUZIONI.txt`), lasciando solo i file essenziali del kit, `wifi/` e `installers/`.
 - **Ordine scheda Portali (Win & Mac — v13.11.1)**: spostata la sezione **Servizio Unieuro** (senza etichetta `(Priorità)`) subito dopo **Account ed email** nella scheda `Portali`.
+- **Avanzamento visibile durante `winget` (Solo Windows — v13.11.2)**: `Invoke-WingetConBarra` stampa ogni 5s lo stato live (`-> Nome: operazione in corso... (Xs)`) per evitare che la finestra di Windows Terminal sembri vuota durante i download/installazioni.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
