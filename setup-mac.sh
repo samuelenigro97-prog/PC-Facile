@@ -554,12 +554,12 @@ open_pannello_mac() {
             <div class="card">
                 <a href="https://account.proton.me/signup?plan=free" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#0284c7;"><span>Account Proton Mail (gratis)</span> <span>&rarr;</span></a>
                 <a href="https://appleid.apple.com" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Apple ID: crea o gestisci</span> <span>&rarr;</span></a>
+                <a href="https://safeavenue.f-secure.com/iframe/-installers/unieuro/" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Everyday Digital (Unieuro Secure)</span> <span>&rarr;</span></a>
+                <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Cyber Protection</span> <span>&rarr;</span></a>
                 <a href="https://microsoft365.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Riscatto card Office / Microsoft 365</span> <span>&rarr;</span></a>
                 <a href="https://account.microsoft.com/services" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Installa Office dall&rsquo;account Microsoft</span> <span>&rarr;</span></a>
                 <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span> <span>&rarr;</span></a>
                 <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span> <span>&rarr;</span></a>
-                <a href="https://safeavenue.f-secure.com/iframe/-installers/unieuro/" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Everyday Digital (Unieuro Secure)</span> <span>&rarr;</span></a>
-                <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn" style="border-color:#EE7203;"><span>Unieuro Cyber Protection</span> <span>&rarr;</span></a>
             </div>
         </div>
 

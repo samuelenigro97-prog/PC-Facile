@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.11.0 (2026-11-19)"
+$SCRIPT_VERSION = "13.11.1 (2026-11-19)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2657,6 +2657,10 @@ function Open-PannelloOperatore {
                     <a href="https://account.proton.me/signup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Account Proton Mail</span><span class="portal-tag">Apri &rarr;</span></a>
                     <a href="https://registrazione.libero.it" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Account Libero Mail</span><span class="portal-tag">Apri &rarr;</span></a>
 
+                    <div class="portal-divider">Servizio Unieuro</div>
+                    <a href="https://safeavenue.f-secure.com/iframe/-installers/unieuro/" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Everyday Digital (Unieuro Secure / F-Secure)</span><span class="portal-tag">Apri &rarr;</span></a>
+                    <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Cyber Protection (Covercare)</span><span class="portal-tag">Apri &rarr;</span></a>
+
                     <div class="portal-divider">Office</div>
                     <a href="https://microsoft365.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Riscatto card Microsoft 365 / Office</span><span class="portal-tag">Apri &rarr;</span></a>
                     <a href="https://account.microsoft.com/services" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Scarica Office dall&rsquo;account Microsoft</span><span class="portal-tag">Apri &rarr;</span></a>
@@ -2664,10 +2668,6 @@ function Open-PannelloOperatore {
                     <div class="portal-divider">Antivirus da card</div>
                     <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span><span class="portal-tag">Apri &rarr;</span></a>
                     <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span><span class="portal-tag">Apri &rarr;</span></a>
-
-                    <div class="portal-divider">Servizio Unieuro (Priorit&agrave;)</div>
-                    <a href="https://safeavenue.f-secure.com/iframe/-installers/unieuro/" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Everyday Digital (Unieuro Secure / F-Secure)</span><span class="portal-tag">Apri &rarr;</span></a>
-                    <a href="https://unieuro-cyber-protection.covercare.it" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>Unieuro Cyber Protection (Covercare)</span><span class="portal-tag">Apri &rarr;</span></a>
                 </div>
             </div>
         </div>
