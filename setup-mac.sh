@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.13 (2026-11-21)"
+SCRIPT_VERSION="2.14 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -751,7 +751,7 @@ open_pannello_mac() {
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            mostraEsito('\u2713 Dati salvati (file pcfacile-cred.json in Download): il terminale li legge in pochi secondi. Se il browser chiede dove salvare, scegli Download.', 'ok');
+            mostraEsito('\u2713 Dati salvati in Download. Il terminale li legge.', 'ok');
         }
 
         function applyStatus(data) {
