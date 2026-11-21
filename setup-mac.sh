@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.9 (2026-11-21)"
+SCRIPT_VERSION="2.10 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -187,7 +187,8 @@ installa_offline_app_mac() {
 # HARDWARE, BATTERIA E STATO DISCO (FUNZIONI HELPER)
 # =============================================================================
 get_hw_info_mac() {
-    local model="$(sysctl -n hw.model 2>/dev/null)"
+    local model="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Model Name/{print $2; exit}')"
+    [[ -z "$model" ]] && model="$(sysctl -n hw.model 2>/dev/null)"
     local chip="$(sysctl -n machdep.cpu.brand_string 2>/dev/null)"
     if [[ -z "$chip" || "$chip" == *"Apple"* ]]; then
         chip="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Chip/{print $2}' | head -1)"
@@ -407,14 +408,14 @@ open_pannello_mac() {
     <title>PC Facile - Pannello operatore Mac</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif; }
-        body { background: #000d20; color: #f8fafc; padding: 12px; min-height: 100vh; line-height: 1.45; font-size: 15px; }
-        .container { max-width: 980px; margin: 0 auto; }
+        body { background: #000d20; color: #f8fafc; padding: 12px; min-height: 100vh; line-height: 1.45; font-size: 15px; overflow-x: hidden; }
+        .container { width: 100%; max-width: 980px; margin: 0 auto; min-width: 0; }
         button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
         .header { background: #001a3a; border: 1.5px solid #00458C; border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
-        .brand-box { display: flex; align-items: center; gap: 10px; }
-        .u-logo { background: #EE7203; color: #00122b; font-weight: 900; font-size: 16px; letter-spacing: 1px; padding: 6px 12px; border-radius: 7px; }
+        .brand-box { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 240px; }
+        .u-logo { background: #EE7203; color: #00122b; font-weight: 900; font-size: 16px; letter-spacing: 1px; padding: 6px 12px; border-radius: 7px; flex-shrink: 0; }
         .brand-titles h1 { font-size: 20px; color: #fff; font-weight: 700; }
-        .badge-stato { font-weight: 800; font-size: 14px; padding: 7px 14px; border-radius: 20px; border: 1.5px solid #38bdf8; background: #082f49; color: #e0f2fe; white-space: nowrap; }
+        .badge-stato { font-weight: 800; font-size: 14px; padding: 7px 14px; border-radius: 20px; border: 1.5px solid #38bdf8; background: #082f49; color: #e0f2fe; white-space: nowrap; max-width: 100%; }
         .badge-stato.ok { border-color: #22c55e; background: #14532d; color: #dcfce7; }
         .hw-bar { background: #00142e; border: 1px solid #003366; border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; display: flex; gap: 6px 16px; font-size: 14px; color: #b6c3d4; flex-wrap: wrap; }
         .hw-val { color: #fff; font-weight: 600; }
@@ -433,8 +434,8 @@ open_pannello_mac() {
         .section-view.active-view { display: block; }
         .card { background: #001f48; border: 1px solid #003B7A; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
         .etichetta { display: block; font-size: 14px; color: #bfdbfe; font-weight: 700; margin-bottom: 4px; }
-        .dom-row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-        .dom-btn { min-height: 44px; flex: 1 1 120px; background: #1e293b; color: #e2e8f0; border: 1.5px solid #334155; padding: 8px 10px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+        .dom-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+        .dom-btn { min-height: 44px; min-width: 0; background: #1e293b; color: #e2e8f0; border: 1.5px solid #334155; padding: 8px 10px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
         .dom-btn[aria-pressed="true"] { background: #0284c7; border-color: #0284c7; color: #fff; }
         .campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
         .portal-btn { min-height: 48px; display: flex; align-items: center; justify-content: space-between; background: #00142E; border: 1px solid #003B7A; border-radius: 8px; padding: 10px 12px; color: #f8fafc; text-decoration: none; font-size: 15px; margin-bottom: 8px; font-weight: 600; }
@@ -522,9 +523,6 @@ open_pannello_mac() {
                 <label class="etichetta" for="inTelefono">Cellulare <span style="color:#94a3b8; font-size:13px;">(opzionale)</span></label>
                 <input type="tel" class="cred-input" id="inTelefono" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
 
-                <button type="button" id="btnAvviaAuto" class="btn-avvia" style="margin-bottom:12px;" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
-                <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
-
                 <label class="etichetta" for="inEmail">Email proposta</label>
                 <input type="text" class="cred-input" id="inEmail" value="__EMAIL__" autocomplete="off">
                 <label class="etichetta" for="inPass">Password iniziale</label>
@@ -547,6 +545,9 @@ open_pannello_mac() {
                         <option value="GAMING">Gaming</option>
                     </select>
                 </div>
+
+                <button type="button" id="btnAvviaAuto" class="btn-avvia" style="margin-top:4px;" onclick="avviaAutoMac()">&#10004; CONFERMA DATI CLIENTE</button>
+                <div id="esitoInvio" class="esito" role="status" aria-live="polite"></div>
             </div>
         </div>
 
@@ -908,7 +909,7 @@ esegui_passo_singolo_mac() {
             defaults write com.apple.finder ShowPathbar -bool true 2>/dev/null
             defaults write com.apple.finder ShowStatusBar -bool true 2>/dev/null
             defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv" 2>/dev/null
-            defaults write com.apple.dock autohide -bool true 2>/dev/null
+            defaults write com.apple.dock autohide -bool false 2>/dev/null
             defaults write com.apple.dock show-recents -bool false 2>/dev/null
             killall Finder Dock 2>/dev/null
             ok "Ottimizzazioni Finder e Dock applicate."
@@ -1347,7 +1348,7 @@ if $RUN_REALE; then
     defaults write com.apple.finder ShowPathbar -bool true 2>/dev/null
     defaults write com.apple.finder ShowStatusBar -bool true 2>/dev/null
     defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv" 2>/dev/null
-    defaults write com.apple.dock autohide -bool true 2>/dev/null
+    defaults write com.apple.dock autohide -bool false 2>/dev/null
     defaults write com.apple.dock show-recents -bool false 2>/dev/null
     mkdir -p "$HOME/Desktop/Screenshot" 2>/dev/null
     defaults write com.apple.screencapture location -string "$HOME/Desktop/Screenshot" 2>/dev/null
@@ -1408,7 +1409,8 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             fi
             # 2. Fallback su Homebrew se connesso e offline non presente
             if command -v brew >/dev/null 2>&1; then
-                if brew install --cask "$cask" </dev/null >/dev/null 2>&1; then
+                local _brew_err=""
+                if _brew_err="$(brew install --cask "$cask" </dev/null 2>&1)"; then
                     # Rimuove flag quarantena Gatekeeper per evitare popup di conferma al primo avvio
                     xattr -d -r com.apple.quarantine "/Applications/$nome.app" 2>/dev/null || true
                     # Chiude eventuali splash screen avviati in automatico post-install
@@ -1416,7 +1418,8 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
                     ok "$nome installato tramite Homebrew."
                     INSTALLATE+=("$nome")
                 else
-                    info "$nome non installato via Homebrew (proseguo)."
+                    local _brew_last="${${(f)_brew_err}[-1]:-errore rete/cask}"
+                    info "$nome non installato via Homebrew ($_brew_last): proseguo."
                 fi
             fi
         fi
