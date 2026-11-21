@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.11 (2026-11-21)"
+SCRIPT_VERSION="2.12 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1008,7 +1008,7 @@ attendi_credenziali_mac() {
         (( _waited++ ))
     done
     NOME_CLIENTE="${NOME_CLIENTE:-Utente}"
-    SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false
+    SVC_EVERYDAY=false; SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false; SVC_CYBER=false
     DATI_RICEVUTI=true
     ok "Nessun dato cliente inserito: proseguo automaticamente (Utente) e completo la configurazione."
     return 0
@@ -1017,6 +1017,19 @@ attendi_credenziali_mac() {
 invoke_auto_signup_mac() {
     local nome_c="${1:-Utente}"
     leggi_credenziali_salvate_mac
+
+    local do_everyday="${SVC_EVERYDAY:-true}"
+    local do_proton="${SVC_PROTON:-true}"
+    local do_office="${SVC_OFFICE:-false}"
+    local do_mcafee="${SVC_MCAFEE:-false}"
+    local do_norton="${SVC_NORTON:-false}"
+    local do_cyber="${SVC_CYBER:-true}"
+    [[ "$do_everyday" == "true" ]] && do_cyber="true"
+
+    if ! $MODO_TEST && [[ "$do_everyday" != "true" && "$do_proton" != "true" && "$do_office" != "true" && "$do_mcafee" != "true" && "$do_norton" != "true" && "$do_cyber" != "true" ]]; then
+        info "Nessun dato o servizio cliente selezionato: salto i passi manuali e proseguo in automatico."
+        return 0
+    fi
 
     titolo "PASSI MANUALI - ACCOUNT E SERVIZI DEL CLIENTE"
     info "Per ogni servizio indicato nel pannello si apre la pagina giusta con i dati pronti."
@@ -1031,7 +1044,7 @@ invoke_auto_signup_mac() {
     if [[ -z "$nome_c" || "$nome_c" == "Utente" ]]; then
         if [[ -n "$NOME_CLIENTE" && "$NOME_CLIENTE" != "Utente" ]]; then
             nome_c="$NOME_CLIENTE"
-        elif ! $MODO_TEST; then
+        elif ! $MODO_TEST && ! $DATI_RICEVUTI; then
             chiedi_sempre "Nome e Cognome del Cliente (es. Mario Rossi):"
             [[ -n "$REPLY" ]] && nome_c="$REPLY"
             NOME_CLIENTE="$nome_c"
@@ -1040,13 +1053,6 @@ invoke_auto_signup_mac() {
 
     local email_proton="${EMAIL_CLIENTE:-${nome_c//[^a-zA-Z0-9]/}@proton.me}"
     local pass_gen="${PASS_CLIENTE:-$(password_cliente "$nome_c")}"
-    local do_everyday="${SVC_EVERYDAY:-true}"
-    local do_proton="${SVC_PROTON:-true}"
-    local do_office="${SVC_OFFICE:-false}"
-    local do_mcafee="${SVC_MCAFEE:-false}"
-    local do_norton="${SVC_NORTON:-false}"
-    local do_cyber="${SVC_CYBER:-true}"
-    [[ "$do_everyday" == "true" ]] && do_cyber="true"
 
     # 0. UNIEURO EVERYDAY DIGITAL (PRIORITA' - UNIEURO SECURE / F-SECURE)
     if [[ "$do_everyday" == "true" ]]; then
