@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.3 (2026-11-21)"
+$SCRIPT_VERSION = "13.12.4 (2026-11-21)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -6766,7 +6766,7 @@ function Installa-Antivirus {
     Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
-    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca -NonBlocca
+    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
     if (-not $RunReale) { Add-Report "$Nome (antivirus)" "OK (test)"; return }
 
     # Sorveglio Download e Desktop: appena compare un .exe NUOVO (creato dopo
@@ -7018,7 +7018,7 @@ function Invoke-EverydayDigital {
                 $scaricato = $true
             }
             if ($scaricato -and $RunReale) {
-                Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca -NonBlocca
+                Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
                 Start-Process -FilePath $exePath
                 Write-OK "Installer Unieuro Secure scaricato e avviato AUTOMATICAMENTE."
                 Add-Report "Unieuro Secure (F-Secure)" "OK (download diretto)"
@@ -8701,7 +8701,7 @@ if ($Global:IsCltMode -or $Global:SkipAccountPrompt) {
         Write-Info "    con $provNome crei l'email del cliente."
     }
     Open-PaginaWeb $urlAccount
-    Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
+    Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword -NonBlocca
     Add-Report "Account $provNome ($credMsAccount)" "OK"
 }
 }
@@ -8723,7 +8723,7 @@ switch ([string]$Global:SceltaOffice) {
     "1" {
         Open-PaginaWeb "https://microsoft365.com/setup"
         Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
-        Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
+        Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword -NonBlocca
         Add-Report "Microsoft 365 (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
@@ -8731,7 +8731,7 @@ switch ([string]$Global:SceltaOffice) {
         Open-PaginaWeb "https://office.com/setup"
         Write-Info "Accedi con l'account Microsoft del cliente e inserisci il codice grattato sulla card."
         Write-Info "Dopo il riscatto: apri Word e accedi con lo stesso account -> Office si attiva da solo."
-        Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword
+        Mostra-CredenzialiPagina -Utente $credMsAccount -Password $credMsPassword -NonBlocca
         Add-Report "Office perpetuo (riscatto card PIN)" "OK"
         Update-PannelloStatus -TaskId "office" -Stato "done" -Dettaglio "Installato e attivato"
     }
