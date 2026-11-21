@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.2 (2026-11-21)"
+$SCRIPT_VERSION = "13.12.3 (2026-11-21)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -5636,7 +5636,7 @@ function Invoke-WingetConBarra {
     param(
         [string]$Nome,
         [string[]]$WingetArgs,
-        [int]$TimeoutSec = 300 # 5 minuti massimo per singola operazione/app
+        [int]$TimeoutSec = 600 # 10 minuti massimo per singola operazione/app (reti lente / file grandi)
     )
     if ($Test -or $Global:Test -or $env:PESTER_TEST) {
         Write-OK "TEST: simulazione winget $Nome completata."
@@ -6309,8 +6309,15 @@ function Installa-Pacchetto {
         Write-Info "Installo $Nome...$(if ($tentativo -gt 1) { " (tentativo $tentativo)" })"
         $codeInstall = Invoke-WingetConBarra -Nome $Nome -WingetArgs (@('install', '--exact', '--id', $WingetId) + $sorgente + @('--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements'))
         if ($codeInstall -eq -9999) {
-            Write-Info "Installazione di $Nome interrotta per timeout (5 min): salto l'app per completare il setup."
-            Add-Report "$Nome (installazione)" "AVVISO (timeout 5 min)"
+            Write-Info "Winget in timeout (10 min) per ${Nome}: provo download diretto ufficiale..."
+            if (Install-AppDirectFallback -Nome $Nome -WingetId $WingetId) {
+                Add-Report "$Nome (installazione)" "OK (download diretto)"
+                Add-IconaDesktop -Nome $Nome -WingetId $WingetId
+                $Global:UltimaInstallOk = $true
+                return
+            }
+            Write-Info "Installazione di $Nome interrotta per timeout (10 min): salto l'app per completare il setup."
+            Add-Report "$Nome (installazione)" "AVVISO (timeout 10 min)"
             $Global:AppFallite++
             $Global:UltimaInstallOk = $false
             return
