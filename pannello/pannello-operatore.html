@@ -1095,7 +1095,7 @@
             var c = (cognome || '').toLowerCase().trim();
             var n = (nome || '').toLowerCase().trim();
             var full = (c + ' ' + n).trim();
-            return (full === 'clt clt' || full === 'clt');
+            return (!full || full === 'clt clt' || full === 'clt');
         }
 
         var _stepNomeEdited = false;
@@ -1178,7 +1178,7 @@
             var everyday = el('chkSvcEveryday').checked;
             var cyber = el('chkSvcCyber').checked;
             var isClt = isCltNome(cognome, nome);
-            var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
+            var nomeCliente = (cognome + ' ' + nome).trim() || 'clt clt';
             var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
             var passEffettiva = isClt ? '' : (pass || 'Utente123!');
             if (email && email.indexOf('@') < 1 && !isClt) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
@@ -1194,7 +1194,7 @@
                 ProfiloApp: el('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
-                    Proton: el('chkSvcProton').checked,
+                    Proton: isClt ? false : el('chkSvcProton').checked,
                     Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
                     OfficeTipo: el('selOffice').value,
                     McAfee: el('chkSvcMcAfee').checked,

@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.12 (2026-11-21)"
+SCRIPT_VERSION="2.13 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -661,7 +661,7 @@ open_pannello_mac() {
             var c = cRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
             var n = nRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
             var fullClt = (c + ' ' + n).trim();
-            var isClt = (fullClt === 'clt clt' || fullClt === 'clt');
+            var isClt = (!fullClt || fullClt === 'clt clt' || fullClt === 'clt');
             var stepMac = document.getElementById('inStepNomeMac');
             if (stepMac && !stepMac.dataset.touched) {
                 stepMac.value = isClt ? 'Mac' : (nRaw || cRaw || '');
@@ -712,7 +712,7 @@ open_pannello_mac() {
             var c = document.getElementById('inCognome').value.trim();
             var n = document.getElementById('inNome').value.trim();
             var fullClt = (c.toLowerCase().trim() + ' ' + n.toLowerCase().trim()).trim();
-            var isClt = (fullClt === 'clt clt' || fullClt === 'clt');
+            var isClt = (!fullClt || fullClt === 'clt clt' || fullClt === 'clt');
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
             var t = document.getElementById('inTelefono').value.trim();
@@ -722,7 +722,7 @@ open_pannello_mac() {
             var mcafee = document.getElementById('chkSvcMcAfee').checked;
             var norton = document.getElementById('chkSvcNorton').checked;
             var cyber = document.getElementById('chkSvcCyber').checked;
-            var nomeCliente = (c + ' ' + n).trim() || 'Utente';
+            var nomeCliente = (c + ' ' + n).trim() || 'clt clt';
             var payload = {
                 Conferma: true,
                 Email: isClt ? '' : (email || ('utente@' + currentDom)),
@@ -735,7 +735,7 @@ open_pannello_mac() {
                 ProfiloApp: document.getElementById('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
-                    Proton: proton,
+                    Proton: isClt ? false : proton,
                     Office: office,
                     McAfee: mcafee,
                     Norton: norton,
@@ -1025,6 +1025,7 @@ invoke_auto_signup_mac() {
     local do_norton="${SVC_NORTON:-false}"
     local do_cyber="${SVC_CYBER:-true}"
     [[ "$do_everyday" == "true" ]] && do_cyber="true"
+    [[ "$IS_CLT_MODE" == "true" ]] && do_proton="false"
 
     if ! $MODO_TEST && [[ "$do_everyday" != "true" && "$do_proton" != "true" && "$do_office" != "true" && "$do_mcafee" != "true" && "$do_norton" != "true" && "$do_cyber" != "true" ]]; then
         info "Nessun dato o servizio cliente selezionato: salto i passi manuali e proseguo in automatico."
@@ -1220,8 +1221,8 @@ fi
 # Dati iniziali: i veri arrivano dal pannello (una volta sola) mentre la fase 1
 # lavora; servono solo dai passi manuali in poi.
 NOME_CLIENTE="Utente"
-CRED_ACCOUNT="utente@icloud.com"
-CRED_PASSWORD="Utente123!"
+CRED_ACCOUNT=""
+CRED_PASSWORD=""
 DATI_RICEVUTI=false
 IS_CLT_MODE=false
 PROFILO_APP=""
