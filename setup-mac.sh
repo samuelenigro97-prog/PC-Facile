@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.10 (2026-11-21)"
+SCRIPT_VERSION="2.11 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -464,7 +464,10 @@ open_pannello_mac() {
         <div class="header">
             <div class="brand-box">
                 <div class="u-logo">UNIEURO</div>
-                <div class="brand-titles"><h1>PC Facile &middot; Pannello operatore Mac</h1></div>
+                <div class="brand-titles">
+                    <h1>PC Facile &middot; Pannello operatore Mac</h1>
+                    <p style="font-size:12px; color:#93c5fd; font-weight:700; margin-top:2px;">Script PC Facile Mac v__VERSION__</p>
+                </div>
             </div>
             <div id="badgeLive" class="badge-stato" role="status">In attesa dei dati cliente</div>
         </div>
@@ -782,6 +785,7 @@ open_pannello_mac() {
 EOF
 
     # Sostituisci i placeholder con i dati reali (escape HTML + escape per sed)
+    sed -i '' "s|__VERSION__|$(sed_esc "$(html_esc "$SCRIPT_VERSION")")|g" "$pannello_html" 2>/dev/null
     sed -i '' "s|__HW_MODEL__|$(sed_esc "$(html_esc "$hw_model")")|g" "$pannello_html" 2>/dev/null
     sed -i '' "s|__HW_CHIP__|$(sed_esc "$(html_esc "$hw_chip")")|g" "$pannello_html" 2>/dev/null
     sed -i '' "s|__HW_RAM__|$(sed_esc "$(html_esc "$hw_ram")")|g" "$pannello_html" 2>/dev/null
@@ -1266,6 +1270,8 @@ fi
 # =============================================================================
 # FASE 1: DATI CLIENTE & PASSI MANUALI (operatore)
 # =============================================================================
+printf '\033]0;PC Facile Mac - v%s\007' "$SCRIPT_VERSION"
+print -r -- "\n  ${C_ORANGE:-}UNIEURO PC FACILE MAC${C_RESET:-} — ${C_BOLD:-}v$SCRIPT_VERSION${C_RESET:-}"
 titolo "FASE 1 di 2 - Dati cliente e passi manuali (operatore)"
 update_pannello_mac_status 10 "Dati cliente & Passi manuali" "Dati cliente, account e servizi..."
 $RUN_REALE && attendi_credenziali_mac
