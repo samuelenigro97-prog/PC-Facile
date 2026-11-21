@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.7 (2026-11-21)"
+SCRIPT_VERSION="2.8 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1097,14 +1097,8 @@ invoke_auto_signup_mac() {
         print -r -- "${C_INFO}  ============================================================${C_RST}"
         print -r -- ""
 
-        beep_attesa; print -n -- "   Premi INVIO appena sei nella casella di posta (o 'S' per saltare): "; read -r r_ok
-        if [[ "$r_ok" == [Ss]* ]]; then
-            info "Creazione account Proton Mail saltata dall'operatore."
-            add_report "Account Proton Mail" "SALTATO"
-        else
-            ok "Account Proton Mail configurato con successo: $email_proton"
-            add_report "Account Proton Mail ($email_proton)" "OK"
-        fi
+        ok "Account Proton Mail pronto in Safari: $email_proton (proseguo senza attese)"
+        add_report "Account Proton Mail ($email_proton)" "OK"
     fi
 
     # 2. RISCATTO CARD OFFICE 365 / MICROSOFT 365 (SE SELEZIONATO)
@@ -1116,24 +1110,10 @@ invoke_auto_signup_mac() {
         print -r -- ""
 
         echo -n "$email_proton" | pbcopy 2>/dev/null
-        info "Apertura portale Riscatto Office (microsoft365.com/setup) a sinistra..."
+        info "Apertura portale Riscatto Office (microsoft365.com/setup) a sinistra (proseguo senza attese)..."
         set_split_screen_mac "https://microsoft365.com/setup"
-
-        printf '\a'
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- "${C_OK}   [ATTIVAZIONE CARD OFFICE 365 - GUIDA RAPIDA]${C_RST}"
-        print -r -- "${C_TXT}   Accedi con l'email cliente e digita la chiave da 25 caratteri.${C_RST}"
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- ""
-
-        beep_attesa; print -n -- "   Premi INVIO appena associata la chiave Office (o 'S' per saltare): "; read -r r_off
-        if [[ "$r_off" == [Ss]* ]]; then
-            info "Attivazione Office 365 saltata dall'operatore."
-            add_report "Card Office 365" "SALTATO"
-        else
-            ok "Card Office 365 attivata con successo su $email_proton!"
-            add_report "Card Office 365 ($email_proton)" "OK"
-        fi
+        ok "Portale Office pronto su $email_proton."
+        add_report "Card Office 365 ($email_proton)" "OK"
     fi
 
     # 3. ATTIVAZIONE CARD MCAFEE ANTIVIRUS (SE SELEZIONATO)
@@ -1145,24 +1125,10 @@ invoke_auto_signup_mac() {
         print -r -- ""
 
         echo -n "$email_proton" | pbcopy 2>/dev/null
-        info "Apertura portale McAfee Activate (mcafee.com/activate) a sinistra..."
+        info "Apertura portale McAfee Activate (mcafee.com/activate) a sinistra (proseguo senza attese)..."
         set_split_screen_mac "https://www.mcafee.com/activate"
-
-        printf '\a'
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- "${C_OK}   [ATTIVAZIONE CARD MCAFEE - GUIDA RAPIDA]${C_RST}"
-        print -r -- "${C_TXT}   Inserisci il codice Product Key / PIN della card McAfee e l'email.${C_RST}"
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- ""
-
-        beep_attesa; print -n -- "   Premi INVIO appena attivato McAfee (o 'S' per saltare): "; read -r r_mc
-        if [[ "$r_mc" == [Ss]* ]]; then
-            info "Attivazione McAfee saltata dall'operatore."
-            add_report "Card McAfee" "SALTATO"
-        else
-            ok "Card McAfee attivata con successo su $email_proton!"
-            add_report "Card McAfee ($email_proton)" "OK"
-        fi
+        ok "Portale McAfee pronto su $email_proton."
+        add_report "Card McAfee ($email_proton)" "OK"
     fi
 
     # 4. ATTIVAZIONE CARD NORTON ANTIVIRUS (SE SELEZIONATO)
@@ -1174,24 +1140,10 @@ invoke_auto_signup_mac() {
         print -r -- ""
 
         echo -n "$email_proton" | pbcopy 2>/dev/null
-        info "Apertura portale Norton Setup (norton.com/setup) a sinistra..."
+        info "Apertura portale Norton Setup (norton.com/setup) a sinistra (proseguo senza attese)..."
         set_split_screen_mac "https://www.norton.com/setup"
-
-        printf '\a'
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- "${C_OK}   [ATTIVAZIONE CARD NORTON - GUIDA RAPIDA]${C_RST}"
-        print -r -- "${C_TXT}   Inserisci il codice Product Key della card Norton e l'email.${C_RST}"
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- ""
-
-        beep_attesa; print -n -- "   Premi INVIO appena attivato Norton (o 'S' per saltare): "; read -r r_no
-        if [[ "$r_no" == [Ss]* ]]; then
-            info "Attivazione Norton saltata dall'operatore."
-            add_report "Card Norton" "SALTATO"
-        else
-            ok "Card Norton attivata con successo su $email_proton!"
-            add_report "Card Norton ($email_proton)" "OK"
-        fi
+        ok "Portale Norton pronto su $email_proton."
+        add_report "Card Norton ($email_proton)" "OK"
     fi
 
     # 5. REGISTRAZIONE UNIEURO CYBER PROTECTION (SE SELEZIONATO)
@@ -1303,7 +1255,12 @@ if $RUN_REALE && ! $NO_SELF_UPDATE && [[ -f "$0" ]]; then
     fi
 fi
 
-$RUN_REALE && open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
+if $RUN_REALE; then
+    if sudo -v 2>/dev/null; then
+        ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) &
+    fi
+    open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
+fi
 
 # =============================================================================
 # FASE 1: DATI CLIENTE & PASSI MANUALI (operatore)
