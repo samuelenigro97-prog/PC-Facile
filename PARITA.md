@@ -75,6 +75,7 @@ allineati come flusso e funzioni.
 - **Ordine avvio `PC Facile.bat` (Solo Windows — v13.12.2)**: prima rimozione automatica silenziosa antivirus preinstallato (`McAfee`, `Norton`, `Avast`, `AVG`), poi collegamento automatico a Internet via Wi-Fi da chiavetta, poi download/aggiornamento e avvio diretto.
 - **Timeout `winget` a 10 minuti + fallback diretto (Solo Windows — v13.12.3)**: aumentato il timeout per singola app da 5 a 10 minuti (600s) in `Invoke-WingetConBarra` e attivato `Install-AppDirectFallback` anche su timeout `-9999` così app grandi su reti lente (Chrome, VLC, Adobe Reader) non vengono saltate.
 - **Flusso continuo senza blocchi su password/credenziali (Win & Mac — v13.12.4)**: corretto `-NonBlocca -NonBlocca` duplicato su Windows e reso non bloccante `Mostra-CredenzialiPagina` anche in `Account` e `Office` (apre la pagina, mostra/copia i dati e prosegue); su Mac rimossi tutti i `read -r` bloccanti di `Proton`, `Office`, `McAfee`, `Norton` e aggiunta cache `sudo -v` iniziale.
+- **Fix blocco `softwareupdate` su Apple Silicon (Solo Mac — v13.12.5 / 2.9)**: `softwareupdate --download --all` e `brew` usano `</dev/null` e `sudo -n` con timeout massimo di 90s + stato ogni 5s, così su Mac M1–M5 non si blocca mai chiedendo `Password:`.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
