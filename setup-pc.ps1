@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.9 (2026-11-21)"
+$SCRIPT_VERSION = "13.12.10 (2026-11-21)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3195,7 +3195,7 @@ function Open-PannelloOperatore {
             }).then(function(res) {
                 btn.disabled = false;
                 if (res.ok && res.j && res.j.ok !== false) {
-                    mostraEsito('\u2713 Dati ricevuti dal PC: i passi che li usano partono con questi dati.', 'ok');
+                    mostraEsito('\u2713 Dati ricevuti dal PC: avvio in corso.', 'ok');
                     showToast('Dati ricevuti dal PC');
                     apriScheda('tab-live');
                 } else {
