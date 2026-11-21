@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.14 (2026-11-21)"
+SCRIPT_VERSION="2.15 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -661,7 +661,8 @@ open_pannello_mac() {
             var c = cRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
             var n = nRaw.toLowerCase().replace(/[^a-z0-9]/g, '');
             var fullClt = (c + ' ' + n).trim();
-            var isClt = (!fullClt || fullClt === 'clt clt' || fullClt === 'clt');
+            var generici = ['clt', 'clt clt', 'utente', 'utente utente', 'cliente', 'cliente cliente', 'oem', 'admin'];
+            var isClt = (!fullClt || generici.indexOf(fullClt) !== -1 || (generici.indexOf(c) !== -1 && (!n || generici.indexOf(n) !== -1)));
             var stepMac = document.getElementById('inStepNomeMac');
             if (stepMac && !stepMac.dataset.touched) {
                 stepMac.value = isClt ? 'Mac' : (nRaw || cRaw || '');
@@ -712,7 +713,8 @@ open_pannello_mac() {
             var c = document.getElementById('inCognome').value.trim();
             var n = document.getElementById('inNome').value.trim();
             var fullClt = (c.toLowerCase().trim() + ' ' + n.toLowerCase().trim()).trim();
-            var isClt = (!fullClt || fullClt === 'clt clt' || fullClt === 'clt');
+            var generici = ['clt', 'clt clt', 'utente', 'utente utente', 'cliente', 'cliente cliente', 'oem', 'admin'];
+            var isClt = (!fullClt || generici.indexOf(fullClt) !== -1 || (generici.indexOf(c.toLowerCase().trim()) !== -1 && (!n || generici.indexOf(n.toLowerCase().trim()) !== -1)));
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
             var t = document.getElementById('inTelefono').value.trim();
@@ -799,6 +801,15 @@ EOF
 # =============================================================================
 # MODULO AUTOMAZIONE BROWSER (PROTON MAIL RAPIDO & MAC)
 # =============================================================================
+is_nome_generico_mac() {
+    local v="${${1:-}:l}"
+    v="${v## }"; v="${v%% }"
+    case "$v" in
+        ""|clt|"clt clt"|utente|"utente utente"|cliente|"cliente cliente"|oem|admin) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 leggi_credenziali_salvate_mac() {
     # Legge il JSON salvato dal pannello SENZA eval: python stampa righe
     # "CHIAVE<TAB>valore" (tab/a capo tolti dai valori), la shell accetta solo
@@ -842,7 +853,7 @@ PYEOF
                     # Letto: il file contiene la password in chiaro, lo cancello.
                     rm -f -- "$p" 2>/dev/null
                     DATI_RICEVUTI=true
-                    if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || "${NOME_PROPRIO_CLIENTE:l}" == "clt" ]]; then
+                    if is_nome_generico_mac "$NOME_CLIENTE" || is_nome_generico_mac "$NOME_PROPRIO_CLIENTE"; then
                         IS_CLT_MODE=true
                         NOME_CLIENTE="Utente"
                         NOME_PROPRIO_CLIENTE="Utente"
@@ -1008,6 +1019,7 @@ attendi_credenziali_mac() {
         (( _waited++ ))
     done
     NOME_CLIENTE="${NOME_CLIENTE:-Utente}"
+    IS_CLT_MODE=true
     SVC_EVERYDAY=false; SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false; SVC_CYBER=false
     DATI_RICEVUTI=true
     ok "Nessun dato cliente inserito: proseguo automaticamente (Utente) e completo la configurazione."
@@ -1268,8 +1280,33 @@ if $RUN_REALE && ! $NO_SELF_UPDATE && [[ -f "$0" ]]; then
 fi
 
 if $RUN_REALE; then
-    if sudo -v 2>/dev/null; then
-        ( while true; do sudo -n true 2>/dev/null; sleep 50; kill -0 "$$" 2>/dev/null || exit; done ) &
+    _MAC_SUDO_PASS=""
+    _ASKPASS_FILE=""
+    trap '[[ -n "$_ASKPASS_FILE" ]] && rm -f "$_ASKPASS_FILE" 2>/dev/null' EXIT INT TERM
+    if ! sudo -n true 2>/dev/null; then
+        print -r -- ""
+        info "Inserisci la password del Mac (chiesta UNA sola volta per tutto il setup):"
+        _tent_pw=0
+        while (( _tent_pw < 3 )); do
+            print -n -- "  Password Mac: "
+            read -rs _MAC_SUDO_PASS
+            print -r -- ""
+            if printf '%s\n' "$_MAC_SUDO_PASS" | sudo -S -v </dev/null >/dev/null 2>&1; then
+                break
+            fi
+            errore "Password errata, riprova."
+            _MAC_SUDO_PASS=""
+            (( _tent_pw++ ))
+        done
+    fi
+    if [[ -n "$_MAC_SUDO_PASS" ]]; then
+        _ASKPASS_FILE="/tmp/pcfacile-askpass-$$.sh"
+        printf '#!/bin/sh\nprintf "%%s\\n" %s\n' "${(q)_MAC_SUDO_PASS}" > "$_ASKPASS_FILE"
+        chmod 700 "$_ASKPASS_FILE"
+        export SUDO_ASKPASS="$_ASKPASS_FILE"
+        ( while true; do printf '%s\n' "$_MAC_SUDO_PASS" | sudo -S -v </dev/null >/dev/null 2>&1; sleep 45; kill -0 "$$" 2>/dev/null || exit; done ) &
+    else
+        ( while true; do sudo -n true 2>/dev/null; sleep 45; kill -0 "$$" 2>/dev/null || exit; done ) &
     fi
     open_pannello_mac "$NOME_CLIENTE" "$CRED_ACCOUNT" "$CRED_PASSWORD"
 fi
@@ -1282,7 +1319,7 @@ print -r -- "\n  ${C_ORANGE:-}UNIEURO PC FACILE MAC${C_RESET:-} — ${C_BOLD:-}v
 titolo "FASE 1 di 2 - Dati cliente e passi manuali (operatore)"
 update_pannello_mac_status 10 "Dati cliente & Passi manuali" "Dati cliente, account e servizi..."
 $RUN_REALE && attendi_credenziali_mac
-if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || "${NOME_PROPRIO_CLIENTE:l}" == "clt" ]]; then
+if is_nome_generico_mac "$NOME_CLIENTE" || is_nome_generico_mac "$NOME_PROPRIO_CLIENTE"; then
     IS_CLT_MODE=true
     NOME_CLIENTE="Utente"
     NOME_PROPRIO_CLIENTE="Utente"

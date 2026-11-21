@@ -1095,7 +1095,8 @@
             var c = (cognome || '').toLowerCase().trim();
             var n = (nome || '').toLowerCase().trim();
             var full = (c + ' ' + n).trim();
-            return (!full || full === 'clt clt' || full === 'clt');
+            var generici = ['clt', 'clt clt', 'utente', 'utente utente', 'cliente', 'cliente cliente', 'oem', 'admin'];
+            return (!full || generici.indexOf(full) !== -1 || (generici.indexOf(c) !== -1 && (!n || generici.indexOf(n) !== -1)));
         }
 
         var _stepNomeEdited = false;
