@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.6 (2026-11-18)"
+SCRIPT_VERSION="2.7 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1197,12 +1197,6 @@ invoke_auto_signup_mac() {
     # 5. REGISTRAZIONE UNIEURO CYBER PROTECTION (SE SELEZIONATO)
     if [[ "$do_cyber" == "true" ]]; then
         local tel="${TELEFONO_CLIENTE:-}"
-        if [[ -z "$tel" ]]; then
-            chiedi_sempre "Numero di Telefono/Cellulare Cliente per Cyber Protection (INVIO per saltare):"
-            [[ -n "$REPLY" ]] && tel="$REPLY"
-            TELEFONO_CLIENTE="$tel"
-        fi
-
         titolo "5. REGISTRAZIONE UNIEURO CYBER PROTECTION (MAC)"
         print -r -- "   ${C_TXT}Dati cliente pronti per l'attivazione Cyber Protection:${C_RST}"
         print -r -- "     ${C_CYAN}- Nome / Cognome :${C_RST} $nome_c"
@@ -1212,24 +1206,10 @@ invoke_auto_signup_mac() {
         print -r -- ""
 
         echo -n "$email_proton" | pbcopy 2>/dev/null
-        info "Apertura portale Unieuro Cyber Protection in Safari a sinistra..."
+        info "Apertura portale Unieuro Cyber Protection in Safari a sinistra (proseguo senza attese)..."
         set_split_screen_mac "https://unieuro-cyber-protection.covercare.it"
-
-        printf '\a'
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- "${C_OK}   [REGISTRAZIONE CYBER PROTECTION - DATI PRONTI]${C_RST}"
-        print -r -- "${C_TXT}   Inserisci i dati anagrafici e il codice PIN/Card grattato.${C_RST}"
-        print -r -- "${C_INFO}  ============================================================${C_RST}"
-        print -r -- ""
-
-        beep_attesa; print -n -- "   Premi INVIO appena registrato Cyber Protection (o 'S' per saltare): "; read -r r_cyb
-        if [[ "$r_cyb" == [Ss]* ]]; then
-            info "Cyber Protection saltato dall'operatore."
-            add_report "Unieuro Cyber Protection" "SALTATO"
-        else
-            ok "Unieuro Cyber Protection registrato con successo per $nome_c ($email_proton)!"
-            add_report "Unieuro Cyber Protection ($email_proton)" "OK"
-        fi
+        ok "Unieuro Cyber Protection pronto per $nome_c ($email_proton)."
+        add_report "Unieuro Cyber Protection ($email_proton)" "OK"
         if $RUN_REALE && [[ -d "$HOME/Desktop" ]]; then
             cat > "$HOME/Desktop/Unieuro Cyber Protection.webloc" <<'WEBLOC'
 <?xml version="1.0" encoding="UTF-8"?>

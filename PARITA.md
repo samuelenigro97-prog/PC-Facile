@@ -71,6 +71,7 @@ allineati come flusso e funzioni.
 - **Ordine scheda Portali (Win & Mac — v13.11.1)**: spostata la sezione **Servizio Unieuro** (senza etichetta `(Priorità)`) subito dopo **Account ed email** nella scheda `Portali`.
 - **Avanzamento visibile durante `winget` (Solo Windows — v13.11.2)**: `Invoke-WingetConBarra` stampa ogni 5s lo stato live (`-> Nome: operazione in corso... (Xs)`) per evitare che la finestra di Windows Terminal sembri vuota durante i download/installazioni.
 - **Collegamento Desktop Unieuro Cyber Protection (Win & Mac — v13.12.0)**: `Add-ShortcutCyberProtection` (Windows, con icona `.ico` dedicata in modalità `--app` subito dopo `Unieuro Secure`) e `Unieuro Cyber Protection.webloc` (Mac) creano il collegamento diretto sul Desktop.
+- **Avvio velocizzato e meno `INVIO` (Win & Mac — v13.12.1)**: in `PC Facile.bat` e `Enable-SilentElevation` rimosso `Unblock-File -Recurse` su cartelle pesanti (`installers/`, `TEMP`, `Downloads`), ridotti i timeout di rete/Wi-Fi (2s / max 8s), passato `-NoSelfUpdate` quando già aggiornato, ridotta ripresa a 2s, `Attiva-ServizioWeb` non blocca su `INVIO` (`-NonBlocca`), e su Mac rimossi sia la richiesta telefono che il blocco `INVIO` di Cyber Protection.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
