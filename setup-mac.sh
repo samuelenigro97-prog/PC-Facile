@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.16 (2026-11-21)"
+SCRIPT_VERSION="2.17 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -437,7 +437,8 @@ open_pannello_mac() {
         .dom-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
         .dom-btn { min-height: 44px; min-width: 0; background: #1e293b; color: #e2e8f0; border: 1.5px solid #334155; padding: 8px 10px; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
         .dom-btn[aria-pressed="true"] { background: #0284c7; border-color: #0284c7; color: #fff; }
-        .campi-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+        .campi-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+        .campi-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
         .portal-btn { min-height: 48px; display: flex; align-items: center; justify-content: space-between; background: #00142E; border: 1px solid #003B7A; border-radius: 8px; padding: 10px 12px; color: #f8fafc; text-decoration: none; font-size: 15px; margin-bottom: 8px; font-weight: 600; }
         .cred-input { width: 100%; min-height: 44px; background: #00122B; border: 1.5px solid #00458C; border-radius: 8px; padding: 8px 12px; font-size: 16px; color: #fff; margin-bottom: 10px; }
         .cred-input.errore { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,0.4); }
@@ -512,24 +513,31 @@ open_pannello_mac() {
                     <button type="button" class="dom-btn" aria-pressed="false" onclick="setDomMac('outlook.it', 'Microsoft', this)">@outlook.it</button>
                 </div>
 
-                <div class="campi-2">
+                <div class="campi-3">
                     <div>
                         <label class="etichetta" for="inCognome">Cognome</label>
                         <input type="text" class="cred-input" id="inCognome" placeholder="Es. Rossi" autocomplete="off" oninput="aggiornaCredMac()">
                     </div>
                     <div>
-                        <label class="etichetta" for="inNome">Nome <span style="color:#94a3b8; font-size:13px;">(opzionale)</span></label>
+                        <label class="etichetta" for="inNome">Nome <span style="color:#94a3b8; font-size:12px;">(opz.)</span></label>
                         <input type="text" class="cred-input" id="inNome" placeholder="Es. Mario" autocomplete="off" oninput="aggiornaCredMac()">
+                    </div>
+                    <div>
+                        <label class="etichetta" for="inTelefono">Cellulare <span style="color:#94a3b8; font-size:12px;">(opz.)</span></label>
+                        <input type="tel" class="cred-input" id="inTelefono" placeholder="333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
                     </div>
                 </div>
 
-                <label class="etichetta" for="inTelefono">Cellulare <span style="color:#94a3b8; font-size:13px;">(opzionale)</span></label>
-                <input type="tel" class="cred-input" id="inTelefono" placeholder="Es. 333 1234567" autocomplete="off" oninput="this.classList.remove('errore')">
-
-                <label class="etichetta" for="inEmail">Email proposta</label>
-                <input type="text" class="cred-input" id="inEmail" value="__EMAIL__" autocomplete="off">
-                <label class="etichetta" for="inPass">Password iniziale</label>
-                <input type="text" class="cred-input" id="inPass" value="__PASS__" autocomplete="off">
+                <div class="campi-2">
+                    <div>
+                        <label class="etichetta" for="inEmail">Email proposta</label>
+                        <input type="text" class="cred-input" id="inEmail" value="__EMAIL__" autocomplete="off">
+                    </div>
+                    <div>
+                        <label class="etichetta" for="inPass">Password iniziale</label>
+                        <input type="text" class="cred-input" id="inPass" value="__PASS__" autocomplete="off">
+                    </div>
+                </div>
 
                 <div class="servizi">
                     <span class="etichetta" style="color:#fed7aa;">Servizi sullo scontrino</span>
