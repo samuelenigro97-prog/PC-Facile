@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.0 (2026-11-19)"
+$SCRIPT_VERSION = "13.12.1 (2026-11-21)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -550,11 +550,10 @@ function Enable-SilentElevation {
         #  amministratore, quindi gli installer avviati da qui non chiedono l'UAC,
         #  e i file vengono comunque sbloccati con Unblock-File qui sotto.)
 
-        # 4. Sblocca ricorsivamente tutti i file nella cartella corrente, TEMP e Download
-        $dirsToUnblock = @($PSScriptRoot, $env:TEMP, (Get-DesktopDir), (Join-Path $env:USERPROFILE "Downloads")) |
-            Where-Object { $_ -and (Test-Path $_) }
-        foreach ($d in $dirsToUnblock) {
-            Get-ChildItem -Path $d -Include *.exe, *.msi, *.ps1, *.bat, *.cmd -File -Recurse -ErrorAction SilentlyContinue |
+        # 4. Sblocca rapidamente i file di avvio nella cartella dello script (senza -Recurse su TEMP/Download)
+        if ($PSScriptRoot -and (Test-Path -LiteralPath $PSScriptRoot)) {
+            Get-ChildItem -LiteralPath $PSScriptRoot -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Extension -match '^\.(ps1|bat|cmd|exe|msi)$' } |
                 Unblock-File -ErrorAction SilentlyContinue
         }
 
@@ -6569,7 +6568,7 @@ if ($RunReale) {
 
                     # Automatico: riprende da solo (i passi gia' fatti si saltano
                     # comunque); N entro 15 secondi = ricomincia da capo.
-                    $rRip = Attendi-Risposta -Prompt "Riprendo tra 5 secondi (N = ricomincia da capo)" -TimeoutSec 5 -Default "S"
+                    $rRip = Attendi-Risposta -Prompt "Riprendo tra 2 secondi (N = ricomincia da capo)" -TimeoutSec 2 -Default "S"
                     $vuoiRiprendere = ($rRip -notmatch '^[Nn]')
 
                     if ($vuoiRiprendere) {
@@ -6760,7 +6759,7 @@ function Installa-Antivirus {
     Write-Host "L'installer parte DA SOLO appena finisce di scaricarsi (niente INVIO)." -ForegroundColor White
     # Antivirus: l'attivazione si fa accedendo con l'account principale del
     # cliente. Metto quelle credenziali pronte da incollare.
-    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
+    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca -NonBlocca
     if (-not $RunReale) { Add-Report "$Nome (antivirus)" "OK (test)"; return }
 
     # Sorveglio Download e Desktop: appena compare un .exe NUOVO (creato dopo
@@ -6823,7 +6822,7 @@ function Attiva-ServizioWeb {
     Write-Host "IMPORTANTE: annota le credenziali per l'app mobile e consegnale al cliente." -ForegroundColor Yellow
     # Registrazione col cliente: uso la sua email come utente (pronta da incollare).
     # La password del portale spesso la crea il sito e la manda via email.
-    Mostra-CredenzialiPagina -Utente $Utente -Password $Password
+    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
     Write-OK "$Nome completato."
     Add-Report "$Nome (protezione)" "OK"
 }
@@ -7012,7 +7011,7 @@ function Invoke-EverydayDigital {
                 $scaricato = $true
             }
             if ($scaricato -and $RunReale) {
-                Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
+                Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca -NonBlocca
                 Start-Process -FilePath $exePath
                 Write-OK "Installer Unieuro Secure scaricato e avviato AUTOMATICAMENTE."
                 Add-Report "Unieuro Secure (F-Secure)" "OK (download diretto)"
