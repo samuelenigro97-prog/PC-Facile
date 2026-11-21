@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.15 (2026-11-21)"
+SCRIPT_VERSION="2.16 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1186,14 +1186,6 @@ invoke_auto_signup_mac() {
         set_split_screen_mac "https://unieuro-cyber-protection.covercare.it"
         ok "Unieuro Cyber Protection pronto per $nome_c ($email_proton)."
         add_report "Unieuro Cyber Protection ($email_proton)" "OK"
-        if $RUN_REALE && [[ -d "$HOME/Desktop" ]]; then
-            cat > "$HOME/Desktop/Unieuro Cyber Protection.webloc" <<'WEBLOC'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>URL</key><string>https://unieuro-cyber-protection.covercare.it</string></dict></plist>
-WEBLOC
-            ok "Collegamento Scrivania creato: Unieuro Cyber Protection"
-        fi
     fi
 
     printf '\a'
@@ -1398,10 +1390,9 @@ if $RUN_REALE; then
     defaults write com.apple.finder ShowPathbar -bool true 2>/dev/null
     defaults write com.apple.finder ShowStatusBar -bool true 2>/dev/null
     defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv" 2>/dev/null
+    defaults write com.apple.finder AppleShowAllExtensions -bool false 2>/dev/null
     defaults write com.apple.dock autohide -bool false 2>/dev/null
     defaults write com.apple.dock show-recents -bool false 2>/dev/null
-    mkdir -p "$HOME/Desktop/Screenshot" 2>/dev/null
-    defaults write com.apple.screencapture location -string "$HOME/Desktop/Screenshot" 2>/dev/null
     killall Finder Dock 2>/dev/null
     ok "Impostazioni e ottimizzazioni macOS applicate."
     add_report "Ottimizzazione macOS" "OK"
@@ -1479,6 +1470,32 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
     pkill -f -i "Discord" 2>/dev/null || true
     pkill -f -i "Zoom" 2>/dev/null || true
     pkill -f -i "Steam" 2>/dev/null || true
+
+    # Crea collegamenti sul Desktop per le app installate (come su Windows)
+    if [[ -d "$HOME/Desktop" ]]; then
+        local _app_bundle _app_match
+        for _app_match in \
+            "Google Chrome.app" \
+            "VLC.app" \
+            "Adobe Acrobat Reader.app" \
+            "Adobe Acrobat.app" \
+            "The Unarchiver.app" \
+            "WhatsApp.app" \
+            "AnyDesk.app" \
+            "TeamViewer.app" \
+            "Spotify.app" \
+            "LibreOffice.app" \
+            "zoom.us.app" \
+            "Discord.app" \
+            "Steam.app"; do
+            _app_bundle="/Applications/$_app_match"
+            if [[ -d "$_app_bundle" && ! -e "$HOME/Desktop/$_app_match" ]]; then
+                ln -s "$_app_bundle" "$HOME/Desktop/$_app_match" 2>/dev/null || true
+            fi
+        done
+        ok "Collegamenti app aggiunti sulla Scrivania."
+    fi
+
     add_report "App profilo $PROFILO (${#INSTALLATE} installate)" "OK"
 fi
 
