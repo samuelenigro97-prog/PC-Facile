@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.8 (2026-11-21)"
+SCRIPT_VERSION="2.9 (2026-11-21)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1408,13 +1408,15 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             fi
             # 2. Fallback su Homebrew se connesso e offline non presente
             if command -v brew >/dev/null 2>&1; then
-                if brew install --cask "$cask" >/dev/null 2>&1; then
+                if brew install --cask "$cask" </dev/null >/dev/null 2>&1; then
                     # Rimuove flag quarantena Gatekeeper per evitare popup di conferma al primo avvio
                     xattr -d -r com.apple.quarantine "/Applications/$nome.app" 2>/dev/null || true
                     # Chiude eventuali splash screen avviati in automatico post-install
                     pkill -f -i "$nome" 2>/dev/null || true
                     ok "$nome installato tramite Homebrew."
                     INSTALLATE+=("$nome")
+                else
+                    info "$nome non installato via Homebrew (proseguo)."
                 fi
             fi
         fi
@@ -1435,14 +1437,29 @@ update_pannello_mac_status 80 "Aggiornamenti" "App (Homebrew) e macOS..."
 if $RUN_REALE; then
     if command -v brew >/dev/null 2>&1; then
         info "Aggiorno le app installate con Homebrew..."
-        brew upgrade >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
+        brew upgrade </dev/null >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
     fi
-    info "Scarico gli aggiornamenti di macOS (si installano al riavvio da Impostazioni di Sistema)..."
-    if softwareupdate --download --all >/dev/null 2>&1; then
+    info "Scarico gli aggiornamenti di macOS (max 90s, nessuna richiesta password)..."
+    sudo -n softwareupdate --download --all </dev/null >/dev/null 2>&1 &
+    _su_pid=$!
+    _su_ok=false
+    for _su_i in {1..18}; do
+        if ! kill -0 "$_su_pid" 2>/dev/null; then
+            wait "$_su_pid" 2>/dev/null && _su_ok=true
+            break
+        fi
+        sleep 5
+        info "Download aggiornamenti macOS in corso... ($((_su_i * 5))s / max 90s)"
+    done
+    if kill -0 "$_su_pid" 2>/dev/null; then
+        kill "$_su_pid" 2>/dev/null || true
+        info "Aggiornamenti macOS lasciati in background (continua da Impostazioni di Sistema)."
+        add_report "Aggiornamenti macOS" "AVVISO (background)"
+    elif $_su_ok; then
         ok "Aggiornamenti macOS scaricati."
         add_report "Aggiornamenti macOS (scaricati)" "OK"
     else
-        info "Nessun aggiornamento macOS scaricato (gia' aggiornato o rete assente)."
+        info "Nessun aggiornamento macOS scaricato (gia' aggiornato o richiede auth in Impostazioni)."
         add_report "Aggiornamenti macOS" "AVVISO"
     fi
 fi
