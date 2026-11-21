@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.7 (2026-11-21)"
+$SCRIPT_VERSION = "13.12.9 (2026-11-21)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1941,13 +1941,12 @@ function Open-PannelloOperatore {
     if ($NomeCliente -and ($oemNames -contains $NomeCliente.Trim().ToUpper() -or $NomeCliente.Trim().ToUpper() -eq "CLIENTE" -or $NomeCliente.Trim().ToUpper() -eq "UTENTE")) {
         $NomeCliente = ""
     }
-    # Se l'operatore non compila cognome/nome, email e password predefinite
-    # (utente@outlook.it / Utente123!) sono comunque pronte nel pannello e nella scheda finale.
+    # Se l'operatore non compila cognome/nome, tratta come clt clt (nessuna email/password registrata).
     if (-not $Email) {
-        $Email = if ($NomeCliente) { New-EmailCliente -Base $NomeCliente } else { "utente@outlook.it" }
+        $Email = if ($NomeCliente) { New-EmailCliente -Base $NomeCliente } else { "" }
     }
     if (-not $Password) {
-        $Password = if ($NomeCliente) { New-PasswordCliente -Base $NomeCliente } else { "Utente123!" }
+        $Password = if ($NomeCliente) { New-PasswordCliente -Base $NomeCliente } else { "" }
     }
 
     # Rileva specifiche hardware rapide per il mini-dashboard del pannello
@@ -3070,7 +3069,7 @@ function Open-PannelloOperatore {
             var c = (cognome || '').toLowerCase().trim();
             var n = (nome || '').toLowerCase().trim();
             var full = (c + ' ' + n).trim();
-            return (full === 'clt clt' || full === 'clt');
+            return (!full || full === 'clt clt' || full === 'clt');
         }
 
         var _stepNomeEdited = false;
@@ -3153,7 +3152,7 @@ function Open-PannelloOperatore {
             var everyday = el('chkSvcEveryday').checked;
             var cyber = el('chkSvcCyber').checked;
             var isClt = isCltNome(cognome, nome);
-            var nomeCliente = (cognome + ' ' + nome).trim() || 'Utente';
+            var nomeCliente = (cognome + ' ' + nome).trim() || 'clt clt';
             var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
             var passEffettiva = isClt ? '' : (pass || 'Utente123!');
             if (email && email.indexOf('@') < 1 && !isClt) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
@@ -3169,7 +3168,7 @@ function Open-PannelloOperatore {
                 ProfiloApp: el('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
-                    Proton: el('chkSvcProton').checked,
+                    Proton: isClt ? false : el('chkSvcProton').checked,
                     Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
                     OfficeTipo: el('selOffice').value,
                     McAfee: el('chkSvcMcAfee').checked,
