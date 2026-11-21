@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.10 (2026-11-21)"
+$SCRIPT_VERSION = "13.12.11 (2026-11-21)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3069,7 +3069,8 @@ function Open-PannelloOperatore {
             var c = (cognome || '').toLowerCase().trim();
             var n = (nome || '').toLowerCase().trim();
             var full = (c + ' ' + n).trim();
-            return (!full || full === 'clt clt' || full === 'clt');
+            var generici = ['clt', 'clt clt', 'utente', 'utente utente', 'cliente', 'cliente cliente', 'oem', 'admin'];
+            return (!full || generici.indexOf(full) !== -1 || (generici.indexOf(c) !== -1 && (!n || generici.indexOf(n) !== -1)));
         }
 
         var _stepNomeEdited = false;
@@ -3463,8 +3464,9 @@ function Set-DatiCliente {
     param($Dati)
     if (-not $Dati) { return $false }
     try {
-        $isClt = ($Dati.Cliente -match '(?i)^(clt\s*clt|clt)$') -or
-                 ($Dati.Nome -match '(?i)^clt$' -and ($Dati.Cognome -match '(?i)^clt$' -or -not $Dati.Cognome))
+        $genericiRegex = '^(clt(\s+clt)?|utente(\s+utente)?|cliente(\s+cliente)?|oem|admin)$'
+        $isClt = (-not $Dati.Cliente) -or ($Dati.Cliente.Trim() -match "(?i)$genericiRegex") -or
+                 (($Dati.Nome -and $Dati.Nome.Trim() -match "(?i)$genericiRegex") -and (-not $Dati.Cognome -or $Dati.Cognome.Trim() -match "(?i)$genericiRegex"))
         $Global:IsCltMode = [bool]$isClt
 
         if ($isClt) {
