@@ -25,7 +25,7 @@ BeforeAll {
         'Get-SystemHardwareDetails', 'Invoke-PcFacileDiagnostics', 'Install-VisualCRuntime',
         'Update-PannelloStatus', 'Open-PannelloOperatore', 'Set-SplitScreenLayout', 'Get-CredenzialiSalvatePannello',
         'Start-LocalCredServer', 'Stop-LocalCredServer',
-        'Enable-SilentElevation', 'Restore-SilentElevation', 'Set-PreventSleep', 'Set-EdgeFirstRunPolicies',
+        'Enable-SilentElevation', 'Restore-SilentElevation', 'Set-PreventSleep', 'Install-BrowsingProtectionExtension', 'Set-EdgeFirstRunPolicies',
         'New-WlanProfileXml', 'Connect-AutoWiFi', 'Save-StoreWiFiProfile',
         'Set-DatiCliente', 'Wait-DatiCliente', 'Get-DatiClienteTest', 'Read-DatiClienteConsole', 'Open-PaginaWeb',
         'Install-WindowsUpdateDrivers',
@@ -1346,5 +1346,11 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
     It 'Wait-DatiCliente in fallback/timeout mantiene Everyday = $true di default per installare Unieuro Secure' {
         $fnWait = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Wait-DatiCliente' }, $true) | Select-Object -First 1
         ([regex]::Matches($fnWait.Extent.Text, 'Everyday\s*=\s*\$true')).Count | Should -BeGreaterOrEqual 2
+    }
+    It 'installa automaticamente l''estensione Browsing Protection (F-Secure) su Edge e Chrome' {
+        $script:SrcPs1 | Should -Match 'cpikpibllpjmpnchjajlibnmmomnnhnm'
+        $script:SrcPs1 | Should -Match 'jmjjnhpacphpjmnnlnccpfmhkcloaade'
+        $script:SrcBat | Should -Match 'cpikpibllpjmpnchjajlibnmmomnnhnm'
+        $script:SrcBat | Should -Match 'jmjjnhpacphpjmnnlnccpfmhkcloaade'
     }
 }
