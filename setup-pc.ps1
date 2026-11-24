@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.16 (2026-11-24)"
+$SCRIPT_VERSION = "13.12.17 (2026-11-24)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3588,6 +3588,7 @@ function Read-DatiClienteConsole {
         Email = (New-EmailCliente -Base $baseEmailPass -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base (if ($nome) { $nome } else { $baseEmailPass })); Provider = 'Microsoft'
         Telefono = $tel; ProfiloApp = 'BASE'
         Servizi = [pscustomobject]@{
+            Everyday = $true
             Proton = $false
             Office = ($off -match '^[12]$')
             OfficeTipo = switch ($off) { '1' { 'm365' } '2' { 'perpetuo' } '3' { 'libreoffice' } default { 'no' } }
@@ -3625,9 +3626,9 @@ function Wait-DatiCliente {
             if ($swAttesa.Elapsed.TotalSeconds -ge $TimeoutSec) {
                 $std = [pscustomobject]@{
                     Conferma = $true; Cliente = 'Utente'; Nome = 'Utente'; Cognome = ''
-                    Email = (New-EmailCliente -Base 'Utente' -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base 'Utente'); Provider = 'Microsoft'
+                    Email = ''; Password = ''; Provider = 'Microsoft'
                     Telefono = ''; ProfiloApp = 'BASE'
-                    Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
+                    Servizi = [pscustomobject]@{ Everyday = $true; Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
                 }
                 [void](Set-DatiCliente $std)
                 $Global:SkipAccountPrompt = $true
@@ -3643,9 +3644,9 @@ function Wait-DatiCliente {
                     if ($k.Key -eq [ConsoleKey]::Enter) {
                         $std = [pscustomobject]@{
                             Conferma = $true; Cliente = 'Utente'; Nome = 'Utente'; Cognome = ''
-                            Email = (New-EmailCliente -Base 'Utente' -Dominio 'outlook.it'); Password = (New-PasswordCliente -Base 'Utente'); Provider = 'Microsoft'
+                            Email = ''; Password = ''; Provider = 'Microsoft'
                             Telefono = ''; ProfiloApp = 'BASE'
-                            Servizi = [pscustomobject]@{ Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
+                            Servizi = [pscustomobject]@{ Everyday = $true; Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
                         }
                         [void](Set-DatiCliente $std)
                         $Global:SkipAccountPrompt = $true
@@ -7063,14 +7064,18 @@ function Invoke-EverydayDigital {
         [string]$Password = ""
     )
     # 1. Unieuro Secure (powered by F-Secure)
-    $giainst = $false
-    try {
-        if ((Get-AntivirusTerzi | Where-Object { $_ -match 'F-Secure|Unieuro\s*Secure' }) -or
-            (Test-Path (Join-Path $env:ProgramFiles "F-Secure")) -or
-            (Test-Path (Join-Path ${env:ProgramFiles(x86)} "F-Secure"))) {
-            $giainst = $true
-        }
-    } catch {}
+    $testFsInstalled = {
+        try {
+            if ((Get-AntivirusTerzi | Where-Object { $_ -match 'F-Secure|WithSecure|Unieuro\s*Secure' }) -or
+                (Test-Path (Join-Path $env:ProgramFiles "F-Secure")) -or
+                (Test-Path (Join-Path ${env:ProgramFiles(x86)} "F-Secure")) -or
+                (Test-Path (Join-Path $env:ProgramFiles "Unieuro Secure"))) {
+                return $true
+            }
+        } catch {}
+        return $false
+    }
+    $giainst = & $testFsInstalled
     if ($giainst) {
         Write-OK "Unieuro Secure (F-Secure) risulta gia' installato."
         Add-Report "Unieuro Secure (F-Secure)" "OK (gia' installato)"
@@ -7085,11 +7090,18 @@ function Invoke-EverydayDigital {
             $tmpDir = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
             $exeUrl = "https://download.sp.f-secure.com/SE/Unieuro/installer/UnieuroSecure.exe"
             $exePath = Join-Path $tmpDir "UnieuroSecure.exe"
+            $curlBin = Join-Path $env:SystemRoot "System32\curl.exe"
             $scaricato = $false
             if ($RunReale) {
                 Write-Info "Download diretto installer ufficiale Unieuro Secure..."
                 try {
-                    Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing -TimeoutSec 45 -ErrorAction Stop
+                    Remove-Item -LiteralPath $exePath -Force -ErrorAction SilentlyContinue
+                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+                    if (Test-Path -LiteralPath $curlBin) {
+                        & $curlBin -fL --retry 2 --connect-timeout 15 --max-time 180 -sS -A "Mozilla/5.0" -o $exePath $exeUrl 2>$null
+                    } else {
+                        Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing -TimeoutSec 180 -ErrorAction Stop
+                    }
                     if ((Test-Path -LiteralPath $exePath) -and ((Get-Item -LiteralPath $exePath).Length -gt 200KB)) {
                         $scaricato = $true
                     }
@@ -7099,10 +7111,33 @@ function Invoke-EverydayDigital {
                 $scaricato = $true
             }
             if ($scaricato -and $RunReale) {
-                Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
-                Start-Process -FilePath $exePath
-                Write-OK "Installer Unieuro Secure scaricato e avviato AUTOMATICAMENTE."
-                Add-Report "Unieuro Secure (F-Secure)" "OK (download diretto)"
+                if ($Utente -and -not $Global:IsCltMode) {
+                    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
+                }
+                Write-Info "Installazione automatica silenziosa di Unieuro Secure in corso (max 4 min)..."
+                $lnkPrimaFs = @(Get-StartMenuLnks | ForEach-Object { $_.FullName })
+                $pFs = $null
+                try {
+                    $pFs = Start-Process -FilePath $exePath -ArgumentList "--silent --accept-eult" -PassThru -ErrorAction Stop
+                    $tFs = 0
+                    while (-not $pFs.HasExited -and $tFs -lt 240) {
+                        Start-Sleep -Seconds 2
+                        $tFs += 2
+                        if ($tFs % 10 -eq 0) {
+                            Write-Host "     -> Unieuro Secure: installazione in corso... (${tFs}s / max 240s)" -ForegroundColor DarkGray
+                        }
+                    }
+                } catch {}
+                if (& $testFsInstalled) {
+                    Write-OK "Unieuro Secure (F-Secure) installato automaticamente!"
+                    Add-IconaDesktop -Nome "Unieuro Secure" -LnkPrima $lnkPrimaFs
+                    Add-Report "Unieuro Secure (F-Secure)" "OK (installazione automatica)"
+                } else {
+                    # Se la modalita' silenziosa non ha completato (es. conflitto da confermare), apro l'installer guidato
+                    try { Start-Process -FilePath $exePath } catch {}
+                    Write-OK "Installer Unieuro Secure avviato: completa l'installazione guidata."
+                    Add-Report "Unieuro Secure (F-Secure)" "OK (avviato)"
+                }
             } elseif (-not $scaricato) {
                 Installa-Antivirus -Nome "Unieuro Secure (F-Secure)" -UrlRiscatto "https://safeavenue.f-secure.com/iframe/-installers/unieuro/" -Utente $Utente -Password $Password
             }
@@ -7110,7 +7145,9 @@ function Invoke-EverydayDigital {
     }
     # 2. Unieuro Cyber Protection (inclusa in Everyday Digital)
     if ($Global:telefonoCliente) { Write-Info "Cellulare del cliente: $($Global:telefonoCliente)" }
-    Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $Utente
+    if ($Utente -and -not $Global:IsCltMode) {
+        Attiva-ServizioWeb -Nome "Unieuro Cyber Protection" -UrlAttivazione "https://unieuro-cyber-protection.covercare.it" -Utente $Utente
+    }
     Add-ShortcutCyberProtection
     Update-PannelloStatus -TaskId "cyber" -Stato "done" -Dettaglio "Incluso in Everyday Digital"
 }
@@ -7119,7 +7156,7 @@ function Test-AvDaTenere {
     param([string]$Nome)
     $sv = $Global:serviziSelezionati
     if (-not $sv -or -not $Nome) { return $false }
-    if ($sv.Everyday -and $Nome -match 'F-Secure|Unieuro\s*Secure') { return $true }
+    if ($sv.Everyday -and $Nome -match 'F-Secure|WithSecure|Unieuro\s*Secure') { return $true }
     if ($sv.McAfee -and $Nome -match 'McAfee') { return $true }
     if ($sv.Norton -and $Nome -match 'Norton') { return $true }
     return $false

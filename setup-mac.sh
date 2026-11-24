@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.18 (2026-11-24)"
+SCRIPT_VERSION="2.19 (2026-11-24)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1028,9 +1028,9 @@ attendi_credenziali_mac() {
     done
     NOME_CLIENTE="${NOME_CLIENTE:-Utente}"
     IS_CLT_MODE=true
-    SVC_EVERYDAY=false; SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false; SVC_CYBER=false
+    SVC_EVERYDAY="${SVC_EVERYDAY:-true}"; SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false; SVC_CYBER=false
     DATI_RICEVUTI=true
-    ok "Nessun dato cliente inserito: proseguo automaticamente (Utente) e completo la configurazione."
+    ok "Nessun dato cliente inserito: proseguo automaticamente (Utente) e installo Unieuro Secure + app."
     return 0
 }
 
@@ -1044,8 +1044,9 @@ invoke_auto_signup_mac() {
     local do_mcafee="${SVC_MCAFEE:-false}"
     local do_norton="${SVC_NORTON:-false}"
     local do_cyber="${SVC_CYBER:-true}"
-    [[ "$do_everyday" == "true" ]] && do_cyber="true"
+    [[ "$do_everyday" == "true" && "$IS_CLT_MODE" != "true" ]] && do_cyber="true"
     [[ "$IS_CLT_MODE" == "true" ]] && do_proton="false"
+    [[ "$IS_CLT_MODE" == "true" && "${SVC_CYBER:-false}" != "true" ]] && do_cyber="false"
 
     if ! $MODO_TEST && [[ "$do_everyday" != "true" && "$do_proton" != "true" && "$do_office" != "true" && "$do_mcafee" != "true" && "$do_norton" != "true" && "$do_cyber" != "true" ]]; then
         info "Nessun dato o servizio cliente selezionato: salto i passi manuali e proseguo in automatico."
@@ -1078,27 +1079,31 @@ invoke_auto_signup_mac() {
     # 0. UNIEURO EVERYDAY DIGITAL (PRIORITA' - UNIEURO SECURE / F-SECURE)
     if [[ "$do_everyday" == "true" ]]; then
         titolo "0. UNIEURO EVERYDAY DIGITAL (PRIORITA' - UNIEURO SECURE)"
-        if [[ -d "/Applications/Unieuro Secure.app" ]] || ls /Applications/*F-Secure* >/dev/null 2>&1; then
+        if [[ -d "/Applications/Unieuro Secure.app" ]] || ls /Applications/*F-Secure* >/dev/null 2>&1 || ls /Applications/*WithSecure* >/dev/null 2>&1; then
             ok "Unieuro Secure (F-Secure) risulta gia' installato."
             add_report "Unieuro Secure (F-Secure)" "OK (gia' installato)"
         else
-            echo -n "$email_proton" | pbcopy 2>/dev/null
-            info "Email $email_proton copiata negli appunti (Cmd+V per incollare)."
+            if [[ "$IS_CLT_MODE" != "true" && -n "$email_proton" ]]; then
+                echo -n "$email_proton" | pbcopy 2>/dev/null
+                info "Email $email_proton copiata negli appunti (Cmd+V per incollare)."
+            fi
             local pkg_url="https://download.sp.f-secure.com/SE/Unieuro/installer/UnieuroSecure.mpkg"
-            local pkg_tmp="/tmp/UnieuroSecure.mpkg"
-            info "Download diretto installer ufficiale Unieuro Secure per Mac..."
-            if curl -fsSL --max-time 90 "$pkg_url" -o "$pkg_tmp" 2>/dev/null && [[ -s "$pkg_tmp" ]]; then
+            local pkg_tmp="/tmp/UnieuroSecure.pkg"
+            info "Download diretto installer ufficiale Unieuro Secure per Mac (157 MB)..."
+            if curl -fL --retry 2 --connect-timeout 15 --max-time 300 -sS "$pkg_url" -o "$pkg_tmp" 2>/dev/null && [[ -s "$pkg_tmp" ]]; then
                 ok "Installer Unieuro Secure scaricato: avvio installazione..."
                 if sudo installer -pkg "$pkg_tmp" -target / >/dev/null 2>&1; then
                     ok "Unieuro Secure installato automaticamente su Mac!"
+                    [[ -d "/Applications/Unieuro Secure.app" && -d "$HOME/Desktop" && ! -e "$HOME/Desktop/Unieuro Secure.app" ]] && ln -s "/Applications/Unieuro Secure.app" "$HOME/Desktop/Unieuro Secure.app" 2>/dev/null || true
                     add_report "Unieuro Secure (F-Secure)" "OK (installazione automatica)"
+                    rm -f "$pkg_tmp" 2>/dev/null
                 else
                     open "$pkg_tmp" 2>/dev/null
                     ok "Installer Unieuro Secure aperto: completa l'installazione guidata."
                     add_report "Unieuro Secure (F-Secure)" "OK (avviato)"
                 fi
-                rm -f "$pkg_tmp" 2>/dev/null
             else
+                rm -f "$pkg_tmp" 2>/dev/null
                 info "Download diretto non riuscito: apro il portale Unieuro Secure in Safari..."
                 set_split_screen_mac "https://safeavenue.f-secure.com/iframe/-installers/unieuro/"
                 printf '\a'
