@@ -231,5 +231,5 @@ REM Avvia il disinstallatore McAfee in modalita' silenziosa senza attendere tast
 :mcafee_uno
 echo     Rimozione silenziosa di: !MC_NOME_%1!
 cmd /c "!MC_UNS_%1! /quiet /silent /norestart" >nul 2>&1
-winget uninstall --name "!MC_NOME_%1!" --silent --accept-source-agreements --disable-interactivity >nul 2>&1
+winget uninstall --name "!MC_NOME_%1!" --silent --accept-source-agreements >nul 2>&1
 exit /b 0
