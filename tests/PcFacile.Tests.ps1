@@ -1343,4 +1343,8 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
             $testoFn | Should -Match ([regex]::Escape("'$id'"))
         }
     }
+    It 'Wait-DatiCliente in fallback/timeout mantiene Everyday = $true di default per installare Unieuro Secure' {
+        $fnWait = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Wait-DatiCliente' }, $true) | Select-Object -First 1
+        ([regex]::Matches($fnWait.Extent.Text, 'Everyday\s*=\s*\$true')).Count | Should -BeGreaterOrEqual 2
+    }
 }
