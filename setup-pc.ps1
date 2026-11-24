@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.15 (2026-11-24)"
+$SCRIPT_VERSION = "13.12.16 (2026-11-24)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3902,16 +3902,27 @@ function Install-OfflinePackage {
         if (-not $workDir -or -not (Test-Path -LiteralPath $workDir)) { $workDir = $env:TEMP }
         $proc = $null
         if ($ext -eq '.msi') {
-            $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList "/i `"$FilePath`" /qn /norestart" -WorkingDirectory $workDir -PassThru -ErrorAction Stop
-            $timer = 0
-            while (-not $proc.HasExited -and $timer -lt 120) {
-                Start-Sleep -Seconds 2
-                $timer += 2
-            }
-            if (-not $proc.HasExited) {
-                try { $proc.Kill() } catch {}
-                Write-Info "Installazione MSI per $Nome ha superato il timeout (120s). Procedo con Winget..."
-                return $false
+            for ($mTry = 1; $mTry -le 3; $mTry++) {
+                $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList "/i `"$FilePath`" /qn /norestart" -WorkingDirectory $workDir -PassThru -ErrorAction Stop
+                $timer = 0
+                while (-not $proc.HasExited -and $timer -lt 300) {
+                    Start-Sleep -Seconds 2
+                    $timer += 2
+                    if ($timer % 10 -eq 0) {
+                        Write-Host "     -> ${Nome}: installazione MSI in corso... (${timer}s / max 300s)" -ForegroundColor DarkGray
+                    }
+                }
+                if (-not $proc.HasExited) {
+                    try { $proc.Kill() } catch {}
+                    Write-Info "Installazione MSI per $Nome ha superato il timeout (300s). Procedo con fallback..."
+                    return $false
+                }
+                if ($proc.ExitCode -eq 1618 -and $mTry -lt 3) {
+                    Write-Info "Windows Installer occupato (1618) per ${Nome}: attendo 10s e riprovo..."
+                    Start-Sleep -Seconds 10
+                    continue
+                }
+                break
             }
         } elseif ($ext -eq '.msixbundle' -or $ext -eq '.appxbundle' -or $ext -eq '.msix' -or $ext -eq '.appx') {
             Add-AppxPackage -Path $FilePath -ErrorAction Stop
@@ -3931,7 +3942,11 @@ function Install-OfflinePackage {
                     
                     $t = 0
                     Start-Sleep -Seconds 3
-                    while ((Get-Process -Name "*SpotifySetup*" -ErrorAction SilentlyContinue) -and $t -lt 60) {
+                    $spotExeCheck = Join-Path $env:APPDATA "Spotify\Spotify.exe"
+                    $spotLocalCheck = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\Spotify.exe"
+                    while ($t -lt 120) {
+                        if ((Test-Path $spotExeCheck) -or (Test-Path $spotLocalCheck)) { break }
+                        if (-not (Get-Process -Name "*Spotify*" -ErrorAction SilentlyContinue) -and $t -ge 10) { break }
                         Start-Sleep -Seconds 2
                         $t += 2
                     }
@@ -3962,17 +3977,19 @@ function Install-OfflinePackage {
         } else {
             $arg = "/S"
             if ($FilePath -like "*Chrome*") { $arg = "/silent /install" }
+            elseif ($FilePath -like "*Opera*") { $arg = "/silent /launchopera=0 /setdefaultbrowser=0 /allusers=1" }
             elseif ($FilePath -like "*Firefox*") { $arg = "/S" }
             elseif ($FilePath -like "*7z*") { $arg = "/S" }
             elseif ($FilePath -like "*vlc*") { $arg = "/L=1040 /S" }
-            elseif ($FilePath -like "*Acro*" -or $FilePath -like "*Adbe*") { $arg = "/sAll /rs /msi EULA_ACCEPT=YES" }
+            elseif ($FilePath -like "*Acro*" -or $FilePath -like "*Adbe*") { $arg = "/sAll /rs /rps /msi /norestart /quiet EULA_ACCEPT=YES" }
             elseif ($FilePath -like "*Sumatra*") { $arg = "/S" }
-            elseif ($FilePath -like "*AnyDesk*") { $arg = "--install `"C:\Program Files (x86)\AnyDesk`" --silent --create-shortcuts" }
+            elseif ($FilePath -like "*AnyDesk*") { $arg = "--install `"${env:ProgramFiles(x86)}\AnyDesk`" --start-with-win --silent --create-shortcuts" }
             elseif ($FilePath -like "*TeamViewer*") { $arg = "/S" }
             elseif ($FilePath -like "*Zoom*") { $arg = "/silent" }
+            elseif ($FilePath -like "*Discord*") { $arg = "-s" }
             elseif ($FilePath -like "*WhatsApp*") { $arg = "/silent" }
             elseif ($FilePath -like "*LibreOffice*" -or $FilePath -like "*OpenOffice*") { $arg = "/S" }
-            elseif ($FilePath -like "*aimp*") { $arg = "/AUTO" }
+            elseif ($FilePath -like "*aimp*") { $arg = "/AUTO=`"$env:ProgramFiles\AIMP`" /SILENT" }
             elseif ($FilePath -like "*gimp*") { $arg = "/VERYSILENT /NORESTART /ALLUSERS" }
             elseif ($FilePath -like "*Steam*") { $arg = "/S" }
             elseif ($FilePath -like "*Intel*") { $arg = "/quiet /norestart" }
@@ -3980,7 +3997,7 @@ function Install-OfflinePackage {
 
             $proc = Start-Process -FilePath $FilePath -ArgumentList $arg -WorkingDirectory $workDir -PassThru -ErrorAction Stop
             $timer = 0
-            $maxWait = if ($Nome -match '7-Zip|AnyDesk|AIMP') { 15 } else { 90 }
+            $maxWait = 300
             while (-not $proc.HasExited -and $timer -lt $maxWait) {
                 Start-Sleep -Seconds 1
                 $timer += 1
@@ -4011,6 +4028,12 @@ function Install-OfflinePackage {
             Stop-AppPopups -Nome $Nome
             return $true
         } else {
+            Start-Sleep -Seconds 3
+            if (Test-IsAppInstalled -Nome $Nome) {
+                Write-OK "$Nome installato con successo (verificato su disco)!"
+                Stop-AppPopups -Nome $Nome
+                return $true
+            }
             $code = if ($proc) { $proc.ExitCode } else { "sconosciuto" }
             Write-Info "Installazione pacchetto per $Nome uscita con codice $code."
         }
@@ -4030,30 +4053,52 @@ function Install-AppDirectFallback {
         return $true
     }
     $mappa = @{
-        'Google.Chrome'                 = @{ File = 'ChromeStandaloneSetup64.exe'; Urls = @('https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF5-1A09E5037969%7D%26iid%3D%7B00000000-0000-0000-0000-000000000000%7D%26lang%3Dit%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dprefers%26ap%3Dx64-stable-statsdef_1/chrome/install/ChromeStandaloneSetup64.exe', 'https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi') }
-        'Mozilla.Firefox'               = @{ File = 'Firefox_Setup.exe'; Urls = @('https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=it') }
-        'VideoLAN.VLC'                  = @{ File = 'vlc-win64.exe'; Urls = @('https://download.videolan.org/pub/videolan/vlc/last/win64/vlc-3.0.21-win64.exe', 'https://get.videolan.org/vlc/3.0.21/win64/vlc-3.0.21-win64.exe') }
-        'Adobe.Acrobat.Reader.64-bit'   = @{ File = 'AcroRdrDCx64_it_IT.exe'; Urls = @('https://ardownload2.adobe.com/pub/adobe/acrobat/win/AcrobatDC/2600322075/AcroRdrDCx642600322075_MUI.exe', 'https://ardownload2.adobe.com/pub/adobe/acrobat/win/AcrobatDC/2500120744/AcroRdrDCx642500120744_MUI.exe') }
-        'SumatraPDF.SumatraPDF'         = @{ File = 'SumatraPDF-install.exe'; Urls = @('https://www.sumatrapdfreader.org/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe', 'https://files2.sumatrapdfreader.org/software/sumatrapdf/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe') }
-        'Spotify.Spotify'               = @{ File = 'SpotifyFullSetup.exe'; Urls = @('https://download.scdn.co/SpotifyFullSetup.exe', 'https://download.scdn.co/SpotifySetup.exe') }
-        'AIMP.AIMP'                     = @{ File = 'aimp.exe'; Urls = @('https://aimp.ru/?do=download.file&id=3', 'https://aimp.ru/files/desktop/builds/aimp_5.40.2726_w64.exe') }
-        '7zip.7zip'                     = @{ File = '7z-x64.msi'; Urls = @('https://www.7-zip.org/a/7z2409-x64.msi', 'https://www.7-zip.org/a/7z2408-x64.msi') }
-        '9NKSQGP7F2NH'                  = @{ File = 'WhatsAppInstaller.exe'; Urls = @('https://get.microsoft.com/installer/download/9NKSQGP7F2NH?cid=website_cta_psi') }
-        'AnyDesk.AnyDesk'               = @{ File = 'AnyDesk.exe'; Urls = @('https://download.anydesk.com/AnyDesk.exe') }
-        'Zoom.Zoom'                     = @{ File = 'ZoomInstallerFull.msi'; Urls = @('https://zoom.us/client/latest/ZoomInstallerFull.msi', 'https://zoom.us/client/latest/ZoomInstaller.msi') }
-        'TheDocumentFoundation.LibreOffice' = @{ File = 'LibreOffice_Win_x86-64.msi'; Urls = @('https://download.documentfoundation.org/libreoffice/stable/26.8.0/win/x86_64/LibreOffice_26.8.0_Win_x86-64.msi', 'https://download.documentfoundation.org/libreoffice/stable/25.8.7/win/x86_64/LibreOffice_25.8.7_Win_x86-64.msi') }
+        'Google.Chrome'                     = @{ Base = 'ChromeStandaloneSetup64'; Urls = @('https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi', 'https://dl.google.com/tag/s/appguid%3D%7B8A69D345-D564-463C-AFF5-1A09E5037969%7D%26iid%3D%7B00000000-0000-0000-0000-000000000000%7D%26lang%3Dit%26browser%3D4%26usagestats%3D0%26appname%3DGoogle%2520Chrome%26needsadmin%3Dprefers%26ap%3Dx64-stable-statsdef_1/chrome/install/ChromeStandaloneSetup64.exe') }
+        'Opera.OperaGX'                     = @{ Base = 'OperaGXSetup'; Urls = @('https://net.geo.opera.com/opera_gx/stable/windows') }
+        'Mozilla.Firefox'                   = @{ Base = 'Firefox_Setup'; Urls = @('https://download.mozilla.org/?product=firefox-latest-ssl&os=win64&lang=it') }
+        'VideoLAN.VLC'                      = @{ Base = 'vlc-win64'; Urls = @('https://download.videolan.org/pub/videolan/vlc/last/win64/vlc-3.0.21-win64.exe') }
+        'Adobe.Acrobat.Reader.64-bit'       = @{ Base = 'AcroRdrDC_it_IT'; Urls = @('https://ardownload2.adobe.com/pub/adobe/reader/win/AcrobatDC/2500120432/AcroRdrDC2500120432_it_IT.exe', 'https://ardownload2.adobe.com/pub/adobe/acrobat/win/AcrobatDC/2600322075/AcroRdrDCx642600322075_MUI.exe') }
+        'SumatraPDF.SumatraPDF'             = @{ Base = 'SumatraPDF-install'; Urls = @('https://www.sumatrapdfreader.org/dl/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe', 'https://files2.sumatrapdfreader.org/software/sumatrapdf/rel/3.6.1/SumatraPDF-3.6.1-64-install.exe') }
+        'Spotify.Spotify'                   = @{ Base = 'SpotifyFullSetup'; Urls = @('https://download.scdn.co/SpotifyFullSetup.exe', 'https://download.scdn.co/SpotifySetup.exe') }
+        'AIMP.AIMP'                         = @{ Base = 'aimp_setup'; Urls = @('https://aimp.ru/?do=download.file&id=3') }
+        '7zip.7zip'                         = @{ Base = '7z-x64'; Urls = @('https://www.7-zip.org/a/7z2409-x64.msi', 'https://www.7-zip.org/a/7z2408-x64.msi') }
+        '9NKSQGP7F2NH'                      = @{ Base = 'WhatsAppInstaller'; Urls = @('https://get.microsoft.com/installer/download/9NKSQGP7F2NH?cid=website_cta_psi') }
+        'GIMP.GIMP'                         = @{ Base = 'gimp-setup'; Urls = @('https://download.gimp.org/gimp/v3.0/windows/gimp-3.0.8-setup.exe', 'https://download.gimp.org/gimp/v3.0/windows/gimp-3.0.6-setup.exe') }
+        'Valve.Steam'                       = @{ Base = 'SteamSetup'; Urls = @('https://cdn.fastly.steamstatic.com/client/installer/SteamSetup.exe') }
+        'EpicGames.EpicGamesLauncher'       = @{ Base = 'EpicGamesLauncherInstaller'; Urls = @('https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/installer/download/EpicGamesLauncherInstaller.msi') }
+        'AnyDesk.AnyDesk'                   = @{ Base = 'AnyDesk'; Urls = @('https://download.anydesk.com/AnyDesk.exe') }
+        'Discord.Discord'                   = @{ Base = 'DiscordSetup'; Urls = @('https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64') }
+        'Zoom.Zoom'                         = @{ Base = 'ZoomInstallerFull'; Urls = @('https://zoom.us/client/latest/ZoomInstallerFull.msi', 'https://zoom.us/client/latest/ZoomInstaller.msi') }
+        'TheDocumentFoundation.LibreOffice' = @{ Base = 'LibreOffice_Win_x86-64'; Urls = @('https://download.documentfoundation.org/libreoffice/stable/26.8.3/win/x86_64/LibreOffice_26.8.3_Win_x86-64.msi', 'https://download.documentfoundation.org/libreoffice/stable/25.8.7/win/x86_64/LibreOffice_25.8.7_Win_x86-64.msi') }
     }
     $entry = if ($WingetId -and $mappa.ContainsKey($WingetId)) { $mappa[$WingetId] } else { $null }
     if (-not $entry) { return $false }
 
-    $dest = Join-Path $env:TEMP $entry.File
+    $curlBin = Join-Path $env:SystemRoot "System32\curl.exe"
     try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13 } catch {}
     foreach ($u in $entry.Urls) {
+        $extDest = if ($u -match '\.msi(\?|$)') { '.msi' } else { '.exe' }
+        $dest = Join-Path $env:TEMP ($entry.Base + $extDest)
         try {
             Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
             Write-Info "Scarico installer ufficiale $Nome ($u)..."
-            Invoke-WebRequest -Uri $u -OutFile $dest -UseBasicParsing -TimeoutSec 90 -ErrorAction Stop
+            if (Test-Path -LiteralPath $curlBin) {
+                & $curlBin -fL --retry 2 --connect-timeout 15 --max-time 600 -sS -A "Mozilla/5.0" -o $dest $u 2>$null
+            } else {
+                Invoke-WebRequest -Uri $u -OutFile $dest -UseBasicParsing -TimeoutSec 600 -ErrorAction Stop
+            }
             if ((Test-Path -LiteralPath $dest) -and ((Get-Item -LiteralPath $dest).Length -gt 102400)) {
+                # Verifica magic byte (MZ per .exe o D0CF per .msi) per scartare pagine HTML di errore
+                $hdr = New-Object byte[] 4
+                $nRead = 0
+                $fsHdr = [System.IO.File]::OpenRead($dest)
+                try { $nRead = $fsHdr.Read($hdr, 0, 4) } finally { $fsHdr.Close() }
+                $isBin = ($nRead -ge 2) -and (($hdr[0] -eq 0x4D -and $hdr[1] -eq 0x5A) -or ($hdr[0] -eq 0xD0 -and $hdr[1] -eq 0xCF))
+                if (-not $isBin) {
+                    Write-Info "File scaricato da $u non e' un installer binario valido: passo all'URL successivo..."
+                    Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
+                    continue
+                }
                 $okOff = Install-OfflinePackage -FilePath $dest -Nome $Nome
                 Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
                 if ($okOff) { return $true }
@@ -4062,8 +4107,8 @@ function Install-AppDirectFallback {
         } catch {
             Write-Info "Download diretto $Nome da $u non riuscito: $($_.Exception.Message)"
         }
+        Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
     }
-    Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
     return $false
 }
 
@@ -5565,9 +5610,31 @@ function Repair-WingetSources {
     param([switch]$Forza)
     if ($Global:WingetRiparato -and -not $Forza) { return }
     $Global:WingetRiparato = $true
-    Write-Info "Riparazione sorgenti winget (update, poi reset solo se serve)..."
+    Write-Info "Riparazione sorgenti winget (source.msix diretto + update)..."
     Start-BarraAnimata "Riparo le sorgenti winget"
     try {
+        # Su Windows 11 nuovi di fabbrica (winget v1.2/v1.3), 'winget source update'
+        # fallisce con 0x8A15005E (certificato CDN fissato scaduto). Installare
+        # direttamente source.msix con Add-AppxPackage usa i certificati di sistema
+        # di Windows e sblocca subito il catalogo winget in 3 secondi.
+        $srcMsix = Join-Path $env:TEMP "winget-source.msix"
+        $curlBin = Join-Path $env:SystemRoot "System32\curl.exe"
+        try {
+            Remove-Item -LiteralPath $srcMsix -Force -ErrorAction SilentlyContinue
+            if (Test-Path -LiteralPath $curlBin) {
+                & $curlBin -fsSL --connect-timeout 10 --max-time 60 -o $srcMsix "https://cdn.winget.microsoft.com/cache/source.msix" 2>$null
+            } else {
+                Invoke-WebRequest -Uri "https://cdn.winget.microsoft.com/cache/source.msix" -OutFile $srcMsix -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+            }
+            if ((Test-Path -LiteralPath $srcMsix) -and ((Get-Item -LiteralPath $srcMsix).Length -gt 1048576)) {
+                Add-AppxPackage -Path $srcMsix -ErrorAction Stop
+                Remove-Item -LiteralPath $srcMsix -Force -ErrorAction SilentlyContinue
+                Write-OK "Catalogo sorgente Microsoft.WinGet.Source installato direttamente."
+                return
+            }
+        } catch {}
+        Remove-Item -LiteralPath $srcMsix -Force -ErrorAction SilentlyContinue
+
         $out = winget source update 2>&1
         if ($LASTEXITCODE -eq 0) {
             Write-OK "Sorgenti winget aggiornate."
@@ -5578,7 +5645,7 @@ function Repair-WingetSources {
             if ($LASTEXITCODE -eq 0) {
                 Write-OK "Sorgenti winget ripristinate."
             } else {
-                Write-Errore "Sorgenti winget NON funzionanti sul PC (vedi sotto)."
+                Write-Errore "Sorgenti winget NON funzionanti sul PC (usero' il download diretto ufficiale)."
             }
             $out | Select-Object -Last 4 | ForEach-Object { Write-Host "     $_" -ForegroundColor Gray }
         }
@@ -5596,10 +5663,17 @@ function Confirm-Winget {
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-OK "Winget trovato."
         $Global:WingetOk = $true
-        # NIENTE 'source reset+update' proattivo: ri-scaricava ogni volta l'intero
-        # indice sorgenti (lento su rete lenta). winget aggiorna le sorgenti da
-        # solo all'installazione; la riparazione parte SOLO se un install fallisce
-        # per errore sorgente (vedi Installa-Pacchetto).
+        if (-not $Test -and -not $Global:Test -and -not $env:PESTER_TEST) {
+            # Test rapido catalogo: su Windows 11 nuovi di fabbrica il certificato
+            # sorgente preinstallato e' scaduto (0x8a15005e); se la ricerca fallisce,
+            # riparo subito installando source.msix prima di avviare il ciclo app.
+            try {
+                & winget search --exact --id 7zip.7zip --source winget --accept-source-agreements 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    Repair-WingetSources -Forza
+                }
+            } catch {}
+        }
         return $true
     }
 
@@ -6305,7 +6379,7 @@ function Installa-Pacchetto {
     # -1978335189 = "no applicable update", -1978335135 = "package already installed"
     $giaInstallato = @(-1978335189, -1978335135)
     # Errori di integrita'/certificato/sorgente: si risolvono riparando le sorgenti
-    $erroriSorgente = @(-1978335138, -1978335215, -1978335216)  # 0x8A15005E e simili
+    $erroriSorgente = @(-1978335138, -1978335194, -1978335215, -1978335216, -1978335217, -1978335226)
     $riparatoQui = $false
     $ritentoSenzaSorgente = $false
 
@@ -6319,7 +6393,7 @@ function Installa-Pacchetto {
             Write-Info "Winget in timeout (10 min) per ${Nome}: provo download diretto ufficiale..."
             if (Install-AppDirectFallback -Nome $Nome -WingetId $WingetId) {
                 Add-Report "$Nome (installazione)" "OK (download diretto)"
-                Add-IconaDesktop -Nome $Nome -WingetId $WingetId
+                Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
                 $Global:UltimaInstallOk = $true
                 return
             }
@@ -7003,8 +7077,8 @@ function Invoke-EverydayDigital {
     } else {
         $off = Find-OfflineInstaller -Nome "Unieuro Secure" -WingetId "F-Secure"
         if ($off) {
-            Write-Info "Trovato installer offline Unieuro Secure: $($off.Name)"
-            if (Install-OfflinePackage -Nome "Unieuro Secure" -Percorso $off.FullName) {
+            Write-Info "Trovato installer offline Unieuro Secure: $(Split-Path -Leaf $off)"
+            if (Install-OfflinePackage -Nome "Unieuro Secure" -FilePath $off) {
                 Add-Report "Unieuro Secure (F-Secure)" "OK (offline)"
             }
         } else {
@@ -8069,10 +8143,10 @@ Write-Host ""
         $job = $null
         try {
             $job = Start-Job -ScriptBlock {
-                param($d, $desc)
+                param($desc)
                 try { Checkpoint-Computer -Description $desc -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop; return 0 }
                 catch { return 1 }
-            } -ArgumentList "$env:SystemDrive\", "Prima di setup-pc"
+            } -ArgumentList "Prima di setup-pc"
             if (-not (Wait-Job $job -Timeout 60)) {
                 Stop-Job $job
                 Write-Errore "Creazione del punto di ripristino in timeout dopo 60 secondi: salto."

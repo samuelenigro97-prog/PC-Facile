@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.17 (2026-11-21)"
+SCRIPT_VERSION="2.18 (2026-11-24)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1421,10 +1421,16 @@ if [[ "$(uname -m)" == "arm64" ]] && $RUN_REALE; then
     fi
 fi
 
+if [[ -x "/opt/homebrew/bin/brew" ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+elif [[ -x "/usr/local/bin/brew" ]]; then
+    eval "$(/usr/local/bin/brew shellenv 2>/dev/null)"
+fi
 if ! command -v brew >/dev/null 2>&1 && $RUN_REALE; then
     info "Installazione Homebrew..."
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    [[ -x "/opt/homebrew/bin/brew" ]] && eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null)"
+    [[ -x "/usr/local/bin/brew" ]] && eval "$(/usr/local/bin/brew shellenv 2>/dev/null)"
 fi
 command -v brew >/dev/null 2>&1 && ok "Homebrew pronto."
 
@@ -1458,7 +1464,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             fi
             # 2. Fallback su Homebrew se connesso e offline non presente
             if command -v brew >/dev/null 2>&1; then
-                local _brew_err=""
+                _brew_err=""
                 if _brew_err="$(brew install --cask "$cask" </dev/null 2>&1)"; then
                     # Rimuove flag quarantena Gatekeeper per evitare popup di conferma al primo avvio
                     xattr -d -r com.apple.quarantine "/Applications/$nome.app" 2>/dev/null || true
@@ -1467,7 +1473,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
                     ok "$nome installato tramite Homebrew."
                     INSTALLATE+=("$nome")
                 else
-                    local _brew_last="${${(f)_brew_err}[-1]:-errore rete/cask}"
+                    _brew_last="${${(f)_brew_err}[-1]:-errore rete/cask}"
                     info "$nome non installato via Homebrew ($_brew_last): proseguo."
                 fi
             fi

@@ -14,12 +14,17 @@ TMP="$(mktemp -t setup-mac.XXXXXX)" || { echo "Impossibile creare un file tempor
 trap 'rm -f -- "$TMP"' EXIT
 
 scarica_verificato() {
-    local t atteso reale
+    local t atteso reale b
     t="$(date +%s)"
-    curl -fsSL "$BASE/setup-mac.sh?t=$t" -o "$TMP" 2>/dev/null || return 1
-    atteso="$(curl -fsSL "$BASE/setup-mac.sh.sha256?t=$t" 2>/dev/null | awk '{print tolower($1); exit}')"
-    reale="$(shasum -a 256 "$TMP" 2>/dev/null | awk '{print tolower($1)}')"
-    [[ "$atteso" =~ '^[0-9a-f]{64}$' && "$reale" == "$atteso" ]]
+    for b in "$BASE" "$BASE_CDN"; do
+        curl -fsSL --max-time 15 -H "Cache-Control: no-cache" "$b/setup-mac.sh?t=$t" -o "$TMP" 2>/dev/null || continue
+        atteso="$(curl -fsSL --max-time 10 -H "Cache-Control: no-cache" "$b/setup-mac.sh.sha256?t=$t" 2>/dev/null | awk '{print tolower($1); exit}')"
+        reale="$(shasum -a 256 "$TMP" 2>/dev/null | awk '{print tolower($1)}')"
+        if [[ "$atteso" =~ '^[0-9a-f]{64}$' && "$reale" == "$atteso" ]]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 # Aggiornamento automatico della chiavetta: scarica manifest.txt e ogni file
@@ -78,7 +83,7 @@ echo "Scarico l'ultima versione da GitHub..."
 if scarica_verificato; then
     echo "Scaricato e verificato (SHA256)."
     aggiorna_chiavetta
-    zsh "$TMP"
+    zsh "$TMP" --no-self-update "$@"
 elif [[ -f "./setup-mac.sh" ]]; then
     echo "Download non riuscito o impronta SHA256 non valida: uso la copia accanto (potrebbe non essere l'ultima)."
     zsh "./setup-mac.sh"

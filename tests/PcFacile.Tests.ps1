@@ -1287,3 +1287,60 @@ Describe 'Lavori in background durante i passi manuali' {
         @($Global:Report | Where-Object { "$($_.Voce)$_" -match 'Pulizia di prova in background' }).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo app' {
+    BeforeAll {
+        $script:RadiceTest = Split-Path $PSScriptRoot -Parent
+        $script:SrcPs1 = [System.IO.File]::ReadAllText($script:SetupPath)
+        $script:SrcBat = [System.IO.File]::ReadAllText((Join-Path $script:RadiceTest 'PC Facile.bat'))
+        $script:AstPs1 = [System.Management.Automation.Language.Parser]::ParseFile($script:SetupPath, [ref]$null, [ref]$null)
+    }
+    It 'nessuna chiamata a funzioni interne usa parametri inesistenti (AST check)' {
+        $funcs = @{}
+        foreach ($f in $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+            $pnames = @()
+            if ($f.Body.ParamBlock -and $f.Body.ParamBlock.Parameters) {
+                foreach ($p in $f.Body.ParamBlock.Parameters) {
+                    $pnames += $p.Name.VariablePath.UserPath
+                    foreach ($attr in $p.Attributes) {
+                        if ($attr -is [System.Management.Automation.Language.AttributeAst] -and $attr.TypeName.Name -eq 'Alias') {
+                            foreach ($pa in $attr.PositionalArguments) { $pnames += $pa.SafeGetValue() }
+                        }
+                    }
+                }
+            } elseif ($f.Parameters) {
+                foreach ($p in $f.Parameters) { $pnames += $p.Name.VariablePath.UserPath }
+            }
+            $funcs[$f.Name] = $pnames
+        }
+        $common = @('Verbose','Debug','ErrorAction','WarningAction','InformationAction','ErrorVariable','WarningVariable','InformationVariable','OutVariable','OutBuffer','PipelineVariable','WhatIf','Confirm')
+        $erroriParam = @()
+        foreach ($cmd in $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+            $name = $cmd.GetCommandName()
+            if ($name -and $funcs.ContainsKey($name)) {
+                $valid = $funcs[$name] + $common
+                foreach ($el in $cmd.CommandElements) {
+                    if ($el -is [System.Management.Automation.Language.CommandParameterAst] -and ($valid -notcontains $el.ParameterName)) {
+                        $erroriParam += "Riga $($el.Extent.StartLineNumber): $name -$($el.ParameterName)"
+                    }
+                }
+            }
+        }
+        $erroriParam | Should -BeNullOrEmpty
+    }
+    It 'non passa mai --disable-interactivity (incompatibile con winget di fabbrica Windows 11)' {
+        $script:SrcPs1 | Should -Not -Match '--disable-interactivity'
+        $script:SrcBat | Should -Not -Match '--disable-interactivity'
+    }
+    It 'ogni app del catalogo (piu'' Chrome e Opera GX) ha un fallback diretto in Install-AppDirectFallback' {
+        $fnFallback = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Install-AppDirectFallback' }, $true) | Select-Object -First 1
+        $catAst = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.AssignmentStatementAst] -and $args[0].Left.Extent.Text -eq '$CatalogoApp' }, $true) | Select-Object -First 1
+        $catIds = @([regex]::Matches($catAst.Right.Extent.Text, 'Id\s*=\s*"([^"]+)"') | ForEach-Object { $_.Groups[1].Value })
+        $catIds.Count | Should -BeGreaterOrEqual 10
+        $testoFn = $fnFallback.Extent.Text
+        $idsRichiesti = @('Google.Chrome', 'Opera.OperaGX') + $catIds
+        foreach ($id in $idsRichiesti) {
+            $testoFn | Should -Match ([regex]::Escape("'$id'"))
+        }
+    }
+}
