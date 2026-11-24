@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.14 (2026-11-24)"
+$SCRIPT_VERSION = "13.12.15 (2026-11-24)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3984,6 +3984,9 @@ function Install-OfflinePackage {
             while (-not $proc.HasExited -and $timer -lt $maxWait) {
                 Start-Sleep -Seconds 1
                 $timer += 1
+                if ($timer % 5 -eq 0) {
+                    Write-Host "     -> ${Nome}: installazione in corso... (${timer}s / max ${maxWait}s)" -ForegroundColor DarkGray
+                }
                 try {
                     # Rileva e chiudi all'istante eventuali finestre di dialogo o di errore bloccanti (es. 7-Zip "Can't load config info")
                     $errProcs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
@@ -4051,10 +4054,10 @@ function Install-AppDirectFallback {
             Write-Info "Scarico installer ufficiale $Nome ($u)..."
             Invoke-WebRequest -Uri $u -OutFile $dest -UseBasicParsing -TimeoutSec 90 -ErrorAction Stop
             if ((Test-Path -LiteralPath $dest) -and ((Get-Item -LiteralPath $dest).Length -gt 102400)) {
-                if (Install-OfflinePackage -FilePath $dest -Nome $Nome) {
-                    Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
-                    return $true
-                }
+                $okOff = Install-OfflinePackage -FilePath $dest -Nome $Nome
+                Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
+                if ($okOff) { return $true }
+                break
             }
         } catch {
             Write-Info "Download diretto $Nome da $u non riuscito: $($_.Exception.Message)"
@@ -4116,7 +4119,7 @@ function Install-VisualCRuntime {
             try {
                 $vcOut = Join-Path $env:TEMP "winget-vc.out"
                 $vcErr = Join-Path $env:TEMP "winget-vc.err"
-                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements --disable-interactivity" -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $vcOut -RedirectStandardError $vcErr -ErrorAction SilentlyContinue
+                $p = Start-Process winget -ArgumentList "install --id $($rt.WingetId) --exact --source winget --silent --accept-source-agreements --accept-package-agreements" -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput $vcOut -RedirectStandardError $vcErr -ErrorAction SilentlyContinue
                 Remove-Item $vcOut, $vcErr -Force -ErrorAction SilentlyContinue
                 if ($p -and ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010 -or $p.ExitCode -eq 1641 -or $p.ExitCode -eq -1978335189)) {
                     $wingetInstalled = $true
@@ -6224,7 +6227,7 @@ function Test-IsAppInstalled {
     if ($WingetId -and (Confirm-Winget)) {
         try {
             $srcList = if ($WingetId -match '^[A-Z0-9]{12}$') { @('--source', 'msstore') } else { @('--source', 'winget') }
-            & winget.exe list --exact --id $WingetId @srcList --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
+            & winget.exe list --exact --id $WingetId @srcList --accept-source-agreements 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0) { return $true }
         } catch {}
     }
@@ -6283,7 +6286,7 @@ function Installa-Pacchetto {
 
     # Gia' installato? Uso --source winget (o msstore per ID Store) per evitare
     # errori di certificato su msstore (0x8a15005e) in console.
-    winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
+    winget list --exact --id $WingetId @sorgente --accept-source-agreements 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-OK "$Nome gia' installato. Salto."
         Add-Report "$Nome (installazione)" "OK"
@@ -6311,7 +6314,7 @@ function Installa-Pacchetto {
     for ($tentativo = 1; $tentativo -le $maxTentativi; $tentativo++) {
         $tentativiFatti = $tentativo
         Write-Info "Installo $Nome...$(if ($tentativo -gt 1) { " (tentativo $tentativo)" })"
-        $codeInstall = Invoke-WingetConBarra -Nome $Nome -WingetArgs (@('install', '--exact', '--id', $WingetId) + $sorgente + @('--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements'))
+        $codeInstall = Invoke-WingetConBarra -Nome $Nome -WingetArgs (@('install', '--exact', '--id', $WingetId) + $sorgente + @('--silent', '--accept-package-agreements', '--accept-source-agreements'))
         if ($codeInstall -eq -9999) {
             Write-Info "Winget in timeout (10 min) per ${Nome}: provo download diretto ufficiale..."
             if (Install-AppDirectFallback -Nome $Nome -WingetId $WingetId) {
@@ -6351,7 +6354,7 @@ function Installa-Pacchetto {
 
         # Ricontrollo con 'winget list' con la stessa sorgente: se l'app risulta
         # comunque presente, non segno ERRORE per sbaglio.
-        winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
+        winget list --exact --id $WingetId @sorgente --accept-source-agreements 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
             Write-OK "$Nome installato."
             Add-Report "$Nome (installazione)" "OK"
@@ -6422,7 +6425,7 @@ function Installa-Pacchetto {
     # VERIFICA finale con 'winget list' SENZA sorgente forzata: a volte l'app si
     # installa davvero ma winget ritorna un codice strano (o era gia' presente
     # da un'altra origine). Se ora risulta presente, per noi e' un successo.
-    winget list --exact --id $WingetId @sorgente --accept-source-agreements --disable-interactivity 2>&1 | Out-Null
+    winget list --exact --id $WingetId @sorgente --accept-source-agreements 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         Write-OK "$Nome risulta installato (verificato)."
         Add-Report "$Nome (installazione)" "OK"
@@ -7076,6 +7079,10 @@ function Test-LinguaItaliana {
         $lingue = @(Get-WinUserLanguageList)
         if ($lingue.Count -eq 0 -or $lingue[0].LanguageTag -ne 'it-IT') { return $false }
         if ((Get-TimeZone).Id -ne 'W. Europe Standard Time') { return $false }
+        if (Get-Command Get-InstalledLanguage -ErrorAction SilentlyContinue) {
+            $instLangs = @(Get-InstalledLanguage -ErrorAction SilentlyContinue)
+            if ($instLangs.Count -gt 0 -and ($instLangs.LanguageId -notcontains 'it-IT')) { return $false }
+        }
         return $true
     } catch { return $false }
 }
@@ -7418,13 +7425,13 @@ trap {
     )
     if (Confirm-Winget) {
         foreach ($nome in $trialWin32Winget) {
-            winget uninstall --name $nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+            winget uninstall --name $nome --silent --accept-source-agreements 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): $nome"; $rimosse++ }
         }
         # Google Play Games (bloatware Acer): l'EULA interattiva fa fallire
         # sempre "winget upgrade --all" in silenzioso, quindi lo tolgo qui
         # per ID esatto invece di lasciarlo installato e provare ad aggiornarlo.
-        winget uninstall --id Google.PlayGames --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+        winget uninstall --id Google.PlayGames --silent --accept-source-agreements 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): Google Play Games"; $rimosse++ }
     }
 
@@ -7813,7 +7820,7 @@ function Invoke-PassoSingolo {
                 if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
                     if ($av.QuietUninstall) { try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {} }
                     elseif ($av.Uninstall) { try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {} }
-                    if (Confirm-Winget) { winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null }
+                    if (Confirm-Winget) { winget uninstall --name $av.Nome --silent --accept-source-agreements 2>$null | Out-Null }
                 }
             }
             Update-PannelloStatus -TaskId "avprova" -Stato "done" -Dettaglio "Completato"
@@ -7926,7 +7933,7 @@ function Invoke-PassoSingolo {
         'aggiorna' {
             Update-PannelloStatus -TaskId "aggiorna" -Stato "running" -Dettaglio "Aggiornamento app e firme..."
             if (Confirm-Winget) {
-                [void](Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600)
+                [void](Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600)
             }
             Update-PannelloStatus -TaskId "aggiorna" -Stato "done" -Dettaglio "Completato"
         }
@@ -8148,7 +8155,7 @@ Update-PannelloStatus -TaskId "avprova" -Stato "running" -FaseCorrente "Rimozion
                 #    McAfee/Norton spesso resistono: sotto ci pensano i tool
                 #    ufficiali (MCPR / NRnR).
                 if (Confirm-Winget) {
-                    winget uninstall --name $av.Nome --silent --accept-source-agreements --disable-interactivity 2>$null | Out-Null
+                    winget uninstall --name $av.Nome --silent --accept-source-agreements 2>$null | Out-Null
                 }
             } finally { Stop-BarraAnimata }
         }
@@ -8260,7 +8267,14 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
     # display non e' ancora italiano, installo il pacchetto ANCHE se it-IT risulta
     # "presente". Il forzamento qui sotto viene applicato SEMPRE.
     $displayGiaItaliano = $false
-    try { $displayGiaItaliano = ((Get-UICulture).Name -like 'it*') } catch {}
+    try {
+        $packPresente = $true
+        if (Get-Command Get-InstalledLanguage -ErrorAction SilentlyContinue) {
+            $instL = @(Get-InstalledLanguage -ErrorAction SilentlyContinue)
+            if ($instL.Count -gt 0) { $packPresente = ($instL.LanguageId -contains 'it-IT') }
+        }
+        $displayGiaItaliano = ((Get-UICulture).Name -like 'it*') -and $packPresente
+    } catch {}
 
     # --- 1) LANGUAGE PACK it-IT (Windows 11 22H2+): e' QUESTO (il Local Experience
     #     Pack) che traduce i MENU. Lo installo se il display non e' gia' italiano. ---
@@ -8362,8 +8376,10 @@ Write-Info "Lingua/regione attuale: $culturaAttuale"
     try { Set-WinHomeLocation -GeoId 118 } catch {}      # Italia
     try { Set-WinSystemLocale it-IT } catch {}
     try { Set-TimeZone -Id "W. Europe Standard Time" -ErrorAction Stop; Write-OK "Fuso orario Italia (CET)." } catch {}
-    # Rinforzo via registro: lingua UI preferita dell'utente = solo it-IT.
+    # Rinforzo via registro: lingua UI preferita dell'utente e di sistema = solo it-IT.
     try { Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name 'PreferredUILanguages' -Value @('it-IT') -Type MultiString -Force -ErrorAction SilentlyContinue } catch {}
+    try { Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\MuiCached' -Name 'MachinePreferredUILanguages' -Value @('it-IT') -Type MultiString -Force -ErrorAction SilentlyContinue } catch {}
+    try { Set-ItemProperty -Path 'Registry::HKEY_USERS\.DEFAULT\Control Panel\Desktop' -Name 'PreferredUILanguages' -Value @('it-IT') -Type MultiString -Force -ErrorAction SilentlyContinue } catch {}
 
     # --- 4) SOLO ORA propago a schermata di LOGIN e NUOVI UTENTI: cosi' copio la
     #     configurazione GIA' tutta italiana. (Prima veniva fatto troppo presto,
@@ -8927,7 +8943,7 @@ Write-Host ""
 if ($vuoiUpgrade -match "^[Ss]") {
     # 1) APP INSTALLATE (winget)
     if (Confirm-Winget) {
-        $null = Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--disable-interactivity', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600
+        $null = Invoke-WingetConBarra -Nome "aggiornamenti app" -WingetArgs @('upgrade', '--all', '--silent', '--accept-package-agreements', '--accept-source-agreements', '--include-unknown') -TimeoutSec 600
         Write-OK "Aggiornamento app completato."
         Add-Report "Aggiornamento app installate" "OK"
     } else {
