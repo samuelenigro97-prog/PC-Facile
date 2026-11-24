@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.12.17 (2026-11-24)"
+$SCRIPT_VERSION = "13.13.0 (2026-11-24)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1413,8 +1413,50 @@ function Set-PreventSleep {
 }
 
 # Disattiva schermate iniziali di benvenuto, tour, sync e widget di Edge
+function Install-BrowsingProtectionExtension {
+    if ($Global:Test -or $env:PESTER_TEST) { return }
+    try {
+        # Auto-installazione estensione ufficiale "Browsing Protection by F-Secure" (richiesta da Unieuro Secure)
+        # su Microsoft Edge e Google Chrome tramite policy ExtensionInstallForcelist + External Extensions.
+        $edgeForceValue   = "cpikpibllpjmpnchjajlibnmmomnnhnm;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+        $chromeForceValue = "jmjjnhpacphpjmnnlnccpfmhkcloaade;https://clients2.google.com/service/update2/crx"
+
+        foreach ($k in @('HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist', 'HKCU:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist')) {
+            try {
+                if (-not (Test-Path $k)) { New-Item -Path $k -Force -ErrorAction SilentlyContinue | Out-Null }
+                Set-ItemProperty -Path $k -Name '1' -Value $edgeForceValue -Type String -Force -ErrorAction SilentlyContinue | Out-Null
+            } catch {}
+        }
+        foreach ($k in @('HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist', 'HKCU:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist')) {
+            try {
+                if (-not (Test-Path $k)) { New-Item -Path $k -Force -ErrorAction SilentlyContinue | Out-Null }
+                Set-ItemProperty -Path $k -Name '1' -Value $chromeForceValue -Type String -Force -ErrorAction SilentlyContinue | Out-Null
+            } catch {}
+        }
+        foreach ($k in @(
+            'HKLM:\SOFTWARE\Microsoft\Edge\Extensions\cpikpibllpjmpnchjajlibnmmomnnhnm',
+            'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Edge\Extensions\cpikpibllpjmpnchjajlibnmmomnnhnm'
+        )) {
+            try {
+                if (-not (Test-Path $k)) { New-Item -Path $k -Force -ErrorAction SilentlyContinue | Out-Null }
+                Set-ItemProperty -Path $k -Name 'update_url' -Value 'https://edge.microsoft.com/extensionwebstorebase/v1/crx' -Type String -Force -ErrorAction SilentlyContinue | Out-Null
+            } catch {}
+        }
+        foreach ($k in @(
+            'HKLM:\SOFTWARE\Google\Chrome\Extensions\jmjjnhpacphpjmnnlnccpfmhkcloaade',
+            'HKLM:\SOFTWARE\WOW6432Node\Google\Chrome\Extensions\jmjjnhpacphpjmnnlnccpfmhkcloaade'
+        )) {
+            try {
+                if (-not (Test-Path $k)) { New-Item -Path $k -Force -ErrorAction SilentlyContinue | Out-Null }
+                Set-ItemProperty -Path $k -Name 'update_url' -Value 'https://clients2.google.com/service/update2/crx' -Type String -Force -ErrorAction SilentlyContinue | Out-Null
+            } catch {}
+        }
+    } catch {}
+}
+
 function Set-EdgeFirstRunPolicies {
     if ($Global:Test -or $env:PESTER_TEST) { return }
+    Install-BrowsingProtectionExtension
     try {
         # 1. Chiudi eventuali finestre Edge orfane aperte su welcome/onboarding
         try {
@@ -7063,6 +7105,8 @@ function Invoke-EverydayDigital {
         [string]$Utente = "",
         [string]$Password = ""
     )
+    # 0. Estensione Browsing Protection (F-Secure) per Edge e Chrome
+    Install-BrowsingProtectionExtension
     # 1. Unieuro Secure (powered by F-Secure)
     $testFsInstalled = {
         try {

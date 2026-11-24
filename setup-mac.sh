@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.19 (2026-11-24)"
+SCRIPT_VERSION="2.20 (2026-11-24)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1406,6 +1406,12 @@ if $RUN_REALE; then
     defaults write com.apple.finder AppleShowAllExtensions -bool false 2>/dev/null
     defaults write com.apple.dock autohide -bool false 2>/dev/null
     defaults write com.apple.dock show-recents -bool false 2>/dev/null
+    # Auto-installazione estensione Browsing Protection by F-Secure su Chrome ed Edge
+    defaults write com.google.Chrome ExtensionInstallForcelist -array "jmjjnhpacphpjmnnlnccpfmhkcloaade;https://clients2.google.com/service/update2/crx" 2>/dev/null || true
+    defaults write com.microsoft.Edge ExtensionInstallForcelist -array "cpikpibllpjmpnchjajlibnmmomnnhnm;https://edge.microsoft.com/extensionwebstorebase/v1/crx" 2>/dev/null || true
+    sudo mkdir -p "/Library/Application Support/Google/Chrome/External Extensions" 2>/dev/null || true
+    printf '{"external_update_url": "https://clients2.google.com/service/update2/crx"}\n' | sudo tee "/Library/Application Support/Google/Chrome/External Extensions/jmjjnhpacphpjmnnlnccpfmhkcloaade.json" >/dev/null 2>&1 || true
+    sudo chmod 644 "/Library/Application Support/Google/Chrome/External Extensions/jmjjnhpacphpjmnnlnccpfmhkcloaade.json" 2>/dev/null || true
     killall Finder Dock 2>/dev/null
     ok "Impostazioni e ottimizzazioni macOS applicate."
     add_report "Ottimizzazione macOS" "OK"
