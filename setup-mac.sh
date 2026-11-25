@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.20 (2026-11-24)"
+SCRIPT_VERSION="2.21 (2026-11-25)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -543,6 +543,14 @@ open_pannello_mac() {
                     <span class="etichetta" style="color:#fed7aa;">Servizi sullo scontrino</span>
                     <div class="servizi-grid">
                         <label class="svc" style="grid-column: 1 / -1; border-color:#EE7203; background:rgba(238,114,3,0.14); font-weight:700;"><input type="checkbox" id="chkSvcEveryday" checked> <span>Unieuro Everyday Digital (Secure + Cyber) &mdash; PRIORIT&Agrave;</span></label>
+                        <div style="grid-column: 1 / -1; background:#00122B; border:1px dashed #EE7203; border-radius:8px; padding:8px 10px;">
+                            <label class="etichetta" for="inPassSecure" style="color:#fed7aa; font-size:13px;">Password Unieuro Secure (dalla mail del cliente, opz. &mdash; o incolla testo mail)</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="text" class="cred-input" id="inPassSecure" style="margin-bottom:0; font-family:monospace;" placeholder="Es. N/qrWZ35 (o incolla mail)" autocomplete="off" oninput="analizzaMailSecureMac(this.value)">
+                                <button type="button" class="btn-step" style="white-space:nowrap;" onclick="incollaMailSecureMac()">&#128203; Incolla mail</button>
+                                <button type="button" class="btn-step" style="white-space:nowrap;" onclick="copiaCampoMac('inPassSecure')">&#128203; Copia</button>
+                            </div>
+                        </div>
                         <label class="svc"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcOffice"> <span>Card Office 365</span></label>
                         <label class="svc"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
@@ -716,6 +724,51 @@ open_pannello_mac() {
             mostraEsito(msg, 'errore');
         }
 
+        function analizzaMailSecureMac(raw) {
+            if (!raw) return false;
+            var txt = String(raw);
+            var mMail = txt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            var mPass = txt.match(/Password\s*[:=]\s*([^\s]+)/i);
+            if (mMail || mPass) {
+                if (mMail && document.getElementById('inEmail')) {
+                    document.getElementById('inEmail').value = mMail[0].trim();
+                }
+                if (mPass && document.getElementById('inPassSecure')) {
+                    document.getElementById('inPassSecure').value = mPass[1].trim();
+                } else if (mMail && document.getElementById('inPassSecure')) {
+                    var resto = txt.replace(mMail[0], '').replace(/Email\s*[:=]/i, '').replace(/Password\s*[:=]/i, '').trim();
+                    var tok = resto.split(/\s+/).filter(Boolean);
+                    if (tok.length > 0) document.getElementById('inPassSecure').value = tok[tok.length - 1];
+                }
+                if (document.getElementById('chkSvcEveryday')) document.getElementById('chkSvcEveryday').checked = true;
+                return true;
+            }
+            return false;
+        }
+
+        function incollaMailSecureMac() {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function(t) {
+                    if (!t) return;
+                    if (!analizzaMailSecureMac(t) && document.getElementById('inPassSecure')) {
+                        document.getElementById('inPassSecure').value = t.trim();
+                    }
+                    mostraEsito('\u2713 Credenziali Unieuro Secure inserite dagli appunti.', 'ok');
+                }).catch(function() {
+                    if (document.getElementById('inPassSecure')) document.getElementById('inPassSecure').focus();
+                });
+            }
+        }
+
+        function copiaCampoMac(id) {
+            var el = document.getElementById(id);
+            if (!el || !el.value) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(el.value);
+            }
+            mostraEsito('\u2713 Copiato negli appunti: ' + el.value, 'ok');
+        }
+
         function avviaAutoMac() {
             ['inCognome', 'inNome', 'inTelefono'].forEach(function(id) { document.getElementById(id).classList.remove('errore'); });
             var c = document.getElementById('inCognome').value.trim();
@@ -725,6 +778,8 @@ open_pannello_mac() {
             var isClt = (!fullClt || generici.indexOf(fullClt) !== -1 || (generici.indexOf(c.toLowerCase().trim()) !== -1 && (!n || generici.indexOf(n.toLowerCase().trim()) !== -1)));
             var email = document.getElementById('inEmail').value.trim();
             var pass = document.getElementById('inPass').value.trim();
+            var passSecure = document.getElementById('inPassSecure') ? document.getElementById('inPassSecure').value.trim() : '';
+            var haMailSecure = Boolean(passSecure && email && email.indexOf('@') > 0);
             var t = document.getElementById('inTelefono').value.trim();
             var everyday = document.getElementById('chkSvcEveryday').checked;
             var proton = document.getElementById('chkSvcProton').checked;
@@ -735,8 +790,9 @@ open_pannello_mac() {
             var nomeCliente = (c + ' ' + n).trim() || 'clt clt';
             var payload = {
                 Conferma: true,
-                Email: isClt ? '' : (email || ('utente@' + currentDom)),
+                Email: (isClt && !haMailSecure) ? '' : (email || ('utente@' + currentDom)),
                 Password: isClt ? '' : (pass || 'Utente123!'),
+                PasswordSecure: passSecure,
                 Provider: currentProv,
                 Cliente: nomeCliente,
                 Nome: n,
@@ -835,6 +891,7 @@ try:
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         d = json.load(f)
     for k, nome in (('Email', 'EMAIL_CLIENTE'), ('Password', 'PASS_CLIENTE'),
+                    ('PasswordSecure', 'PASS_SECURE'),
                     ('Cliente', 'NOME_CLIENTE'), ('Nome', 'NOME_PROPRIO_CLIENTE'),
                     ('Telefono', 'TELEFONO_CLIENTE'), ('ProfiloApp', 'PROFILO_APP')):
         if d.get(k):
@@ -854,7 +911,7 @@ PYEOF
                         chiave="${riga%%$'\t'*}"
                         valore="${riga#*$'\t'}"
                         case "$chiave" in
-                            EMAIL_CLIENTE|PASS_CLIENTE|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_EVERYDAY|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
+                            EMAIL_CLIENTE|PASS_CLIENTE|PASS_SECURE|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_EVERYDAY|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
                                 typeset -g "$chiave=$valore" ;;
                         esac
                     done <<< "$res"
@@ -865,9 +922,13 @@ PYEOF
                         IS_CLT_MODE=true
                         NOME_CLIENTE="Utente"
                         NOME_PROPRIO_CLIENTE="Utente"
-                        EMAIL_CLIENTE=""
+                        if [[ -n "$PASS_SECURE" && -n "$EMAIL_CLIENTE" ]]; then
+                            CRED_ACCOUNT="$EMAIL_CLIENTE"
+                        else
+                            EMAIL_CLIENTE=""
+                            CRED_ACCOUNT=""
+                        fi
                         PASS_CLIENTE=""
-                        CRED_ACCOUNT=""
                         CRED_PASSWORD=""
                     else
                         IS_CLT_MODE=false
@@ -1006,31 +1067,10 @@ attendi_credenziali_mac() {
     $DATI_RICEVUTI && return 0
     if leggi_credenziali_salvate_mac; then return 0; fi
 
-    titolo "DATI DEL CLIENTE OPZIONALI (PANNELLO OPERATORE)"
-    print -r -- "${C_CYAN}  -> Se vuoi inserirli, compila nel pannello e premi 'CONFERMA DATI CLIENTE'.${C_RST}"
-    print -r -- "${C_INFO}  -> Nessun obbligo: tra 30 secondi (o premendo INVIO) proseguo e finisco automaticamente.${C_RST}"
-    print -r -- ""
-    beep_attesa
-    local _waited=0
-    while (( _waited < 30 )); do
-        leggi_passo_singolo_mac
-        if leggi_credenziali_salvate_mac; then
-            ok "Dati cliente e servizi ricevuti dal pannello."
-            [[ -n "$NOME_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Cliente :${C_RST} $NOME_CLIENTE"
-            [[ -n "$TELEFONO_CLIENTE" ]] && print -r -- "  ${C_CYAN}- Telefono:${C_RST} $TELEFONO_CLIENTE"
-            return 0
-        fi
-        if read -t 0.5 -r tasto 2>/dev/null; then
-            break
-        fi
-        sleep 0.5
-        (( _waited++ ))
-    done
     NOME_CLIENTE="${NOME_CLIENTE:-Utente}"
     IS_CLT_MODE=true
     SVC_EVERYDAY="${SVC_EVERYDAY:-true}"; SVC_PROTON=false; SVC_OFFICE=false; SVC_MCAFEE=false; SVC_NORTON=false; SVC_CYBER=false
-    DATI_RICEVUTI=true
-    ok "Nessun dato cliente inserito: proseguo automaticamente (Utente) e installo Unieuro Secure + app."
+    ok "Avvio diretto (0s attesa): procedo subito in automatico (puoi inserire i dati cliente nel pannello in qualsiasi momento)."
     return 0
 }
 
@@ -1562,6 +1602,7 @@ fi
 # =============================================================================
 # PASSO 8: FILEVAULT & DIAGNOSTICA
 # =============================================================================
+$RUN_REALE && leggi_credenziali_salvate_mac
 update_pannello_mac_status 95 "FileVault & Scheda Consegna" "Generazione scheda cliente..."
 titolo "8. Sicurezza FileVault & Scheda Consegna"
 FV_KEY=""
@@ -1585,7 +1626,7 @@ batt="$(get_battery_info_mac)"
 batt_desc="${${(s:|:)batt}[2]} - ${${(s:|:)batt}[3]}"
 
 # Valori escapati per la scheda HTML (nome, credenziali e dati hardware)
-h_nome="$(html_esc "$NOME_CLIENTE")"; h_account="$(html_esc "$CRED_ACCOUNT")"; h_password="$(html_esc "$CRED_PASSWORD")"
+h_nome="$(html_esc "$NOME_CLIENTE")"; h_account="$(html_esc "$CRED_ACCOUNT")"; h_password="$(html_esc "$CRED_PASSWORD")"; h_pass_secure="$(html_esc "$PASS_SECURE")"
 hw_m="$(html_esc "$hw_m")"; hw_c="$(html_esc "$hw_c")"; hw_r="$(html_esc "$hw_r")"; hw_s="$(html_esc "$hw_s")"
 batt_desc="$(html_esc "$batt_desc")"
 
@@ -1601,11 +1642,20 @@ if [[ "${NOME_CLIENTE:l}" == "clt clt" || "${NOME_CLIENTE:l}" == "clt" || ("${NO
 fi
 
 box_cred=""
-if ! $is_clt && [[ -n "$h_account" || -n "$h_password" ]]; then
+if { ! $is_clt && [[ -n "$h_account" || -n "$h_password" ]]; } || [[ -n "$h_pass_secure" ]]; then
+    riga_pass_mac=""
+    if ! $is_clt && [[ -n "$h_password" ]]; then
+        riga_pass_mac="<p><strong>Password provvisoria:</strong> <code style=\"background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;\">$h_password</code></p>"
+    fi
+    riga_secure_mac=""
+    if [[ -n "$h_pass_secure" ]]; then
+        riga_secure_mac="<p><strong>Password Unieuro Secure:</strong> <code style=\"background:#ffedd5; padding:2px 6px; border-radius:4px; color:#c2410c; font-weight:bold;\">$h_pass_secure</code></p>"
+    fi
     box_cred="<div class=\"card card-cred\">
-                <h3 style=\"color:#EE7203; margin-bottom:8px;\">🔑 Credenziali &amp; Account Apple ID</h3>
-                <p><strong>Email / Apple ID:</strong> $h_account</p>
-                <p><strong>Password provvisoria:</strong> <code style=\"background:#fee2e2; padding:2px 6px; border-radius:4px; color:#991b1b; font-weight:bold;\">$h_password</code></p>
+                <h3 style=\"color:#EE7203; margin-bottom:8px;\">🔑 Credenziali &amp; Account</h3>
+                <p><strong>Email / Account:</strong> $h_account</p>
+                $riga_pass_mac
+                $riga_secure_mac
             </div>"
 fi
 

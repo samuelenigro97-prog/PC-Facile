@@ -636,6 +636,14 @@
                     </div>
                     <div class="services-grid">
                         <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203; background: rgba(238, 114, 3, 0.14); font-weight: 700;"><input type="checkbox" id="chkSvcEveryday" checked> <span>Unieuro Everyday Digital (Unieuro Secure + Cyber) &mdash; PRIORIT&Agrave;</span></label>
+                        <div style="grid-column: 1 / -1; background: #00122B; border: 1px dashed #EE7203; border-radius: 8px; padding: 8px 10px;">
+                            <label class="cred-label" for="inPassSecure" style="color: #fed7aa; margin-bottom: 4px;">Password Unieuro Secure (dalla mail del cliente, opz. &mdash; puoi anche incollare qui tutta la mail)</label>
+                            <div class="cred-box">
+                                <input type="text" id="inPassSecure" class="cred-input cred-mono" value="" placeholder="Es. N/qrWZ35 (o incolla testo mail)" autocomplete="off" oninput="analizzaInputMailSecure(this.value)">
+                                <button type="button" class="btn-sec" onclick="incollaMailSecure()">&#128203; Incolla mail</button>
+                                <button type="button" class="btn-sec" onclick="copia('inPassSecure', 'Password Unieuro Secure copiata')">&#128203; Copia</button>
+                            </div>
+                        </div>
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
@@ -1174,22 +1182,64 @@
             if (e) { e.classList.add('errore'); e.focus(); }
         }
 
+        function analizzaInputMailSecure(raw) {
+            if (!raw) return false;
+            var txt = String(raw);
+            var mMail = txt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            var mPass = txt.match(/Password\s*[:=]\s*([^\s]+)/i);
+            if (mMail || mPass) {
+                if (mMail && el('inEmail')) {
+                    manualEdit = true;
+                    el('inEmail').value = mMail[0].trim();
+                }
+                if (mPass && el('inPassSecure')) {
+                    el('inPassSecure').value = mPass[1].trim();
+                } else if (mMail && el('inPassSecure')) {
+                    var resto = txt.replace(mMail[0], '').replace(/Email\s*[:=]/i, '').replace(/Password\s*[:=]/i, '').trim();
+                    var tok = resto.split(/\s+/).filter(Boolean);
+                    if (tok.length > 0) el('inPassSecure').value = tok[tok.length - 1];
+                }
+                if (el('chkSvcEveryday')) el('chkSvcEveryday').checked = true;
+                return true;
+            }
+            return false;
+        }
+
+        function incollaMailSecure() {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function(t) {
+                    if (!t) return;
+                    if (!analizzaInputMailSecure(t) && el('inPassSecure')) {
+                        el('inPassSecure').value = t.trim();
+                    }
+                    mostraEsito('\u2713 Credenziali Unieuro Secure inserite dagli appunti.', 'ok');
+                }).catch(function() {
+                    if (el('inPassSecure')) el('inPassSecure').focus();
+                });
+            } else if (el('inPassSecure')) {
+                el('inPassSecure').focus();
+            }
+        }
+
         // Costruisce i dati da inviare; null se manca qualcosa di obbligatorio.
         function datiCliente() {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
+            var passSecure = val('inPassSecure');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
             var everyday = el('chkSvcEveryday').checked;
             var cyber = el('chkSvcCyber').checked;
             var isClt = isCltNome(cognome, nome);
+            var haMailSecure = Boolean(passSecure && email && email.indexOf('@') > 0);
             var nomeCliente = (cognome + ' ' + nome).trim() || 'clt clt';
-            var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
+            var emailEffettiva = (isClt && !haMailSecure) ? '' : (email || ('utente@' + currentDomain));
             var passEffettiva = isClt ? '' : (pass || 'Utente123!');
-            if (email && email.indexOf('@') < 1 && !isClt) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
+            if (email && email.indexOf('@') < 1 && (!isClt || haMailSecure)) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
                 Email: emailEffettiva,
                 Password: passEffettiva,
+                PasswordSecure: passSecure,
                 Provider: currentProviderName,
                 Cliente: nomeCliente,
                 Nome: nome,
