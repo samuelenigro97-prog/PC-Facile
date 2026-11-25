@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PC Facile Chromebook - Configurazione ChromeOS v13.17.0</title>
+    <title>PC Facile Chromebook - Configurazione ChromeOS v13.18.0</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
         body {
@@ -302,7 +302,7 @@
                     <div class="u-logo">UNIEURO</div>
                     <div class="brand-titles">
                         <h1>PC Facile &mdash; Chromebook (ChromeOS)</h1>
-                        <p id="versioneText">Script PC Facile Chromebook v13.17.0 (2026-11-25) &middot; Avvio diretto da USB</p>
+                        <p id="versioneText">Script PC Facile Chromebook v13.18.0 (2026-11-25) &middot; Avvio diretto da USB</p>
                     </div>
                 </div>
                 <div class="badge-stato" id="badgeStato">ChromeOS Rilevato &middot; Pronto</div>
@@ -386,6 +386,12 @@
                             <button type="button" class="btn-sec" onclick="copiaCampo('inPassSecure', 'Password Unieuro Secure copiata')">Copia</button>
                         </div>
                     </div>
+
+                    <!-- CAMPO RAPIDO MODELLO / SERIALE (S/N) COMPATIBILE BARCODE -->
+                    <div class="field" style="margin-top:10px;">
+                        <label for="inSerialeCb">Modello Chromebook / Seriale (S/N) &mdash; <em>compatibile con lettore codice a barre USB</em></label>
+                        <input type="text" id="inSerialeCb" placeholder="es. Acer Chromebook CB315-4H · S/N: NX... (spara il barcode della scatola o digita)" oninput="aggiornaScheda()">
+                    </div>
                 </section>
 
                 <section class="section">
@@ -447,10 +453,13 @@
                 <section class="section">
                     <div class="section-head">
                         <div class="section-title">App Chromebook in Ordine Logico e Cromatico</div>
-                        <button type="button" class="btn-sec" onclick="apriAppProfiloSelezionato()">Installa / Apri tutte le app del profilo</button>
+                        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                            <button type="button" class="btn-sec" id="btnCodaApp" onclick="apriAppProfiloSelezionato()">Avvia Coda Guidata 1-Click</button>
+                            <button type="button" class="chip-btn" onclick="resetCodaApp()">Reset coda</button>
+                        </div>
                     </div>
                     <p class="muted" style="font-size:12.5px; margin-bottom:8px;">
-                        Su ChromeOS ogni pulsante apre direttamente la scheda ufficiale <strong>Google Play Store</strong> o la <strong>Web App PWA</strong> pronta da fissare sulla mensola (Shelf) del Chromebook nello stesso ordine cromatico di Windows e Mac.
+                        Per evitare il blocco popup di ChromeOS, il pulsante <strong>Avvia Coda Guidata 1-Click</strong> apre in ordine cromatico la prossima app del profilo ad ogni clic e la spunta in verde.
                     </p>
                     <div id="contenitoreAppCromatico"></div>
                 </section>
@@ -554,7 +563,7 @@
             <div class="terminal-box" id="termLog">
                 <div class="t-bar">
                     <span>UNIEURO &middot; CONSOLE PC FACILE CHROMEBOOK</span>
-                    <span id="termVer">v13.17.0</span>
+                    <span id="termVer">v13.18.0</span>
                 </div>
                 <div id="termOutput"></div>
             </div>
@@ -574,19 +583,19 @@
                     <div class="sc-logo"><span>UNIEURO</span> &middot; SCHEDA DI CONSEGNA CHROMEBOOK</div>
                     <div style="text-align:right; font-size:12.5px;">
                         <div><strong>Data:</strong> <span id="scData"></span></div>
-                        <div><strong>Versione Kit:</strong> v13.17.0</div>
+                        <div><strong>Versione Kit:</strong> v13.18.0</div>
                     </div>
                 </div>
 
                 <div class="sc-box">
                     <h4>1. Dispositivo &amp; Diagnostica Hardware Chromebook</h4>
                     <div class="sc-grid">
+                        <div><strong>Modello / Seriale (S/N):</strong> <span id="scSeriale">Chromebook Standard</span></div>
                         <div><strong>Sistema Operativo:</strong> <span id="scOs">ChromeOS (Italiano it-IT)</span></div>
                         <div><strong>Processore / Core:</strong> <span id="scCpu">Rilevamento...</span></div>
                         <div><strong>Memoria / Storage:</strong> <span id="scRamDisk">Rilevamento...</span></div>
                         <div><strong>Batteria &amp; Schermo:</strong> <span id="scBatRes">Rilevamento...</span></div>
-                        <div><strong>Crittografia Disco:</strong> <span>Google Titan C (Attiva su Account Google)</span></div>
-                        <div><strong>Stato Lingua &amp; Ora:</strong> <span id="scLangTz">it-IT &middot; Europe/Rome</span></div>
+                        <div><strong>Crittografia &amp; Lingua:</strong> <span id="scLangTz">Titan C Attiva &middot; it-IT</span></div>
                     </div>
                 </div>
 
@@ -620,8 +629,9 @@
     </div>
 
     <script>
-        var SCRIPT_VERSION = "13.17.0 (2026-11-25)";
+        var SCRIPT_VERSION = "13.18.0 (2026-11-25)";
         var PROFILO_CORRENTE = "BASE";
+        var APP_INSTALLATE_CB = {};
         var HW_INFO = {
             os: "ChromeOS",
             cpu: (navigator.hardwareConcurrency ? navigator.hardwareConcurrency + " Core logici" : "CPU ChromeOS"),
@@ -788,31 +798,60 @@
             var cont = document.getElementById("contenitoreAppCromatico");
             var html = "";
             var fasciaCorrente = "";
+            var totProfilo = 0;
+            var fatteProfilo = 0;
+            var prossimaApp = null;
             CATALOGO_CHROMEBOOK.forEach(function(a, idx) {
                 if (a.profili.indexOf(PROFILO_CORRENTE) === -1) return;
+                totProfilo++;
+                var fatta = !!APP_INSTALLATE_CB[idx];
+                if (fatta) fatteProfilo++;
+                else if (!prossimaApp) prossimaApp = { idx: idx, nome: a.nome };
                 if (a.fascia !== fasciaCorrente) {
                     if (fasciaCorrente !== "") html += "</div>";
                     fasciaCorrente = a.fascia;
                     html += '<div class="fascia-title">' + fasciaCorrente + '</div><div class="app-grid">';
                 }
+                var btnStile = fatta ? 'style="border-color:#22c55e; background:#14532d; color:#dcfce7;"' : '';
+                var btnTesto = fatta ? '&#10003; Aperta' : 'Installa';
                 html += '<div class="app-card">' +
                     '<span class="app-dot" style="background:' + a.colore + '"></span>' +
                     '<div class="app-info">' +
                         '<div class="app-name">' + a.nome + '</div>' +
                         '<div class="app-desc">' + a.desc + '</div>' +
                     '</div>' +
-                    '<button type="button" class="btn-sec" onclick="apriAppSingola(' + idx + ')">Installa</button>' +
+                    '<button type="button" class="btn-sec" ' + btnStile + ' onclick="apriAppSingola(' + idx + ')">' + btnTesto + '</button>' +
                 '</div>';
             });
             if (fasciaCorrente !== "") html += "</div>";
             cont.innerHTML = html;
+            var btnCoda = document.getElementById("btnCodaApp");
+            if (btnCoda) {
+                if (prossimaApp) {
+                    btnCoda.textContent = "Installa Prossima (" + (fatteProfilo + 1) + "/" + totProfilo + "): " + prossimaApp.nome;
+                } else {
+                    btnCoda.textContent = "Tutte le " + totProfilo + " app del profilo aperte ✓";
+                }
+            }
         }
 
         function apriAppSingola(idx) {
             var a = CATALOGO_CHROMEBOOK[idx];
             if (!a) return;
-            logTerm("Apertura installer ChromeOS: " + a.nome + "...", "info");
+            APP_INSTALLATE_CB[idx] = true;
+            if (a.nome.indexOf("Unieuro Secure") !== -1) {
+                var passSec = document.getElementById("inPassSecure").value.trim();
+                if (passSec) copiaTesto(passSec, "Password Unieuro Secure copiata negli appunti");
+            }
+            logTerm("Apertura installer ChromeOS: " + a.nome + "...", "ok");
             window.open(a.url, "_blank");
+            renderCatalogoApp();
+        }
+
+        function resetCodaApp() {
+            APP_INSTALLATE_CB = {};
+            renderCatalogoApp();
+            logTerm("Coda installazione app Chromebook azzerata.", "info");
         }
 
         function apriUnieuroSecurePlay() {
@@ -837,12 +876,19 @@
         }
 
         function apriAppProfiloSelezionato() {
-            CATALOGO_CHROMEBOOK.forEach(function(a) {
-                if (a.profili.indexOf(PROFILO_CORRENTE) !== -1) {
-                    window.open(a.url, "_blank");
+            var prossimaIdx = -1;
+            CATALOGO_CHROMEBOOK.forEach(function(a, idx) {
+                if (prossimaIdx === -1 && a.profili.indexOf(PROFILO_CORRENTE) !== -1 && !APP_INSTALLATE_CB[idx]) {
+                    prossimaIdx = idx;
                 }
             });
-            logTerm("Aperte le schede di installazione per il profilo " + PROFILO_CORRENTE + ".", "ok");
+            if (prossimaIdx !== -1) {
+                apriAppSingola(prossimaIdx);
+            } else {
+                APP_INSTALLATE_CB = {};
+                renderCatalogoApp();
+                logTerm("Tutte le app erano gia' state aperte: coda riavviata dalla prima app.", "info");
+            }
         }
 
         function logTerm(msg, tipo) {
@@ -904,11 +950,14 @@
         function aggiornaScheda() {
             var oggi = new Date();
             document.getElementById("scData").textContent = oggi.toLocaleDateString("it-IT") + " " + oggi.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+            var serEl = document.getElementById("inSerialeCb");
+            var serVal = serEl ? serEl.value.trim() : "";
+            document.getElementById("scSeriale").textContent = serVal || "Chromebook ChromeOS (S/N sulla confezione)";
             document.getElementById("scOs").textContent = HW_INFO.os;
             document.getElementById("scCpu").textContent = HW_INFO.cpu;
             document.getElementById("scRamDisk").textContent = HW_INFO.ram + " · " + HW_INFO.disk;
             document.getElementById("scBatRes").textContent = HW_INFO.battery + " · " + HW_INFO.res;
-            document.getElementById("scLangTz").textContent = HW_INFO.lang + " · " + HW_INFO.tz;
+            document.getElementById("scLangTz").textContent = "Google Titan C Attiva · " + HW_INFO.lang + " (" + HW_INFO.tz + ")";
 
             var c = document.getElementById("inCognome").value.trim();
             var n = document.getElementById("inNome").value.trim();

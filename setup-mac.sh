@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.24 (2026-11-25)"
+SCRIPT_VERSION="2.25 (2026-11-25)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1720,7 +1720,23 @@ cat <<EOF > "$HTML_CONSEGNA"
 </html>
 EOF
 
-ok "Scheda di consegna HTML creata sul Desktop: $HTML_CONSEGNA"
+ok "Scheda di consegna HTML creata: $HTML_CONSEGNA"
+PDF_CONSEGNA="$DESKTOP/Scheda-Consegna-Cliente.pdf"
+if $RUN_REALE && ! $MODO_TEST; then
+    _chrome_bin=""
+    if [[ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]]; then
+        _chrome_bin="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    elif [[ -x "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge" ]]; then
+        _chrome_bin="/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"
+    fi
+    if [[ -n "$_chrome_bin" ]]; then
+        "$_chrome_bin" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf="$PDF_CONSEGNA" "file://$HTML_CONSEGNA" >/dev/null 2>&1 || true
+        if [[ -s "$PDF_CONSEGNA" ]]; then
+            rm -f -- "$HTML_CONSEGNA" 2>/dev/null || true
+            ok "Scheda di consegna PDF generata sulla Scrivania: $PDF_CONSEGNA"
+        fi
+    fi
+fi
 update_pannello_mac_status 100 "Configurazione Mac Completata!" "Tutti i lavori terminati con successo" true
 
 # Pulizia file temporanei con credenziali in chiaro: pannello generato in /tmp
