@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.13.0 (2026-11-24)"
+$SCRIPT_VERSION = "13.14.0 (2026-11-25)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2652,6 +2652,14 @@ function Open-PannelloOperatore {
                     </div>
                     <div class="services-grid">
                         <label class="svc-item" style="grid-column: 1 / -1; border-color: #EE7203; background: rgba(238, 114, 3, 0.14); font-weight: 700;"><input type="checkbox" id="chkSvcEveryday" checked> <span>Unieuro Everyday Digital (Unieuro Secure + Cyber) &mdash; PRIORIT&Agrave;</span></label>
+                        <div style="grid-column: 1 / -1; background: #00122B; border: 1px dashed #EE7203; border-radius: 8px; padding: 8px 10px;">
+                            <label class="cred-label" for="inPassSecure" style="color: #fed7aa; margin-bottom: 4px;">Password Unieuro Secure (dalla mail del cliente, opz. &mdash; puoi anche incollare qui tutta la mail)</label>
+                            <div class="cred-box">
+                                <input type="text" id="inPassSecure" class="cred-input cred-mono" value="" placeholder="Es. N/qrWZ35 (o incolla testo mail)" autocomplete="off" oninput="analizzaInputMailSecure(this.value)">
+                                <button type="button" class="btn-sec" onclick="incollaMailSecure()">&#128203; Incolla mail</button>
+                                <button type="button" class="btn-sec" onclick="copia('inPassSecure', 'Password Unieuro Secure copiata')">&#128203; Copia</button>
+                            </div>
+                        </div>
                         <label class="svc-item"><input type="checkbox" id="chkSvcProton"> <span>Email Proton</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcMcAfee"> <span>Card McAfee</span></label>
                         <label class="svc-item"><input type="checkbox" id="chkSvcNorton"> <span>Card Norton</span></label>
@@ -3190,22 +3198,64 @@ function Open-PannelloOperatore {
             if (e) { e.classList.add('errore'); e.focus(); }
         }
 
+        function analizzaInputMailSecure(raw) {
+            if (!raw) return false;
+            var txt = String(raw);
+            var mMail = txt.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            var mPass = txt.match(/Password\s*[:=]\s*([^\s]+)/i);
+            if (mMail || mPass) {
+                if (mMail && el('inEmail')) {
+                    manualEdit = true;
+                    el('inEmail').value = mMail[0].trim();
+                }
+                if (mPass && el('inPassSecure')) {
+                    el('inPassSecure').value = mPass[1].trim();
+                } else if (mMail && el('inPassSecure')) {
+                    var resto = txt.replace(mMail[0], '').replace(/Email\s*[:=]/i, '').replace(/Password\s*[:=]/i, '').trim();
+                    var tok = resto.split(/\s+/).filter(Boolean);
+                    if (tok.length > 0) el('inPassSecure').value = tok[tok.length - 1];
+                }
+                if (el('chkSvcEveryday')) el('chkSvcEveryday').checked = true;
+                return true;
+            }
+            return false;
+        }
+
+        function incollaMailSecure() {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function(t) {
+                    if (!t) return;
+                    if (!analizzaInputMailSecure(t) && el('inPassSecure')) {
+                        el('inPassSecure').value = t.trim();
+                    }
+                    mostraEsito('\u2713 Credenziali Unieuro Secure inserite dagli appunti.', 'ok');
+                }).catch(function() {
+                    if (el('inPassSecure')) el('inPassSecure').focus();
+                });
+            } else if (el('inPassSecure')) {
+                el('inPassSecure').focus();
+            }
+        }
+
         // Costruisce i dati da inviare; null se manca qualcosa di obbligatorio.
         function datiCliente() {
             var cognome = val('inCognome'), nome = val('inNome'), telefono = val('inTelefono');
             var email = val('inEmail'), pass = val('inPass');
+            var passSecure = val('inPassSecure');
             ['inCognome', 'inNome', 'inTelefono', 'inEmail', 'inPass'].forEach(function(id) { if (el(id)) el(id).classList.remove('errore'); });
             var everyday = el('chkSvcEveryday').checked;
             var cyber = el('chkSvcCyber').checked;
             var isClt = isCltNome(cognome, nome);
+            var haMailSecure = Boolean(passSecure && email && email.indexOf('@') > 0);
             var nomeCliente = (cognome + ' ' + nome).trim() || 'clt clt';
-            var emailEffettiva = isClt ? '' : (email || ('utente@' + currentDomain));
+            var emailEffettiva = (isClt && !haMailSecure) ? '' : (email || ('utente@' + currentDomain));
             var passEffettiva = isClt ? '' : (pass || 'Utente123!');
-            if (email && email.indexOf('@') < 1 && !isClt) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
+            if (email && email.indexOf('@') < 1 && (!isClt || haMailSecure)) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
                 Email: emailEffettiva,
                 Password: passEffettiva,
+                PasswordSecure: passSecure,
                 Provider: currentProviderName,
                 Cliente: nomeCliente,
                 Nome: nome,
@@ -3543,6 +3593,11 @@ function Set-DatiCliente {
         }
         if ($Dati.Provider) { $Global:credProvider = [string]$Dati.Provider }
         if ($Dati.Telefono) { $Global:telefonoCliente = [string]$Dati.Telefono }
+        $Global:credSecurePassword = if ($Dati.PasswordSecure) { [string]$Dati.PasswordSecure.Trim() } else { "" }
+        if ($Global:credSecurePassword -and $Dati.Email) {
+            $Global:credMsAccount = [string]$Dati.Email
+            $script:credMsAccount = [string]$Dati.Email
+        }
         if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
         if ($Dati.Servizi) {
             $Global:serviziSelezionati = $Dati.Servizi
@@ -3648,11 +3703,24 @@ function Read-DatiClienteConsole {
 # e completa tutta la configurazione senza bloccarsi.
 function Wait-DatiCliente {
     [CmdletBinding()]
-    param([string]$Motivo = "", [int]$TimeoutSec = 30)
+    param([string]$Motivo = "", [int]$TimeoutSec = 0)
     if ($Global:DatiClienteRicevuti) { return $true }
     if ($Test -or $Global:Test -or $env:PESTER_TEST) { return (Set-DatiCliente (Get-DatiClienteTest)) }
     if (Get-CredenzialiSalvatePannello) { return $true }
-    if (-not $Global:PannelloDisponibile) { return (Read-DatiClienteConsole) }
+    if (-not $Global:PannelloDisponibile -and $TimeoutSec -gt 0) { return (Read-DatiClienteConsole) }
+
+    if ($TimeoutSec -le 0) {
+        $std = [pscustomobject]@{
+            Conferma = $true; Cliente = 'Utente'; Nome = 'Utente'; Cognome = ''
+            Email = ''; Password = ''; Provider = 'Microsoft'
+            Telefono = ''; ProfiloApp = 'BASE'
+            Servizi = [pscustomobject]@{ Everyday = $true; Proton = $false; Office = $false; OfficeTipo = 'no'; McAfee = $false; Norton = $false; Cyber = $false }
+        }
+        [void](Set-DatiCliente $std)
+        $Global:SkipAccountPrompt = $true
+        Write-OK "Avvio diretto (0s attesa): procedo subito in automatico. Puoi inserire i dati cliente nel pannello in qualsiasi momento."
+        return $true
+    }
 
     Update-PannelloStatus -AttesaDati 'si' -Dettaglio "Dati cliente opzionali: conferma nel pannello entro ${TimeoutSec}s (altrimenti continuo da solo)"
     Write-Host ""
@@ -7155,8 +7223,9 @@ function Invoke-EverydayDigital {
                 $scaricato = $true
             }
             if ($scaricato -and $RunReale) {
-                if ($Utente -and -not $Global:IsCltMode) {
-                    Mostra-CredenzialiPagina -Utente $Utente -Password $Password -NonBlocca
+                $passPerSecure = if ($Global:credSecurePassword) { $Global:credSecurePassword } else { $Password }
+                if (($Utente -and -not $Global:IsCltMode) -or $Global:credSecurePassword) {
+                    Mostra-CredenzialiPagina -Utente $Utente -Password $passPerSecure -NonBlocca
                 }
                 Write-Info "Installazione automatica silenziosa di Unieuro Secure in corso (max 4 min)..."
                 $lnkPrimaFs = @(Get-StartMenuLnks | ForEach-Object { $_.FullName })
@@ -9348,6 +9417,9 @@ if ($RunReale) {
         $av = @($Report | Where-Object { ($_.Voce -like '*antivirus*' -or $_.Voce -like '*protezione*') -and $_.Esito -eq 'OK' })
         $altre = @($Report | Where-Object { $_.Voce -notlike '*installazione*' -and $_.Voce -notlike '*antivirus*' -and $_.Voce -notlike '*protezione*' })
 
+        # Rilegge eventuali dati cliente confermati nel pannello durante la Fase 2
+        try { [void](Get-CredenzialiSalvatePannello) } catch {}
+
         # --- VERIFICA FINALE: le cose importanti sono andate DAVVERO? (ricontrollo
         #     lo stato vero, non mi fido degli esiti dei singoli passi). ---
         $verifica = @()
@@ -9522,14 +9594,21 @@ if ($RunReale) {
                 $notaAv = if ($a.Voce -like '*protezione*') { "Cyber Protection: password creata dal sito, arriva via email al cliente &bull; PIN card: __________" } else { "Attivato con l'account principale &bull; PIN card: __________" }
                 $avRighe += "<tr><td style='font-weight: 600;'>$($svcAv):</td><td>$notaAv</td></tr>"
             }
+            $rigaPassSecure = if ($Global:credSecurePassword) {
+                "<tr><td style='font-weight: 600;'>Password Unieuro Secure:</td><td><code style='font-size: 14px; font-weight: bold; background: #ffedd5; color: #c2410c; padding: 2px 8px; border-radius: 4px;'>$([System.Net.WebUtility]::HtmlEncode($Global:credSecurePassword))</code> <em style='color: #64748b; font-size: 11px; margin-left: 8px;'>(dalla mail Unieuro Secure)</em></td></tr>"
+            } else { "" }
             $credBox = ""
-            if ((-not $isClt) -and ($credMsAccount -or $credMsPassword)) {
+            if (((-not $isClt) -and ($credMsAccount -or $credMsPassword)) -or $Global:credSecurePassword) {
+                $rigaPassIniziale = if ((-not $isClt) -and $credMsPassword) {
+                    "<tr><td style='font-weight: 600;'>Password iniziale:</td><td><code style='font-size: 14px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px;'>$credMsPassword</code> <em style='color: #64748b; font-size: 11px; margin-left: 8px;'>(da personalizzare al primo accesso)</em></td></tr>"
+                } else { "" }
                 $credBox = @"
             <div class='card card-cred'>
                 <h3>&#128273; Credenziali di Primo Accesso &bull; $provNome</h3>
                 <table class='info-table'>
                     <tr><td style='width: 32%; font-weight: 600;'>Email / Utente:</td><td><strong style='font-size: 14px; color: #00122B;'>$credMsAccount</strong></td></tr>
-                    <tr><td style='font-weight: 600;'>Password iniziale:</td><td><code style='font-size: 14px; font-weight: bold; background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px;'>$credMsPassword</code> <em style='color: #64748b; font-size: 11px; margin-left: 8px;'>(da personalizzare al primo accesso)</em></td></tr>
+                    $rigaPassIniziale
+                    $rigaPassSecure
                     <tr><td style='font-weight: 600;'>Account Windows:</td><td><code>$clienteDisplay</code></td></tr>
                     <tr><td style='font-weight: 600;'>Servizi inclusi:</td><td>Windows 11, Office / Microsoft 365, Antivirus &bull; Card PIN annotato</td></tr>
                     $avRighe
