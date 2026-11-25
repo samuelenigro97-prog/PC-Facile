@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.14.0 (2026-11-25)"
+$SCRIPT_VERSION = "13.15.0 (2026-11-25)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -4311,6 +4311,52 @@ function Install-VisualCRuntime {
     return $allOk
 }
 
+function Enable-WindowsUpdateAutoSettings {
+    param([switch]$Test)
+    if ($Test -or -not $RunReale) { return }
+    try {
+        # Attiva l'interruttore "Ottieni gli ultimi aggiornamenti non appena sono disponibili"
+        # (Windows 11 22H2/23H2/24H2/25H2) e abilita gli aggiornamenti facoltativi/di anteprima
+        $uxKey = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'
+        if (-not (Test-Path $uxKey)) { New-Item -Path $uxKey -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $uxKey -Name 'IsContinuousInnovationOptedIn' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $uxKey -Name 'ExcludeWUDriversInQualityUpdate' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        $polWuKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+        if (-not (Test-Path $polWuKey)) { New-Item -Path $polWuKey -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $polWuKey -Name 'AllowTemporaryEnterpriseFeatureControl' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $polWuKey -Name 'AllowOptionalContent' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        $auKey = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update'
+        if (-not (Test-Path $auKey)) { New-Item -Path $auKey -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $auKey -Name 'AUOptions' -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $auKey -Name 'IncludeRecommendedUpdates' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        $polAuKey = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+        if (-not (Test-Path $polAuKey)) { New-Item -Path $polAuKey -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $polAuKey -Name 'NoAutoUpdate' -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $polAuKey -Name 'AUOptions' -Value 4 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $polAuKey -Name 'AllowMUUpdateService' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $polAuKey -Name 'IncludeRecommendedUpdates' -Value 1 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        try {
+            Set-Service -Name 'wuauserv' -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name 'wuauserv' -ErrorAction SilentlyContinue
+            Start-Service -Name 'UsoSvc' -ErrorAction SilentlyContinue
+        } catch {}
+
+        try {
+            $sm = New-Object -ComObject Microsoft.Update.ServiceManager
+            $null = $sm.AddService2('7971f918-a847-4430-9279-4a52d1efe18d', 7, '')
+        } catch {}
+
+        $uso = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
+        if (Test-Path -LiteralPath $uso) {
+            Start-Process -FilePath $uso -ArgumentList 'StartInteractiveScan' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch {}
+}
+
 function Install-WindowsUpdateDrivers {
     param(
         [int]$TimeoutSec = 360,
@@ -4322,6 +4368,7 @@ function Install-WindowsUpdateDrivers {
         Update-PannelloStatus -TaskId "driver" -Stato "done" -Percentuale 72 -Dettaglio "Completato (test)"
         return @{ Esito = "OK"; Trovati = 0; Installati = 0; RebootRequired = $false }
     }
+    Enable-WindowsUpdateAutoSettings
 
     Write-Info "Ricerca e installazione driver su Windows Update in corso (max $([math]::Round($TimeoutSec/60)) min)..."
     Write-Host "  (Puoi premere 'S' o 'Esc' in qualsiasi momento per saltare)" -ForegroundColor Yellow
@@ -9189,11 +9236,15 @@ if ($vuoiUpgrade -match "^[Ss]") {
         }
     }
 
-    # 3) AGGIORNAMENTI DI SICUREZZA DI WINDOWS: download in background (qui sotto),
-    #    installazione alla fine, subito prima del riavvio. I driver sono gia'
-    #    stati fatti al passo precedente: nessuna contesa su Windows Update.
+    # 3) AGGIORNAMENTI DI SICUREZZA DI WINDOWS: attiva "Ottieni gli ultimi
+    #    aggiornamenti non appena sono disponibili", avvia il download in
+    #    background (qui sotto) e installa tutto alla fine prima del riavvio.
     Write-Host ""
-    Write-Info "Aggiornamenti Windows: download in background, installazione a fine lavoro."
+    if ($RunReale) {
+        Enable-WindowsUpdateAutoSettings
+        Write-OK "Windows Update: attivato 'Ottieni gli ultimi aggiornamenti non appena sono disponibili'."
+    }
+    Write-Info "Aggiornamenti Windows (inclusi cumulativi e anteprima): download in background, installazione a fine lavoro."
     $Global:AvviaWinUpdateDopoDriver = $true
     if ($Test) {
         Write-OK "TEST: simulazione download aggiornamenti Windows programmato in background."
@@ -9216,18 +9267,25 @@ if ($Global:AvviaWinUpdateDopoDriver -and -not $Global:JobWinUpdate -and -not $T
     try {
         $Global:JobWinUpdate = Start-Job -ScriptBlock {
             try {
-                $s    = New-Object -ComObject Microsoft.Update.Session
-                $res  = $s.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+                $uso = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
+                if (Test-Path -LiteralPath $uso) {
+                    Start-Process -FilePath $uso -ArgumentList 'StartInteractiveScan' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+                    Start-Process -FilePath $uso -ArgumentList 'StartDownload' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+                }
+                $s = New-Object -ComObject Microsoft.Update.Session
+                $searcher = $s.CreateUpdateSearcher()
+                try { $searcher.Online = $true } catch {}
+                $res  = $searcher.Search("IsInstalled=0 and IsHidden=0")
                 $coll = New-Object -ComObject Microsoft.Update.UpdateColl
                 foreach ($u in $res.Updates) {
                     if ($u.InstallationBehavior -and $u.InstallationBehavior.CanRequestUserInput) { continue }
                     if (-not $u.EulaAccepted) { try { $u.AcceptEula() } catch {} }
-                    $coll.Add($u) | Out-Null
+                    if (-not $u.IsDownloaded) { $coll.Add($u) | Out-Null }
                 }
                 if ($coll.Count -gt 0) {
                     $dl = $s.CreateUpdateDownloader(); $dl.Updates = $coll; $dl.Download() | Out-Null
                 }
-                return $coll.Count
+                return $res.Updates.Count
             } catch { return -1 }
         }
         Write-OK "Download aggiornamenti Windows avviato in background."
@@ -9882,51 +9940,84 @@ if ($RunReale) {
 }
 
 # AGGIORNAMENTI WINDOWS: erano in DOWNLOAD in background. Ora (dopo driver e
-# antivirus, cosi' non c'e' un'altra installazione Windows Update in corso) li
-# INSTALLO, poi il riavvio finale li finalizza ("Configurazione aggiornamenti").
-if ($RunReale -and $Global:JobWinUpdate) {
+# antivirus, cosi' non c'e' un'altra installazione Windows Update in corso)
+# completo eventuali download residui e INSTALLO tutti gli aggiornamenti
+# disponibili (inclusi cumulativi e anteprima), sincronizzando anche UsoClient
+# cosi' non resta il pulsante "Scarica e installa tutto" da premere a mano.
+if ($RunReale -and ($Global:JobWinUpdate -or $Global:AvviaWinUpdateDopoDriver)) {
     Write-Host ""
-    Write-Info "Completo il download degli aggiornamenti di Windows (avviato prima in background)..."
-    Start-BarraAnimata "Aggiornamenti Windows: completo il download"
-    try { Wait-Job $Global:JobWinUpdate -Timeout 600 | Out-Null } catch {} finally { Stop-BarraAnimata }
-    $nWU = 0; try { $nWU = [int](Receive-Job $Global:JobWinUpdate -ErrorAction SilentlyContinue | Select-Object -Last 1) } catch {}
-    Stop-Job $Global:JobWinUpdate -ErrorAction SilentlyContinue
-    Remove-Job $Global:JobWinUpdate -Force -ErrorAction SilentlyContinue
-    if ($nWU -gt 0) {
-        Write-Info "Installo gli aggiornamenti scaricati (si completano al riavvio)..."
-        Start-BarraAnimata "Installo gli aggiornamenti di Windows (max 5 min)"
-        try {
-            $jobFinInstall = Start-Job -ScriptBlock {
-                try {
-                    $sFin = New-Object -ComObject Microsoft.Update.Session
-                    $rFin = $sFin.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0")
-                    $cFin = New-Object -ComObject Microsoft.Update.UpdateColl
-                    foreach ($u in $rFin.Updates) {
-                        if ($u.InstallationBehavior -and $u.InstallationBehavior.CanRequestUserInput) { continue }
-                        if (-not $u.EulaAccepted) { try { $u.AcceptEula() } catch {} }
-                        if ($u.IsDownloaded) { $cFin.Add($u) | Out-Null }
-                    }
-                    if ($cFin.Count -gt 0) {
-                        $iFin = $sFin.CreateUpdateInstaller()
-                        $iFin.Updates = $cFin
-                        $res = $iFin.Install()
-                        return $res.ResultCode
-                    }
-                    return 0
-                } catch { return -1 }
-            }
-            if (Wait-Job $jobFinInstall -Timeout 300) {
-                Receive-Job $jobFinInstall -ErrorAction SilentlyContinue | Out-Null
-                Write-OK "Aggiornamenti di Windows applicati: il riavvio li completa."
-            } else {
-                Stop-Job $jobFinInstall -ErrorAction SilentlyContinue
-                Write-Info "Tempo massimo installazione aggiornamenti raggiunto: il riavvio finale finalizzera' l'installazione."
-            }
-            Remove-Job $jobFinInstall -Force -ErrorAction SilentlyContinue
-        } catch {} finally { Stop-BarraAnimata }
-    } else {
-        Write-OK "Windows e' gia' aggiornato (nessun aggiornamento da installare)."
+    Enable-WindowsUpdateAutoSettings
+    if ($Global:JobWinUpdate) {
+        Write-Info "Completo il download degli aggiornamenti di Windows (avviato prima in background)..."
+        Start-BarraAnimata "Aggiornamenti Windows: completo il download"
+        try { Wait-Job $Global:JobWinUpdate -Timeout 600 | Out-Null } catch {} finally { Stop-BarraAnimata }
+        try { $null = Receive-Job $Global:JobWinUpdate -ErrorAction SilentlyContinue } catch {}
+        Stop-Job $Global:JobWinUpdate -ErrorAction SilentlyContinue
+        Remove-Job $Global:JobWinUpdate -Force -ErrorAction SilentlyContinue
     }
+    Write-Info "Scarico e installo tutti gli aggiornamenti Windows disponibili (inclusi anteprima)..."
+    Start-BarraAnimata "Installo gli aggiornamenti di Windows (max 10 min)"
+    try {
+        $jobFinInstall = Start-Job -ScriptBlock {
+            try {
+                $uso = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
+                if (Test-Path -LiteralPath $uso) {
+                    Start-Process -FilePath $uso -ArgumentList 'StartInteractiveScan' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+                }
+                $sFin = New-Object -ComObject Microsoft.Update.Session
+                $searcherFin = $sFin.CreateUpdateSearcher()
+                try { $searcherFin.Online = $true } catch {}
+                $rFin = $searcherFin.Search("IsInstalled=0 and IsHidden=0")
+                $daScaricare = New-Object -ComObject Microsoft.Update.UpdateColl
+                $cFin = New-Object -ComObject Microsoft.Update.UpdateColl
+                foreach ($u in $rFin.Updates) {
+                    if ($u.InstallationBehavior -and $u.InstallationBehavior.CanRequestUserInput) { continue }
+                    if (-not $u.EulaAccepted) { try { $u.AcceptEula() } catch {} }
+                    if (-not $u.IsDownloaded) { $daScaricare.Add($u) | Out-Null }
+                }
+                if ($daScaricare.Count -gt 0) {
+                    $dlFin = $sFin.CreateUpdateDownloader()
+                    $dlFin.Updates = $daScaricare
+                    $dlFin.Download() | Out-Null
+                }
+                foreach ($u in $rFin.Updates) {
+                    if ($u.InstallationBehavior -and $u.InstallationBehavior.CanRequestUserInput) { continue }
+                    if ($u.IsDownloaded) { $cFin.Add($u) | Out-Null }
+                }
+                $installatiCount = $cFin.Count
+                if ($installatiCount -gt 0) {
+                    $iFin = $sFin.CreateUpdateInstaller()
+                    $iFin.Updates = $cFin
+                    $null = $iFin.Install()
+                }
+                if (Test-Path -LiteralPath $uso) {
+                    Start-Process -FilePath $uso -ArgumentList 'StartDownload' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+                    Start-Sleep -Seconds 2
+                    Start-Process -FilePath $uso -ArgumentList 'StartInstall' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+                }
+                return $installatiCount
+            } catch { return -1 }
+        }
+        if (Wait-Job $jobFinInstall -Timeout 600) {
+            $nInst = [int](Receive-Job $jobFinInstall -ErrorAction SilentlyContinue | Select-Object -Last 1)
+            if ($nInst -gt 0) {
+                Write-OK "Aggiornamenti di Windows installati ($nInst): il riavvio finale li completa."
+            } else {
+                Write-OK "Windows Update allineato e aggiornamenti avviati."
+            }
+        } else {
+            Stop-Job $jobFinInstall -ErrorAction SilentlyContinue
+            Write-Info "Tempo massimo installazione aggiornamenti raggiunto: il riavvio finale finalizzera' l'installazione."
+        }
+        Remove-Job $jobFinInstall -Force -ErrorAction SilentlyContinue
+    } catch {} finally { Stop-BarraAnimata }
+    try {
+        $usoFin = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
+        if (Test-Path -LiteralPath $usoFin) {
+            Start-Process -FilePath $usoFin -ArgumentList 'StartDownload' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+            Start-Process -FilePath $usoFin -ArgumentList 'StartInstall' -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch {}
 }
 
 # MENU DI CHIUSURA: Check Salute PC oppure Riavvio (il pannello web resta collegato!)

@@ -1353,4 +1353,14 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $script:SrcBat | Should -Match 'cpikpibllpjmpnchjajlibnmmomnnhnm'
         $script:SrcBat | Should -Match 'jmjjnhpacphpjmnnlnccpfmhkcloaade'
     }
+    It 'attiva Ottieni gli ultimi aggiornamenti non appena sono disponibili (IsContinuousInnovationOptedIn) e forza UsoClient StartDownload/StartInstall' {
+        $fnWu = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Enable-WindowsUpdateAutoSettings' }, $true) | Select-Object -First 1
+        $fnWu | Should -Not -BeNullOrEmpty
+        $fnWu.Extent.Text | Should -Match 'IsContinuousInnovationOptedIn'
+        $fnWu.Extent.Text | Should -Match 'AllowOptionalContent'
+        $fnWu.Extent.Text | Should -Match 'IncludeRecommendedUpdates'
+        $script:SrcPs1 | Should -Match 'StartInteractiveScan'
+        $script:SrcPs1 | Should -Match 'StartDownload'
+        $script:SrcPs1 | Should -Match 'StartInstall'
+    }
 }
