@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.21 (2026-11-25)"
+SCRIPT_VERSION="2.22 (2026-11-25)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1574,7 +1574,12 @@ if $RUN_REALE; then
         info "Aggiorno le app installate con Homebrew..."
         brew upgrade </dev/null >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."
     fi
-    info "Scarico gli aggiornamenti di macOS (max 90s, nessuna richiesta password)..."
+    info "Attivo gli aggiornamenti automatici di macOS e scarico gli aggiornamenti disponibili (max 90s)..."
+    sudo -n defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticCheckEnabled -bool true 2>/dev/null || true
+    sudo -n defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool true 2>/dev/null || true
+    sudo -n defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true 2>/dev/null || true
+    sudo -n defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool true 2>/dev/null || true
+    sudo -n defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true 2>/dev/null || true
     sudo -n softwareupdate --download --all </dev/null >/dev/null 2>&1 &
     _su_pid=$!
     _su_ok=false
