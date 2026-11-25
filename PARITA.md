@@ -107,6 +107,9 @@ allineati come flusso e funzioni.
     3. **Web & Comunicazione**: `Google Chrome` (Multicolore) → `Zoom Workplace` (Blu) → `WhatsApp` (Verde) → `Discord` (Viola) → `AnyDesk` (Rosso) → `TeamViewer` (Blu);
     4. **Multimedia, Utilità & Gaming**: `Spotify` (Verde) → `VLC` (Arancio) → `AIMP` (Arancio dorato) → `GIMP` (Ambra) → `7-Zip` / `The Unarchiver` → `Steam` (Blu notte) → `Epic Games` (Nero);
     5. **Documento finale**: `Scheda-Consegna-Cliente.pdf` / `Scheda-Consegna-Mac.html` in fondo.
+- **Versione per Chromebook / ChromeOS sulla chiavetta USB (`PC Facile Chromebook.html` — v13.17.0 / Mac 2.24)**:
+  - Aggiunto `PC Facile Chromebook.html` nella radice della chiavetta USB (incluso in `manifest.txt` e nello ZIP pulito di GitHub): aprendolo con doppio clic dall'app *File* di qualsiasi Chromebook si avvia a 0 secondi direttamente in Chrome con lo stesso layout a 2 colonne (Pannello Operatore a sinistra + Console Terminale e Scheda Consegna PDF a destra).
+  - Include il parser automatico `Incolla mail Unieuro Secure` (`analizzaInputMailSecure`), gestione `clt clt` / `Utente`, installazione 1-Click di **Unieuro Secure (F-Secure Play Store)** + **Browsing Protection by F-Secure (Chrome Web Store)** + **Unieuro Cyber Protection**, catalogo app ChromeOS/Play Store/PWA nello stesso **ordine logico e cromatico** (Office → Sicurezza Unieuro → Browser/Comunicazione → Multimedia/Gaming), diagnostica hardware ChromeOS in tempo reale (CPU, RAM, Storage eMMC/SSD, Batteria, Titan C) e stampa/salvataggio diretto di `Scheda-Consegna-Cliente.pdf` / `.html`.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.

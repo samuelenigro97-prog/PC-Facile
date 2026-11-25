@@ -77,7 +77,7 @@ Tasto destro → **Salva con nome** → `PC Facile.bat` sulla chiavetta.
 **Chiavetta sempre aggiornata (automatico):** a ogni avvio con Internet,
 `PC Facile.bat` (e su Mac `PC Facile.command`) scarica `manifest.txt` da GitHub
 e aggiorna sulla chiavetta **tutti** i file di PC Facile (`setup-pc.ps1`,
-`PC Facile.bat`, `PC Facile.command`, `setup-mac.sh`, le impronte `.sha256`,
+`PC Facile.bat`, `PC Facile.command`, `PC Facile Chromebook.html`, `setup-mac.sh`, le impronte `.sha256`,
 `LEGGIMI.md` e i file Wi-Fi del negozio `wifi/wifi.txt` e
 `wifi/UNIEURO_EXPO.xml`). Ogni file viene verificato con lo **SHA256** del manifest prima di
 sostituire la copia; se qualcosa non va (offline, download interrotto, hash

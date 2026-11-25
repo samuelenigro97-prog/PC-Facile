@@ -755,7 +755,7 @@ Describe 'manifest.txt (file della chiavetta)' {
     }
     It 'elenca tutti i file necessari alla chiavetta' {
         $nomi = $script:Voci | ForEach-Object { $_.Percorso }
-        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
+        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'PC Facile Chromebook.html', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
             $nomi | Should -Contain $f
         }
     }
@@ -1377,5 +1377,16 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         (Get-DesktopIconPriority 'Spotify') | Should -BeLessThan (Get-DesktopIconPriority 'VLC media player')
         (Get-DesktopIconPriority 'VLC media player') | Should -BeLessThan (Get-DesktopIconPriority '7-Zip File Manager')
         (Get-DesktopIconPriority '7-Zip File Manager') | Should -BeLessThan (Get-DesktopIconPriority 'Scheda-Consegna-Cliente')
+    }
+    It 'include PC Facile Chromebook.html completo di parser mail Unieuro Secure, Browsing Protection, ordine cromatico e scheda PDF' {
+        $cbPath = Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile Chromebook.html'
+        Test-Path -LiteralPath $cbPath | Should -BeTrue
+        $cbHtml = Get-Content -LiteralPath $cbPath -Raw
+        $cbHtml | Should -Match 'analizzaInputMailSecure'
+        $cbHtml | Should -Match 'jmjjnhpacphpjmnnlnccpfmhkcloaade'
+        $cbHtml | Should -Match 'com\.fsecure\.ms\.unieuro'
+        $cbHtml | Should -Match 'isCltNome'
+        $cbHtml | Should -Match 'CATALOGO_CHROMEBOOK'
+        $cbHtml | Should -Match 'window\.print\(\)'
     }
 }
