@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.17.0 (2026-11-25)"
+$SCRIPT_VERSION = "13.18.0 (2026-11-25)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -6141,19 +6141,34 @@ function Get-AppxPackageIcon {
     return $null
 }
 
-# Forza l'aggiornamento immediato della cache delle icone della shell di Windows
+# Forza l'aggiornamento immediato della cache delle icone e della griglia Desktop di Explorer
 function Update-DesktopIconCache {
     try {
         $code = @'
         using System;
         using System.Runtime.InteropServices;
         public class PCFacileShellNotify {
-            [DllImport("shell32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+            [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
             public static extern void SHChangeNotify(int wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
+            public static void NotifyDir(string path) {
+                if (string.IsNullOrEmpty(path)) return;
+                IntPtr ptr = Marshal.StringToHGlobalUni(path);
+                try {
+                    // SHCNE_UPDATEDIR (0x1000) | SHCNF_PATHW (0x0005) | SHCNF_FLUSH (0x1000)
+                    SHChangeNotify(0x00001000, 0x1005, ptr, IntPtr.Zero);
+                } finally {
+                    Marshal.FreeHGlobal(ptr);
+                }
+            }
         }
 '@
         Add-Type -TypeDefinition $code -ErrorAction SilentlyContinue
         [PCFacileShellNotify]::SHChangeNotify(0x08000000, 0x1000, [IntPtr]::Zero, [IntPtr]::Zero)
+        foreach ($d in @((Get-DesktopDir), [Environment]::GetFolderPath('CommonDesktopDirectory'))) {
+            if ($d -and (Test-Path -LiteralPath $d)) {
+                [PCFacileShellNotify]::NotifyDir($d)
+            }
+        }
     } catch {}
     try { Start-Process "ie4uinit.exe" -ArgumentList "-show" -WindowStyle Hidden -ErrorAction SilentlyContinue } catch {}
 }

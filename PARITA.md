@@ -28,7 +28,7 @@ allineati come flusso e funzioni.
 | Avviso sonoro fine passo    | `[console]::Beep`                         | `printf '\a'`                                 | pari |
 | Bip di richiamo se non rispondi| runspace: dopo 2 min bip corto ogni ~4s | —                                             | solo Win |
 | Credenziali (esist./gen.)   | `Nome123!` + `Set-Clipboard`              | `Nome123!` + `pbcopy`                         | pari |
-| Report finale / Scheda      | Desktop solo `Scheda-Consegna-Cliente.pdf` (ripiego `.html` se il PDF fallisce); riepilogo tecnico in `C:\ProgramData\PCFacile\log` | Desktop solo `Scheda-Consegna-Mac.html` | pari (un solo file sul Desktop; su Mac niente PDF automatico) |
+| Report finale / Scheda      | Desktop solo `Scheda-Consegna-Cliente.pdf` (ripiego `.html` se il PDF fallisce); riepilogo tecnico in `C:\ProgramData\PCFacile\log` | Desktop solo `Scheda-Consegna-Cliente.pdf` via Chrome/Edge headless (ripiego `Scheda-Consegna-Mac.html` se headless non disponibile) | pari (PDF automatico su entrambi) |
 | Assist credenziali pagine   | copia email/password negli appunti quando apre Cyber Protection/antivirus | — | solo Win |
 | Pulizia finale (auto-elimina)| rimuove `%TEMP%\setup-pc.ps1` + reg colori + checkpoint | `rm` dello script scaricato in `/tmp` | pari |
 | Ripresa sessione interrotta | checkpoint JSON in `ProgramData\PCFacile` (anche fine dentro il passo App: profilo + app gia' fatte) | —          | solo Win |
@@ -110,6 +110,11 @@ allineati come flusso e funzioni.
 - **Versione per Chromebook / ChromeOS sulla chiavetta USB (`PC Facile Chromebook.html` — v13.17.0 / Mac 2.24)**:
   - Aggiunto `PC Facile Chromebook.html` nella radice della chiavetta USB (incluso in `manifest.txt` e nello ZIP pulito di GitHub): aprendolo con doppio clic dall'app *File* di qualsiasi Chromebook si avvia a 0 secondi direttamente in Chrome con lo stesso layout a 2 colonne (Pannello Operatore a sinistra + Console Terminale e Scheda Consegna PDF a destra).
   - Include il parser automatico `Incolla mail Unieuro Secure` (`analizzaInputMailSecure`), gestione `clt clt` / `Utente`, installazione 1-Click di **Unieuro Secure (F-Secure Play Store)** + **Browsing Protection by F-Secure (Chrome Web Store)** + **Unieuro Cyber Protection**, catalogo app ChromeOS/Play Store/PWA nello stesso **ordine logico e cromatico** (Office → Sicurezza Unieuro → Browser/Comunicazione → Multimedia/Gaming), diagnostica hardware ChromeOS in tempo reale (CPU, RAM, Storage eMMC/SSD, Batteria, Titan C) e stampa/salvataggio diretto di `Scheda-Consegna-Cliente.pdf` / `.html`.
+- **Parità `Scheda-Consegna-Cliente.pdf` su Mac, Coda 1-Click & Seriale Barcode su Chromebook, Refresh live Desktop Windows e `LEGGIMI.md` aggiornato (Win & Mac & Chromebook — v13.18.0 / Mac 2.25)**:
+  - **Mac PDF automatico**: `setup-mac.sh` converte automaticamente `Scheda-Consegna-Mac.html` in `~/Desktop/Scheda-Consegna-Cliente.pdf` tramite Chrome/Edge `--headless --print-to-pdf` e rimuove il file `.html` temporaneo (mantenendolo solo come fallback).
+  - **Chromebook Coda 1-Click & Seriale Barcode**: in `PC Facile Chromebook.html` aggiunto il campo `inSerialeCb` (compatibile con pistola barcode USB per stampare Modello e S/N nel PDF) e trasformato il pulsante di installazione multipla in una coda guidata 1-Click (`APP_INSTALLATE_CB`) che apre le app una alla volta in ordine cromatico evitando il blocco popup di ChromeOS.
+  - **Windows Refresh Live Griglia Desktop**: `Update-DesktopIconCache` invia anche `SHCNE_UPDATEDIR` (`0x1000` + `SHCNF_PATHW | SHCNF_FLUSH`) su `User\Desktop` e `Public\Desktop` per ridisegnare immediatamente a schermo le icone riordinate prima del riavvio.
+  - **Documentazione `LEGGIMI.md`**: allineata al flusso a 0 secondi per Windows (`.bat`), Mac (`.command`) e Chromebook (`.html`).
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.

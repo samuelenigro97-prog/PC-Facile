@@ -1,106 +1,53 @@
-# PC Facile — `setup-pc.ps1`
+# PC Facile — Kit USB Unieuro (Windows · Mac · Chromebook)
 
-Script PowerShell per configurare i PC Windows dei clienti (negozio informatica):
-lingua italiana, nome cliente, Office, antivirus/protezione, browser, app base,
-con **report finale** degli esiti.
-
----
-
-## 0. Prima di Iniziare — Lingua in Italiano
-
-I PC installati da chiavetta USB spesso saltano la scelta lingua e partono in
-**inglese**. La **fase 1** dello script imposta tutto in `it-IT` (display, formati,
-tastiera, language pack). La lingua di **sistema** si applica del tutto **dopo il
-riavvio**.
-
-> Se preferisci farlo a mano prima: Impostazioni → Ora e lingua → Lingua e area
-> geografica → aggiungi **Italiano (Italia)** e impostalo come predefinito.
+Kit automatico da chiavetta USB per configurare in negozio PC **Windows**, **Apple Mac** e **Chromebook (ChromeOS)**:
+- **Unieuro Everyday Digital** (**Unieuro Secure / F-Secure** + estensione **Browsing Protection** + **Unieuro Cyber Protection**)
+- **Lingua Italiana (`it-IT`)** e sincronizzazione orario
+- **Rimozione silenziosa antivirus di prova** (`McAfee`, `Norton`, `Avast`, `AVG`) e collegamento automatico al **Wi-Fi del negozio**
+- **Office / Microsoft 365** e **Catalogo App** (`BASE`, `UFFICIO`, `GAMING`) con icone sul Desktop in **ordine logico e cromatico**
+- **Aggiornamenti completi** (inclusi gli aggiornamenti di anteprima Windows Update con *"Ottieni gli ultimi aggiornamenti non appena sono disponibili"* attivo)
+- **Scheda di Consegna Cliente in PDF** (`Scheda-Consegna-Cliente.pdf`) sul Desktop con diagnostica hardware, chiave BitLocker/FileVault e credenziali Unieuro Secure.
 
 ---
 
-## 1. Un Solo Modo di Avvio: Doppio Click su `PC Facile.bat`
+## 1. Avvio Immediato a 0 Secondi (Un File per Sistema Operativo)
 
-C'è **un solo flusso**, sempre uguale, il più automatico possibile:
+Sulla chiavetta USB trovi i **3 file di avvio** (lo ZIP scaricato da GitHub contiene già solo i file puliti della chiavetta):
 
-1. **Doppio click su `PC Facile.bat`** dalla chiavetta (UAC → *Sì*).
-2. Se c'è **McAfee** il launcher lo fa rimuovere con i suoi strumenti ufficiali
-   (altrimenti blocca lo script) e propone il riavvio.
-3. **Auto-aggiornamento**: scarica l'ultima versione da GitHub (verificata SHA256)
-   e aggiorna la chiavetta; senza Internet usa la copia sulla chiavetta.
-4. Lo script **parte subito con la fase 1** (programmi e lingua), senza menu né domande.
-5. Nello stesso momento **apre da solo il pannello operatore** (una pagina locale
-   nel browser, a sinistra; la console resta a destra). Lì inserisci **una volta
-   sola** i dati del cliente e i servizi sullo scontrino mentre la fase 1 lavora.
-6. Poi la **fase 2** (passi manuali col cliente) e la **fase 3** (pulizia, driver,
-   aggiornamenti per ultimi) proseguono con quei dati.
+1. 🪟 **Su PC Windows**: doppio clic su **`PC Facile.bat`** (conferma UAC → *Sì*).
+2. 🍎 **Su Apple Mac**: doppio clic su **`PC Facile.command`** (inserisci una sola volta all'inizio la password del Mac).
+3. 💻 **Su Chromebook (ChromeOS)**: apri l'app *File*, vai sulla chiavetta USB e fai doppio clic su **`PC Facile Chromebook.html`**.
 
-Niente altro da scegliere: non ci sono più menu, modalità alternative, pagine web
-da aprire a mano o comandi da incollare.
+### Come lavora il flusso automatico (0 secondi di attesa)
 
-### Il Pannello Operatore
+1. **Rimozione AV di prova e connessione Wi-Fi automatica**: su Windows `PC Facile.bat` rimuove in silenzio eventuali antivirus preinstallati (`McAfee`, `Norton`, `Avast`, `AVG`), collega il PC al Wi-Fi del negozio (`wifi/wifi.txt` o `wifi/UNIEURO_EXPO.xml`) e allinea automaticamente la chiavetta all'ultima versione su GitHub verificata via SHA256.
+2. **Partenza istantanea a 0 secondi**: lo script apre a sinistra il **Pannello Operatore** e a destra il **Terminale** e **parte subito a 0 secondi** con **Unieuro Secure** (installato in automatico su ogni PC con l'estensione **Browsing Protection by F-Secure** su Edge e Chrome), la lingua italiana, le app, la pulizia, i driver e gli aggiornamenti.
+3. **Inserimento dati cliente e `Incolla mail` per Unieuro Secure**:
+   - Puoi inserire i dati del cliente nel Pannello Operatore in qualsiasi momento mentre lo script lavora.
+   - Se lasci **Cognome e Nome vuoti** (o scrivi `clt clt` / `Utente`), il PC viene configurato come **`Utente`** senza registrare email e senza stampare il box account nel PDF di consegna.
+   - Nel riquadro **Password Unieuro Secure**, clicca **`Incolla mail`** (o incolla l'intero testo della mail `Email: ... Password: ...` ricevuta dal cliente): il pannello estrae da solo Email e Password temporanea di Unieuro Secure, le offre col tasto **`Copia`** a 1 clic e le stampa nella **`Scheda-Consegna-Cliente.pdf`**.
+4. **Icone sul Desktop in ordine logico e cromatico**:
+   - A fine lavoro tutte le icone sul Desktop vengono riordinate dall'alto in basso per categoria e armonia cromatica:
+     1. **Office & Documenti** (*Word → Excel → PowerPoint → Outlook → OneNote → LibreOffice → Adobe Acrobat Reader → SumatraPDF*)
+     2. **Sicurezza Unieuro** (*Unieuro Secure → Unieuro Cyber Protection*)
+     3. **Browser & Comunicazione** (*Google Chrome → Zoom → WhatsApp → Discord → AnyDesk → TeamViewer*)
+     4. **Multimedia, Utilità & Gaming** (*Spotify → VLC → AIMP → GIMP → 7-Zip / The Unarchiver → Steam → Epic Games*)
+     5. **Documento finale** (*`Scheda-Consegna-Cliente.pdf`*)
 
-- **Scheda Cliente**: cognome, nome, cellulare, tipo di email (email e password
-  si propongono da sole, puoi modificarle), **Office** (nessuna card, card
-  Microsoft 365, card Office 2024/2021, LibreOffice), **programmi** (Base, Ufficio,
-  Gaming, Completo) e servizi (email Proton, card McAfee/Norton, Unieuro Cyber
-  Protection). Premi **CONFERMA DATI CLIENTE**: il pannello dice se il PC li ha
-  davvero ricevuti. Puoi correggerli e confermare di nuovo: valgono dal passo
-  successivo.
-- **Scheda Avanzamento**: fasi e passi in tempo reale, tempo dall'avvio,
-  hardware e seriale, avvisi da controllare prima della consegna.
-- **Scheda Portali**: link diretti a Microsoft, Office, McAfee, Norton, Covercare.
+---
 
-Se i dati non sono ancora arrivati quando servono (Office, ultimo passo della
-fase 1, e poi i passi manuali), lo script si ferma, lo segnala nel pannello
-("il PC aspetta i dati del cliente") e fa un bip di richiamo dopo 2 minuti.
-Se hai chiuso il pannello, premi **P** nella console per riaprirlo.
+## 2. La Chiavetta USB Sempre Aggiornata (`manifest.txt`)
 
-> Il pannello parla con lo script **solo** tramite un piccolo server locale
-> (`127.0.0.1:8899`, raggiungibile solo dal PC stesso), che accetta dati **solo**
-> dalla pagina aperta dallo script: nessun sito web può inviarli. Se il browser
-> chiede il permesso di accedere ai dispositivi della rete locale, rispondi
-> **Consenti**. Solo se il pannello non si può aprire (porta occupata, browser
-> assente) lo script chiede in console i dati essenziali (cognome, nome, Office,
-> antivirus, Cyber Protection).
+A ogni avvio con Internet, `PC Facile.bat` (Windows) e `PC Facile.command` (Mac) controllano `manifest.txt` su GitHub e aggiornano automaticamente sulla chiavetta tutti i file del kit:
+- `PC Facile.bat` *(Windows)*
+- `PC Facile.command` *(Mac)*
+- `PC Facile Chromebook.html` *(Chromebook / ChromeOS)*
+- `setup-pc.ps1` + `setup-pc.ps1.sha256`
+- `setup-mac.sh` + `setup-mac.sh.sha256`
+- `LEGGIMI.md`
+- `wifi/wifi.txt` e `wifi/UNIEURO_EXPO.xml`
 
-### La Chiavetta
-
-Ti basta **UN file**: `PC Facile.bat`.
-
-```
-https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main/PC%20Facile.bat
-```
-
-Tasto destro → **Salva con nome** → `PC Facile.bat` sulla chiavetta.
-⚠️ Verifica che finisca in `.bat` e **non** `.bat.txt`.
-
-**Chiavetta sempre aggiornata (automatico):** a ogni avvio con Internet,
-`PC Facile.bat` (e su Mac `PC Facile.command`) scarica `manifest.txt` da GitHub
-e aggiorna sulla chiavetta **tutti** i file di PC Facile (`setup-pc.ps1`,
-`PC Facile.bat`, `PC Facile.command`, `PC Facile Chromebook.html`, `setup-mac.sh`, le impronte `.sha256`,
-`LEGGIMI.md` e i file Wi-Fi del negozio `wifi/wifi.txt` e
-`wifi/UNIEURO_EXPO.xml`). Ogni file viene verificato con lo **SHA256** del manifest prima di
-sostituire la copia; se qualcosa non va (offline, download interrotto, hash
-diverso) restano i file già presenti e il lavoro prosegue normalmente.
-- Nella cartella `wifi` vengono scritti **solo** `wifi.txt` e `UNIEURO_EXPO.xml`
-  (presi dal repository): per cambiare la rete del negozio modificali su GitHub,
-  altrimenti una modifica fatta solo sulla chiavetta verrà sovrascritta al
-  prossimo avvio. Gli altri file di `wifi` non vengono mai toccati.
-- Il launcher non può sostituire sé stesso mentre gira: la nuova versione viene
-  salvata come `PC Facile.bat.nuovo` e messa al suo posto a fine esecuzione (o
-  al prossimo avvio, se chiudi la finestra prima).
-- Chiavette con un `PC Facile.bat` **vecchio** (senza auto-aggiornamento): al
-  primo avvio lo script aggiorna comunque i file e sostituisce il launcher
-  appena si chiude la sua finestra; dal giro successivo parte quello nuovo.
-- L'aggiornamento avviene solo su una chiavetta (disco rimovibile) o in una
-  cartella che contiene già `setup-pc.ps1`.
-- Il manifest arriva dallo stesso repository dei file: protegge da download
-  corrotti o troncati, **non** da una manomissione del repository.
-
-**Uso OFFLINE:** per preparare una chiavetta nuova basta copiarci
-`PC Facile.bat` e avviarlo una volta con Internet: da lì in poi i file restano
-aggiornati da soli. Senza Internet il launcher usa la copia di `setup-pc.ps1`
-già presente sulla chiavetta.
+Ogni file viene verificato con l'impronta **SHA256** prima di sostituire la copia locale, e `Invoke-OrdinaChiavetta` elimina automaticamente eventuali file o cartelle superflue dalla chiavetta.
 
 ---
 

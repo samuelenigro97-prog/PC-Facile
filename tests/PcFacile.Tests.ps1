@@ -1387,6 +1387,8 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $cbHtml | Should -Match 'com\.fsecure\.ms\.unieuro'
         $cbHtml | Should -Match 'isCltNome'
         $cbHtml | Should -Match 'CATALOGO_CHROMEBOOK'
+        $cbHtml | Should -Match 'APP_INSTALLATE_CB'
+        $cbHtml | Should -Match 'inSerialeCb'
         $cbHtml | Should -Match 'window\.print\(\)'
     }
 }
