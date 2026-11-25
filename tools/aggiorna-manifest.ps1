@@ -12,12 +12,13 @@
 $ErrorActionPreference = 'Stop'
 $radice = Split-Path $PSScriptRoot -Parent
 
-# File che servono sulla chiavetta (Windows + Mac), nell'ordine di download.
+# File che servono sulla chiavetta (Windows + Mac + Chromebook), nell'ordine di download.
 $fileKit = @(
     'setup-pc.ps1',
     'setup-pc.ps1.sha256',
     'PC Facile.bat',
     'PC Facile.command',
+    'PC Facile Chromebook.html',
     'setup-mac.sh',
     'setup-mac.sh.sha256',
     'LEGGIMI.md',

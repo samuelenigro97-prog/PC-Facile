@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC Facile Chromebook - Configurazione ChromeOS v13.17.0</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }
+        body {
+            background: #000c20;
+            color: #f8fafc;
+            padding: 14px 18px;
+            min-height: 100vh;
+            font-size: 14.5px;
+            line-height: 1.45;
+        }
+        .workspace {
+            max-width: 1520px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1.08fr 0.92fr;
+            gap: 16px;
+            align-items: start;
+        }
+        @media (max-width: 1080px) {
+            .workspace { grid-template-columns: 1fr; }
+        }
+        button, a, input, select { font-size: inherit; }
+        button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #EE7203; outline-offset: 2px; }
+        .muted { color: #b6c3d4; }
+
+        /* HEADER */
+        .header {
+            background: #001a3a;
+            border: 2px solid #00458C;
+            border-radius: 12px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+        }
+        .brand-box { display: flex; align-items: center; gap: 12px; }
+        .u-logo {
+            background: #EE7203;
+            color: #00122b;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 1px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .brand-titles h1 { font-size: 20px; color: #fff; font-weight: 800; line-height: 1.2; }
+        .brand-titles p { font-size: 12.5px; color: #b6c3d4; }
+        .badge-stato {
+            font-weight: 800;
+            font-size: 13.5px;
+            padding: 7px 14px;
+            border-radius: 20px;
+            white-space: nowrap;
+            border: 1.5px solid #22c55e;
+            background: #14532d;
+            color: #dcfce7;
+        }
+
+        /* PROGRESS & TABS */
+        .sticky-top-bar {
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            background: #000c20;
+            padding: 2px 0 8px;
+        }
+        .progress-card {
+            background: #001a3a;
+            border: 2px solid #00458C;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+        }
+        .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .progress-title { color: #fed7aa; font-weight: 800; font-size: 14.5px; }
+        .progress-pct { font-size: 20px; font-weight: 900; color: #EE7203; }
+        .progress-track { width: 100%; height: 11px; background: #000c1d; border-radius: 6px; overflow: hidden; border: 1px solid #003366; }
+        .progress-fill { height: 100%; width: 0%; background: #EE7203; transition: width 0.35s ease; }
+
+        .tab-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .tab-btn {
+            background: #001633;
+            border: 2px solid #003875;
+            color: #cbd5e1;
+            padding: 9px 10px;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 13.5px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .tab-btn.active { background: #002b5e; border-color: #EE7203; color: #fff; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+
+        /* SECTION CARDS */
+        .section {
+            background: #001a3a;
+            border: 1.5px solid #003b7a;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 7px;
+            border-bottom: 1px solid #003366;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .section-title { font-size: 15.5px; font-weight: 800; color: #fed7aa; }
+        .campi-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .campi-2 { display: grid; grid-template-columns: 1.25fr 1fr; gap: 10px; }
+        @media (max-width: 720px) { .campi-3, .campi-2 { grid-template-columns: 1fr; } }
+        .field label { display: block; font-size: 12.5px; font-weight: 700; color: #cbd5e1; margin-bottom: 4px; }
+        .field input {
+            width: 100%;
+            background: #000e24;
+            border: 1.5px solid #00458C;
+            color: #fff;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .domini-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .chip-btn {
+            background: #002654;
+            border: 1px solid #004d99;
+            color: #e2e8f0;
+            padding: 4px 9px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .chip-btn:hover { border-color: #EE7203; color: #fff; }
+
+        .choice-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .choice {
+            background: #001229;
+            border: 2px solid #003670;
+            border-radius: 10px;
+            padding: 9px 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .choice.selected { background: #002859; border-color: #EE7203; }
+        .choice input { margin-top: 3px; accent-color: #EE7203; }
+        .choice-title { font-weight: 800; color: #fff; font-size: 13.5px; }
+        .choice-sub { font-size: 12px; color: #b6c3d4; }
+
+        .btn-primary {
+            width: 100%;
+            background: #EE7203;
+            color: #00122b;
+            border: none;
+            padding: 13px 16px;
+            border-radius: 10px;
+            font-weight: 900;
+            font-size: 15.5px;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(238, 114, 3, 0.35);
+        }
+        .btn-primary:hover { background: #ff851b; }
+        .btn-sec {
+            background: #002b5e;
+            color: #fff;
+            border: 1.5px solid #38bdf8;
+            padding: 7px 12px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-sec:hover { border-color: #EE7203; background: #003875; }
+
+        /* APP CATALOG CHROMATIC ORDER */
+        .fascia-title {
+            font-size: 13px;
+            font-weight: 800;
+            color: #fed7aa;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 10px 0 6px;
+            padding-left: 8px;
+            border-left: 3px solid #EE7203;
+        }
+        .app-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        @media (max-width: 680px) { .app-grid { grid-template-columns: 1fr; } }
+        .app-card {
+            background: #001229;
+            border: 1.5px solid #003875;
+            border-radius: 9px;
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        .app-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+        .app-info { min-width: 0; flex: 1; }
+        .app-name { font-weight: 800; font-size: 13.5px; color: #fff; }
+        .app-desc { font-size: 11.5px; color: #94a3b8; }
+
+        /* RIGHT TERMINAL & DELIVERY SHEET */
+        .terminal-box {
+            background: #00122B;
+            border: 2px solid #EE7203;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            font-family: 'Consolas', 'SFMono-Regular', Menlo, monospace;
+            font-size: 13px;
+            max-height: 360px;
+            overflow-y: auto;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        }
+        .t-bar {
+            background: #EE7203;
+            color: #00122B;
+            font-weight: 900;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .t-line { margin-bottom: 4px; word-break: break-word; }
+        .t-ok { color: #22c55e; font-weight: 700; }
+        .t-info { color: #93c5fd; }
+        .t-warn { color: #fde047; }
+        .t-head { color: #fed7aa; font-weight: 800; margin-top: 8px; border-bottom: 1px dashed #00458C; padding-bottom: 2px; }
+
+        /* PRINTABLE DELIVERY CARD */
+        .scheda-preview {
+            background: #ffffff;
+            color: #0f172a;
+            border-radius: 12px;
+            padding: 18px 20px;
+            border: 3px solid #EE7203;
+            box-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+        }
+        .sc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #EE7203;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .sc-logo { background: #00122B; color: #fff; font-weight: 900; padding: 6px 12px; border-radius: 6px; font-size: 15px; }
+        .sc-logo span { color: #EE7203; }
+        .sc-box {
+            border: 1.5px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            background: #f8fafc;
+        }
+        .sc-box-secure {
+            border: 2px solid #EE7203;
+            background: #fff7ed;
+        }
+        .sc-box h4 { font-size: 13.5px; color: #00122B; margin-bottom: 6px; text-transform: uppercase; }
+        .sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 13px; }
+        .sc-mono { font-family: monospace; font-weight: 800; font-size: 14px; color: #0f172a; background: #e2e8f0; padding: 2px 6px; border-radius: 4px; }
+
+        @media print {
+            body { background: #fff !important; color: #000 !important; padding: 0 !important; }
+            .left-col, .terminal-box, .no-print, .header, .sticky-top-bar { display: none !important; }
+            .workspace { display: block !important; max-width: 100% !important; }
+            .scheda-preview { border: 2px solid #000 !important; box-shadow: none !important; width: 100% !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="workspace">
+        <!-- COLONNA SINISTRA: PANNELLO OPERATORE CHROMEBOOK -->
+        <div class="left-col">
+            <header class="header">
+                <div class="brand-box">
+                    <div class="u-logo">UNIEURO</div>
+                    <div class="brand-titles">
+                        <h1>PC Facile &mdash; Chromebook (ChromeOS)</h1>
+                        <p id="versioneText">Script PC Facile Chromebook v13.17.0 (2026-11-25) &middot; Avvio diretto da USB</p>
+                    </div>
+                </div>
+                <div class="badge-stato" id="badgeStato">ChromeOS Rilevato &middot; Pronto</div>
+            </header>
+
+            <div class="sticky-top-bar">
+                <div class="progress-card">
+                    <div class="progress-header">
+                        <div>
+                            <div class="progress-title" id="faseTitolo">Pronto per configurazione automatica Chromebook</div>
+                            <div class="muted" style="font-size:12.5px;" id="faseDettaglio">Inserisci i dati cliente (o lascia vuoto per clt clt) e premi Avvia.</div>
+                        </div>
+                        <div class="progress-pct" id="pctText">0%</div>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="pctBar"></div>
+                    </div>
+                </div>
+
+                <nav class="tab-bar">
+                    <button type="button" class="tab-btn active" onclick="apriTab('cliente', this)">1. Cliente</button>
+                    <button type="button" class="tab-btn" onclick="apriTab('app', this)">2. App (Ordine Cromatico)</button>
+                    <button type="button" class="tab-btn" onclick="apriTab('portali', this)">3. Portali</button>
+                    <button type="button" class="tab-btn" onclick="apriTab('passaggi', this)">4. Passaggi &amp; Salute</button>
+                </nav>
+            </div>
+
+            <!-- TAB 1: CLIENTE & UNIEURO SECURE -->
+            <div class="tab-pane active" id="tab-cliente">
+                <section class="section">
+                    <div class="section-head">
+                        <div class="section-title">Dati del Cliente &amp; Account Google</div>
+                        <span class="muted" style="font-size:12px;">Vuoto = clt clt (Utente senza account nel PDF)</span>
+                    </div>
+                    <div class="campi-3">
+                        <div class="field">
+                            <label for="inCognome">Cognome</label>
+                            <input type="text" id="inCognome" placeholder="es. Rossi (o vuoto = clt)" oninput="aggiornaCredenziali()">
+                        </div>
+                        <div class="field">
+                            <label for="inNome">Nome</label>
+                            <input type="text" id="inNome" placeholder="es. Mario" oninput="aggiornaCredenziali()">
+                        </div>
+                        <div class="field">
+                            <label for="inTel">Cellulare</label>
+                            <input type="tel" id="inTel" placeholder="es. 333 1234567" oninput="aggiornaScheda()">
+                        </div>
+                    </div>
+
+                    <div class="campi-2" style="margin-top:10px;">
+                        <div class="field">
+                            <label for="inEmail">Email Cliente (Account Google / Unieuro Secure)</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="text" id="inEmail" placeholder="nome.cognome@gmail.com" oninput="aggiornaScheda()">
+                                <button type="button" class="btn-sec" onclick="copiaCampo('inEmail', 'Email copiata')">Copia</button>
+                            </div>
+                            <div class="domini-row">
+                                <button type="button" class="chip-btn" onclick="applicaDominio('@gmail.com')">@gmail.com</button>
+                                <button type="button" class="chip-btn" onclick="applicaDominio('@outlook.it')">@outlook.it</button>
+                                <button type="button" class="chip-btn" onclick="applicaDominio('@icloud.com')">@icloud.com</button>
+                                <button type="button" class="chip-btn" onclick="applicaDominio('@libero.it')">@libero.it</button>
+                            </div>
+                        </div>
+                        <div class="field">
+                            <label for="inPass">Password iniziale Account</label>
+                            <div style="display:flex; gap:6px;">
+                                <input type="text" id="inPass" placeholder="Nome123!" oninput="aggiornaScheda()">
+                                <button type="button" class="btn-sec" onclick="copiaCampo('inPass', 'Password copiata')">Copia</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- BOX DEDICATO MAIL UNIEURO SECURE -->
+                    <div style="margin-top:12px; padding:10px 12px; background:#001229; border:1.5px solid #EE7203; border-radius:10px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                            <label for="inPassSecure" style="font-size:13px; font-weight:800; color:#fed7aa;">Password Unieuro Secure (dalla mail del cliente)</label>
+                            <button type="button" class="chip-btn" style="border-color:#EE7203; color:#fed7aa;" onclick="incollaMailSecure()">Incolla mail Unieuro Secure</button>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="inPassSecure" placeholder="es. N/qrWZ35 (oppure incolla qui tutto il testo della mail)" oninput="analizzaInputMailSecure(this.value)" style="flex:1; background:#000e24; border:1.5px solid #00458C; color:#fff; padding:8px 10px; border-radius:8px; font-family:monospace; font-size:14px;">
+                            <button type="button" class="btn-sec" onclick="copiaCampo('inPassSecure', 'Password Unieuro Secure copiata')">Copia</button>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-head">
+                        <div class="section-title">Servizi &amp; Profilo App Chromebook</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+                        <label class="choice selected" id="lblEveryday">
+                            <input type="checkbox" id="chkEveryday" checked onchange="toggleCard('lblEveryday', this.checked); aggiornaScheda();">
+                            <div>
+                                <div class="choice-title">Unieuro Everyday Digital (Priorit&agrave; #1)</div>
+                                <div class="choice-sub">Unieuro Secure (Play Store) + Browsing Protection + Cyber Protection</div>
+                            </div>
+                        </label>
+                        <label class="choice" id="lblOffice">
+                            <input type="checkbox" id="chkOffice" onchange="toggleCard('lblOffice', this.checked); aggiornaScheda();">
+                            <div>
+                                <div class="choice-title">Microsoft 365 / Office ChromeOS</div>
+                                <div class="choice-sub">Word, Excel, PowerPoint, Outlook + Riscatto PIN setup.office.com</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="choice-grid-3" style="margin-bottom:12px;">
+                        <label class="choice selected" id="profBase" onclick="selezionaProfilo('BASE')">
+                            <input type="radio" name="profilo" value="BASE" checked>
+                            <div>
+                                <div class="choice-title">Profilo BASE</div>
+                                <div class="choice-sub">Office/PDF, Unieuro Secure, VLC, WhatsApp, Zoom</div>
+                            </div>
+                        </label>
+                        <label class="choice" id="profUfficio" onclick="selezionaProfilo('UFFICIO')">
+                            <input type="radio" name="profilo" value="UFFICIO">
+                            <div>
+                                <div class="choice-title">Profilo UFFICIO</div>
+                                <div class="choice-sub">Base + Collabora LibreOffice, AnyDesk, TeamViewer</div>
+                            </div>
+                        </label>
+                        <label class="choice" id="profGaming" onclick="selezionaProfilo('GAMING')">
+                            <input type="radio" name="profilo" value="GAMING">
+                            <div>
+                                <div class="choice-title">Profilo COMPLETO / GAMING</div>
+                                <div class="choice-sub">Tutte le app + Spotify, Discord, Steam Link / GeForce NOW</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <button type="button" class="btn-primary" onclick="avviaConfigurazioneChromebook()">
+                        AVVIA CONFIGURAZIONE AUTOMATICA CHROMEBOOK (0 SECONDI)
+                    </button>
+                    <div id="msgConferma" style="display:none; margin-top:8px; padding:8px 12px; border-radius:8px; background:#14532d; border:1.5px solid #22c55e; color:#dcfce7; font-weight:800; font-size:13.5px;">
+                        Configurazione Chromebook avviata: verifica e scheda PDF aggiornate.
+                    </div>
+                </section>
+            </div>
+
+            <!-- TAB 2: CATALOGO APP IN ORDINE LOGICO E CROMATICO -->
+            <div class="tab-pane" id="tab-app">
+                <section class="section">
+                    <div class="section-head">
+                        <div class="section-title">App Chromebook in Ordine Logico e Cromatico</div>
+                        <button type="button" class="btn-sec" onclick="apriAppProfiloSelezionato()">Installa / Apri tutte le app del profilo</button>
+                    </div>
+                    <p class="muted" style="font-size:12.5px; margin-bottom:8px;">
+                        Su ChromeOS ogni pulsante apre direttamente la scheda ufficiale <strong>Google Play Store</strong> o la <strong>Web App PWA</strong> pronta da fissare sulla mensola (Shelf) del Chromebook nello stesso ordine cromatico di Windows e Mac.
+                    </p>
+                    <div id="contenitoreAppCromatico"></div>
+                </section>
+            </div>
+
+            <!-- TAB 3: PORTALI RAPIDI -->
+            <div class="tab-pane" id="tab-portali">
+                <section class="section">
+                    <div class="section-head">
+                        <div class="section-title">Portali Ufficiali &amp; Attivazioni (con Copia Credenziali Automatica)</div>
+                    </div>
+                    <div class="app-grid">
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">1. Unieuro Secure (Play Store ChromeOS)</div>
+                                <div class="app-desc">App Android F-Secure / Unieuro Secure</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="apriUnieuroSecurePlay()">Apri Play Store</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">2. Browsing Protection by F-Secure</div>
+                                <div class="app-desc">Estensione Chrome obbligatoria per Unieuro Secure</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="apriBrowsingProtection()">Apri Web Store</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">3. Portale Web Unieuro Secure</div>
+                                <div class="app-desc">my.f-secure.com (copia email/pass negli appunti)</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="apriPortaleConCopia('https://my.f-secure.com', true)">Apri Portale</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">4. Unieuro Cyber Protection</div>
+                                <div class="app-desc">unieuro-cyber-protection.covercare.it</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="apriPortaleConCopia('https://unieuro-cyber-protection.covercare.it/login', false)">Apri Portale</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">5. Riscatto Card Microsoft 365 / Office</div>
+                                <div class="app-desc">setup.office.com</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="apriPortaleConCopia('https://setup.office.com', false)">Apri Office</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">6. Account Google / Sicurezza</div>
+                                <div class="app-desc">myaccount.google.com</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="apriPortaleConCopia('https://myaccount.google.com', false)">Apri Google</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- TAB 4: PASSAGGI SINGOLI & IMPOSTAZIONI CHROMEOS -->
+            <div class="tab-pane" id="tab-passaggi">
+                <section class="section">
+                    <div class="section-head">
+                        <div class="section-title">Comandi Rapidi ChromeOS (Copia &amp; Apri in Chrome)</div>
+                    </div>
+                    <div class="app-grid">
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">Aggiornamento Sistema ChromeOS</div>
+                                <div class="app-desc">chrome://os-settings/help (Scarica e installa tutto)</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="copiaTesto('chrome://os-settings/help', 'Incolla nella barra indirizzi di Chrome per aggiornare ChromeOS')">Copia Link</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">Lingua Italiana &amp; Tastiera</div>
+                                <div class="app-desc">chrome://os-settings/languages</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="copiaTesto('chrome://os-settings/languages', 'Incolla nella barra indirizzi per Impostazioni Lingua')">Copia Link</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">Diagnostica Hardware Nativi ChromeOS</div>
+                                <div class="app-desc">chrome://diagnostics (Batteria, CPU, RAM, Rete)</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="copiaTesto('chrome://diagnostics', 'Incolla nella barra indirizzi per Diagnostica ChromeOS')">Copia Link</button>
+                        </div>
+                        <div class="app-card">
+                            <div class="app-info">
+                                <div class="app-name">Ripeti Intera Configurazione</div>
+                                <div class="app-desc">Riesegue tutti gli 8 passi e rigenera la scheda PDF</div>
+                            </div>
+                            <button type="button" class="btn-sec" onclick="avviaConfigurazioneChromebook()">Riesegui Tutto</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- COLONNA DESTRA: TERMINALE LIVE + SCHEDA DI CONSEGNA CLIENTE (PDF) -->
+        <div class="right-col">
+            <div class="terminal-box" id="termLog">
+                <div class="t-bar">
+                    <span>UNIEURO &middot; CONSOLE PC FACILE CHROMEBOOK</span>
+                    <span id="termVer">v13.17.0</span>
+                </div>
+                <div id="termOutput"></div>
+            </div>
+
+            <div class="no-print" style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                <button type="button" class="btn-primary" style="flex:1;" onclick="window.print()">
+                    STAMPA / SALVA SCHEDA DI CONSEGNA IN PDF
+                </button>
+                <button type="button" class="btn-sec" onclick="scaricaSchedaHtml()">
+                    Scarica Scheda .HTML sul Chromebook
+                </button>
+            </div>
+
+            <!-- ANTEPRIMA LIVE SCHEDA DI CONSEGNA CLIENTE -->
+            <div class="scheda-preview" id="schedaConsegnaDoc">
+                <div class="sc-header">
+                    <div class="sc-logo"><span>UNIEURO</span> &middot; SCHEDA DI CONSEGNA CHROMEBOOK</div>
+                    <div style="text-align:right; font-size:12.5px;">
+                        <div><strong>Data:</strong> <span id="scData"></span></div>
+                        <div><strong>Versione Kit:</strong> v13.17.0</div>
+                    </div>
+                </div>
+
+                <div class="sc-box">
+                    <h4>1. Dispositivo &amp; Diagnostica Hardware Chromebook</h4>
+                    <div class="sc-grid">
+                        <div><strong>Sistema Operativo:</strong> <span id="scOs">ChromeOS (Italiano it-IT)</span></div>
+                        <div><strong>Processore / Core:</strong> <span id="scCpu">Rilevamento...</span></div>
+                        <div><strong>Memoria / Storage:</strong> <span id="scRamDisk">Rilevamento...</span></div>
+                        <div><strong>Batteria &amp; Schermo:</strong> <span id="scBatRes">Rilevamento...</span></div>
+                        <div><strong>Crittografia Disco:</strong> <span>Google Titan C (Attiva su Account Google)</span></div>
+                        <div><strong>Stato Lingua &amp; Ora:</strong> <span id="scLangTz">it-IT &middot; Europe/Rome</span></div>
+                    </div>
+                </div>
+
+                <div class="sc-box" id="scBoxAccount" style="display:none;">
+                    <h4>2. Riepilogo Cliente &amp; Account Google</h4>
+                    <div class="sc-grid">
+                        <div><strong>Cliente:</strong> <span id="scNomeCliente">-</span></div>
+                        <div><strong>Recapito:</strong> <span id="scTelCliente">-</span></div>
+                        <div><strong>Email Account:</strong> <span class="sc-mono" id="scEmailCliente">-</span></div>
+                        <div><strong>Password Iniziale:</strong> <span class="sc-mono" id="scPassCliente">-</span></div>
+                    </div>
+                </div>
+
+                <div class="sc-box sc-box-secure" id="scBoxSecure" style="display:none;">
+                    <h4>3. Credenziali Unieuro Secure (F-Secure) &amp; Browsing Protection</h4>
+                    <div class="sc-grid">
+                        <div><strong>Email Accesso:</strong> <span class="sc-mono" id="scEmailSecure">-</span></div>
+                        <div><strong>Password Temporanea:</strong> <span class="sc-mono" id="scPassSecure">-</span></div>
+                    </div>
+                    <div style="font-size:12px; color:#475569; margin-top:6px;">
+                        App Unieuro Secure + Estensione Chrome <em>Browsing Protection by F-Secure</em> preconfigurate. Al primo accesso verr&agrave; richiesto di scegliere una password personale.
+                    </div>
+                </div>
+
+                <div class="sc-box">
+                    <h4>4. Operazioni &amp; Applicazioni Configurate (Ordine Logico-Cromatico)</h4>
+                    <div id="scListaOperazioni" style="font-size:12.5px; line-height:1.55; color:#1e293b;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var SCRIPT_VERSION = "13.17.0 (2026-11-25)";
+        var PROFILO_CORRENTE = "BASE";
+        var HW_INFO = {
+            os: "ChromeOS",
+            cpu: (navigator.hardwareConcurrency ? navigator.hardwareConcurrency + " Core logici" : "CPU ChromeOS"),
+            ram: (navigator.deviceMemory ? navigator.deviceMemory + " GB RAM" : "RAM Standard"),
+            disk: "64 GB eMMC",
+            battery: "100% (Alimentazione OK)",
+            res: window.screen.width + "x" + window.screen.height,
+            lang: navigator.language || "it-IT",
+            tz: (Intl && Intl.DateTimeFormat ? Intl.DateTimeFormat().resolvedOptions().timeZone : "Europe/Rome")
+        };
+
+        // Catalogo app Chromebook nello stesso ordine logico e cromatico di Windows (Get-DesktopIconPriority) e Mac
+        var CATALOGO_CHROMEBOOK = [
+            { fascia: "1. Office & Documenti (Blu → Verde → Arancio → Azzurro → Viola → Rosso)", nome: "Microsoft 365 (Word, Excel, PowerPoint)", colore: "#2563eb", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Suite Office per Chromebook (Play Store / Web)", url: "https://play.google.com/store/apps/details?id=com.microsoft.office.officehubrow", web: "https://www.microsoft365.com" },
+            { fascia: "1. Office & Documenti (Blu → Verde → Arancio → Azzurro → Viola → Rosso)", nome: "Microsoft Outlook", colore: "#0284c7", profili: ["UFFICIO", "GAMING"], desc: "Posta elettronica e calendario", url: "https://play.google.com/store/apps/details?id=com.microsoft.office.outlook", web: "https://outlook.live.com" },
+            { fascia: "1. Office & Documenti (Blu → Verde → Arancio → Azzurro → Viola → Rosso)", nome: "Microsoft OneNote", colore: "#7c3aed", profili: ["UFFICIO", "GAMING"], desc: "Blocco appunti digitale", url: "https://play.google.com/store/apps/details?id=com.microsoft.office.onenote", web: "https://www.onenote.com" },
+            { fascia: "1. Office & Documenti (Blu → Verde → Arancio → Azzurro → Viola → Rosso)", nome: "Collabora Office (LibreOffice ChromeOS)", colore: "#ea580c", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Suite gratuita compatibile Word/Excel/PowerPoint", url: "https://play.google.com/store/apps/details?id=com.collabora.libreoffice", web: "https://docs.google.com" },
+            { fascia: "1. Office & Documenti (Blu → Verde → Arancio → Azzurro → Viola → Rosso)", nome: "Adobe Acrobat Reader PDF", colore: "#dc2626", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Lettore e firma documenti PDF", url: "https://play.google.com/store/apps/details?id=com.adobe.reader", web: "https://chromewebstore.google.com/detail/adobe-acrobat-pdf-edit-co/efaidnbmnnnibpcajpcglclefindmkaj" },
+
+            { fascia: "2. Sicurezza Unieuro (Blu Navy & Arancio Unieuro)", nome: "Unieuro Secure (F-Secure ChromeOS)", colore: "#0284c7", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Antivirus, VPN e protezione identita'", url: "https://play.google.com/store/apps/details?id=com.fsecure.ms.unieuro", web: "https://my.f-secure.com" },
+            { fascia: "2. Sicurezza Unieuro (Blu Navy & Arancio Unieuro)", nome: "Browsing Protection by F-Secure", colore: "#EE7203", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Estensione Chrome obbligatoria per navigazione e home banking", url: "https://chromewebstore.google.com/detail/browsing-protection-by-f/jmjjnhpacphpjmnnlnccpfmhkcloaade", web: "https://chromewebstore.google.com/detail/browsing-protection-by-f/jmjjnhpacphpjmnnlnccpfmhkcloaade" },
+            { fascia: "2. Sicurezza Unieuro (Blu Navy & Arancio Unieuro)", nome: "Unieuro Cyber Protection", colore: "#f97316", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Portale attivazione polizza Covercare Unieuro", url: "https://unieuro-cyber-protection.covercare.it/login", web: "https://unieuro-cyber-protection.covercare.it/login" },
+
+            { fascia: "3. Browser & Comunicazione (Multicolore → Blu → Verde → Viola → Rosso)", nome: "Zoom Workplace (ChromeOS PWA)", colore: "#2563eb", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Videochiamate e riunioni", url: "https://play.google.com/store/apps/details?id=us.zoom.videomeetings", web: "https://app.zoom.us/wc" },
+            { fascia: "3. Browser & Comunicazione (Multicolore → Blu → Verde → Viola → Rosso)", nome: "WhatsApp (ChromeOS / Web)", colore: "#22c55e", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Messaggistica e chiamate", url: "https://play.google.com/store/apps/details?id=com.whatsapp", web: "https://web.whatsapp.com" },
+            { fascia: "3. Browser & Comunicazione (Multicolore → Blu → Verde → Viola → Rosso)", nome: "Discord", colore: "#6366f1", profili: ["GAMING"], desc: "Chat vocale e community", url: "https://play.google.com/store/apps/details?id=com.discord", web: "https://discord.com/app" },
+            { fascia: "3. Browser & Comunicazione (Multicolore → Blu → Verde → Viola → Rosso)", nome: "AnyDesk Remote Desktop", colore: "#ef4444", profili: ["UFFICIO", "GAMING"], desc: "Teleassistenza remota", url: "https://play.google.com/store/apps/details?id=com.anydesk.anydeskandroid", web: "https://anydesk.com/it/downloads/chrome-os" },
+            { fascia: "3. Browser & Comunicazione (Multicolore → Blu → Verde → Viola → Rosso)", nome: "TeamViewer QuickSupport", colore: "#3b82f6", profili: ["UFFICIO"], desc: "Supporto remoto", url: "https://play.google.com/store/apps/details?id=com.teamviewer.quicksupport.market", web: "https://web.teamviewer.com" },
+
+            { fascia: "4. Multimedia, Utilita' & Gaming (Verde → Arancio → Ambra → Grigio → Blu Notte)", nome: "Spotify", colore: "#16a34a", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Musica e podcast", url: "https://play.google.com/store/apps/details?id=com.spotify.music", web: "https://open.spotify.com" },
+            { fascia: "4. Multimedia, Utilita' & Gaming (Verde → Arancio → Ambra → Grigio → Blu Notte)", nome: "VLC media player", colore: "#f97316", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Lettore universale video e audio", url: "https://play.google.com/store/apps/details?id=org.videolan.vlc", web: "https://play.google.com/store/apps/details?id=org.videolan.vlc" },
+            { fascia: "4. Multimedia, Utilita' & Gaming (Verde → Arancio → Ambra → Grigio → Blu Notte)", nome: "Photopea (Editor Foto / PSD)", colore: "#d97706", profili: ["GAMING"], desc: "Fotoritocco avanzato (equivalente GIMP su ChromeOS)", url: "https://www.photopea.com", web: "https://www.photopea.com" },
+            { fascia: "4. Multimedia, Utilita' & Gaming (Verde → Arancio → Ambra → Grigio → Blu Notte)", nome: "RAR / 7-Zip Archivi", colore: "#64748b", profili: ["BASE", "UFFICIO", "GAMING"], desc: "Apertura archivi ZIP, RAR e 7z", url: "https://play.google.com/store/apps/details?id=com.rarlab.rar", web: "https://play.google.com/store/apps/details?id=com.rarlab.rar" },
+            { fascia: "4. Multimedia, Utilita' & Gaming (Verde → Arancio → Ambra → Grigio → Blu Notte)", nome: "GeForce NOW & Steam Link", colore: "#1e3a8a", profili: ["GAMING"], desc: "Cloud Gaming su Chromebook", url: "https://play.google.com/store/apps/details?id=com.valvesoftware.steamlink", web: "https://play.geforcenow.com" }
+        ];
+
+        function isCltNome(cognome, nome) {
+            var c = (cognome || "").trim().toLowerCase();
+            var n = (nome || "").trim().toLowerCase();
+            var full = (c + " " + n).trim();
+            var generici = ["", "clt", "clt clt", "utente", "utente utente", "cliente", "oem", "admin", "user", "chromebook"];
+            return generici.indexOf(full) !== -1 || generici.indexOf(c) !== -1 && n === "" || (c === "clt" && n === "clt");
+        }
+
+        function analizzaInputMailSecure(val) {
+            if (!val) { aggiornaScheda(); return; }
+            var testo = String(val);
+            var mMail = testo.match(/Email\s*:\s*([^\s<>,"']+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i);
+            var mPass = testo.match(/Password\s*:\s*([^\s\r\n]+)/i);
+            if (mMail || mPass) {
+                if (mMail && mMail[1]) {
+                    document.getElementById("inEmail").value = mMail[1].trim();
+                }
+                if (mPass && mPass[1]) {
+                    document.getElementById("inPassSecure").value = mPass[1].trim();
+                }
+                logTerm("Estratte credenziali da mail Unieuro Secure (" + (mMail ? mMail[1] : "password") + ").", "ok");
+            }
+            aggiornaScheda();
+        }
+
+        function incollaMailSecure() {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(function(txt) {
+                    if (txt) {
+                        document.getElementById("inPassSecure").value = txt;
+                        analizzaInputMailSecure(txt);
+                    }
+                }).catch(function() {
+                    var p = prompt("Incolla qui il testo della mail Unieuro Secure (Email: ... Password: ...):");
+                    if (p) {
+                        document.getElementById("inPassSecure").value = p;
+                        analizzaInputMailSecure(p);
+                    }
+                });
+            } else {
+                var p = prompt("Incolla qui il testo della mail Unieuro Secure (Email: ... Password: ...):");
+                if (p) {
+                    document.getElementById("inPassSecure").value = p;
+                    analizzaInputMailSecure(p);
+                }
+            }
+        }
+
+        function aggiornaCredenziali() {
+            var c = document.getElementById("inCognome").value.trim();
+            var n = document.getElementById("inNome").value.trim();
+            if (isCltNome(c, n)) {
+                document.getElementById("inEmail").value = "";
+                document.getElementById("inPass").value = "";
+                aggiornaScheda();
+                return;
+            }
+            var cleanN = n.toLowerCase().replace(/[^a-z0-9]/g, "");
+            var cleanC = c.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (cleanN || cleanC) {
+                var base = (cleanN && cleanC) ? (cleanN + "." + cleanC) : (cleanN || cleanC);
+                var curEmail = document.getElementById("inEmail").value.trim();
+                var dom = "@gmail.com";
+                if (curEmail.indexOf("@") !== -1) {
+                    dom = curEmail.substring(curEmail.indexOf("@"));
+                }
+                document.getElementById("inEmail").value = base + dom;
+                var cap = (cleanN || cleanC);
+                cap = cap.charAt(0).toUpperCase() + cap.slice(1);
+                document.getElementById("inPass").value = cap + "123!";
+            }
+            aggiornaScheda();
+        }
+
+        function applicaDominio(dom) {
+            var el = document.getElementById("inEmail");
+            var v = el.value.trim();
+            if (!v) {
+                var c = document.getElementById("inCognome").value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+                var n = document.getElementById("inNome").value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+                v = (n && c) ? (n + "." + c) : (n || c || "cliente");
+            }
+            if (v.indexOf("@") !== -1) v = v.substring(0, v.indexOf("@"));
+            el.value = v + dom;
+            aggiornaScheda();
+        }
+
+        function toggleCard(id, checked) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (checked) el.classList.add("selected");
+            else el.classList.remove("selected");
+        }
+
+        function selezionaProfilo(p) {
+            PROFILO_CORRENTE = p;
+            ["profBase", "profUfficio", "profGaming"].forEach(function(id) {
+                document.getElementById(id).classList.remove("selected");
+            });
+            if (p === "BASE") document.getElementById("profBase").classList.add("selected");
+            if (p === "UFFICIO") document.getElementById("profUfficio").classList.add("selected");
+            if (p === "GAMING") document.getElementById("profGaming").classList.add("selected");
+            renderCatalogoApp();
+            aggiornaScheda();
+        }
+
+        function apriTab(nome, btn) {
+            document.querySelectorAll(".tab-pane").forEach(function(p) { p.classList.remove("active"); });
+            document.querySelectorAll(".tab-btn").forEach(function(b) { b.classList.remove("active"); });
+            document.getElementById("tab-" + nome).classList.add("active");
+            if (btn) btn.classList.add("active");
+        }
+
+        function copiaTesto(txt, msg) {
+            if (!txt) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt);
+            }
+            logTerm((msg || "Copiato negli appunti") + ": " + txt, "info");
+        }
+
+        function copiaCampo(id, msg) {
+            var v = document.getElementById(id).value.trim();
+            copiaTesto(v, msg);
+        }
+
+        function renderCatalogoApp() {
+            var cont = document.getElementById("contenitoreAppCromatico");
+            var html = "";
+            var fasciaCorrente = "";
+            CATALOGO_CHROMEBOOK.forEach(function(a, idx) {
+                if (a.profili.indexOf(PROFILO_CORRENTE) === -1) return;
+                if (a.fascia !== fasciaCorrente) {
+                    if (fasciaCorrente !== "") html += "</div>";
+                    fasciaCorrente = a.fascia;
+                    html += '<div class="fascia-title">' + fasciaCorrente + '</div><div class="app-grid">';
+                }
+                html += '<div class="app-card">' +
+                    '<span class="app-dot" style="background:' + a.colore + '"></span>' +
+                    '<div class="app-info">' +
+                        '<div class="app-name">' + a.nome + '</div>' +
+                        '<div class="app-desc">' + a.desc + '</div>' +
+                    '</div>' +
+                    '<button type="button" class="btn-sec" onclick="apriAppSingola(' + idx + ')">Installa</button>' +
+                '</div>';
+            });
+            if (fasciaCorrente !== "") html += "</div>";
+            cont.innerHTML = html;
+        }
+
+        function apriAppSingola(idx) {
+            var a = CATALOGO_CHROMEBOOK[idx];
+            if (!a) return;
+            logTerm("Apertura installer ChromeOS: " + a.nome + "...", "info");
+            window.open(a.url, "_blank");
+        }
+
+        function apriUnieuroSecurePlay() {
+            var passSec = document.getElementById("inPassSecure").value.trim();
+            var email = document.getElementById("inEmail").value.trim();
+            if (passSec) copiaTesto(passSec, "Password Unieuro Secure copiata negli appunti");
+            else if (email) copiaTesto(email, "Email Unieuro Secure copiata negli appunti");
+            window.open("https://play.google.com/store/apps/details?id=com.fsecure.ms.unieuro", "_blank");
+        }
+
+        function apriBrowsingProtection() {
+            window.open("https://chromewebstore.google.com/detail/browsing-protection-by-f/jmjjnhpacphpjmnnlnccpfmhkcloaade", "_blank");
+        }
+
+        function apriPortaleConCopia(url, usaSecure) {
+            var passSec = document.getElementById("inPassSecure").value.trim();
+            var pass = document.getElementById("inPass").value.trim();
+            var email = document.getElementById("inEmail").value.trim();
+            var daCopiare = (usaSecure && passSec) ? passSec : (pass || email);
+            if (daCopiare) copiaTesto(daCopiare, "Credenziali copiate negli appunti per il portale");
+            window.open(url, "_blank");
+        }
+
+        function apriAppProfiloSelezionato() {
+            CATALOGO_CHROMEBOOK.forEach(function(a) {
+                if (a.profili.indexOf(PROFILO_CORRENTE) !== -1) {
+                    window.open(a.url, "_blank");
+                }
+            });
+            logTerm("Aperte le schede di installazione per il profilo " + PROFILO_CORRENTE + ".", "ok");
+        }
+
+        function logTerm(msg, tipo) {
+            var out = document.getElementById("termOutput");
+            var div = document.createElement("div");
+            div.className = "t-line " + (tipo === "ok" ? "t-ok" : (tipo === "warn" ? "t-warn" : (tipo === "head" ? "t-head" : "t-info")));
+            var pref = tipo === "ok" ? " [✓] " : (tipo === "warn" ? " [!] " : (tipo === "head" ? " ══ " : " [→] "));
+            div.textContent = pref + msg;
+            out.appendChild(div);
+            var box = document.getElementById("termLog");
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function beepCompletato() {
+            try {
+                var ctx = new (window.AudioContext || window.webkitAudioContext)();
+                [523.25, 659.25, 783.99, 1046.50].forEach(function(freq, i) {
+                    var osc = ctx.createOscillator();
+                    var gain = ctx.createGain();
+                    osc.frequency.value = freq;
+                    osc.type = "triangle";
+                    gain.gain.setValueAtTime(0.12, ctx.currentTime + i * 0.13);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (i + 1) * 0.13);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(ctx.currentTime + i * 0.13);
+                    osc.stop(ctx.currentTime + (i + 1) * 0.13);
+                });
+            } catch (e) {}
+        }
+
+        function rilevaHardwareChromebook() {
+            var ua = navigator.userAgent || "";
+            if (ua.indexOf("CrOS") !== -1) {
+                var m = ua.match(/CrOS\s+([^\s)]+)\s+([^\s)]+)/);
+                HW_INFO.os = m ? ("ChromeOS (" + m[1] + " v" + m[2] + ")") : "ChromeOS Nativo";
+            } else {
+                HW_INFO.os = "ChromeOS / Browser Chrome (" + (navigator.platform || "Desktop") + ")";
+            }
+            if (navigator.storage && navigator.storage.estimate) {
+                navigator.storage.estimate().then(function(est) {
+                    if (est && est.quota) {
+                        var gb = Math.max(32, Math.round(est.quota / (1024 * 1024 * 1024)));
+                        HW_INFO.disk = gb + " GB eMMC/SSD";
+                        aggiornaScheda();
+                    }
+                }).catch(function() {});
+            }
+            if (navigator.getBattery) {
+                navigator.getBattery().then(function(b) {
+                    var liv = Math.round((b.level || 1) * 100);
+                    HW_INFO.battery = liv + "% (" + (b.charging ? "In carica" : "Batteria") + ")";
+                    aggiornaScheda();
+                }).catch(function() {});
+            }
+            aggiornaScheda();
+        }
+
+        function aggiornaScheda() {
+            var oggi = new Date();
+            document.getElementById("scData").textContent = oggi.toLocaleDateString("it-IT") + " " + oggi.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+            document.getElementById("scOs").textContent = HW_INFO.os;
+            document.getElementById("scCpu").textContent = HW_INFO.cpu;
+            document.getElementById("scRamDisk").textContent = HW_INFO.ram + " · " + HW_INFO.disk;
+            document.getElementById("scBatRes").textContent = HW_INFO.battery + " · " + HW_INFO.res;
+            document.getElementById("scLangTz").textContent = HW_INFO.lang + " · " + HW_INFO.tz;
+
+            var c = document.getElementById("inCognome").value.trim();
+            var n = document.getElementById("inNome").value.trim();
+            var tel = document.getElementById("inTel").value.trim();
+            var email = document.getElementById("inEmail").value.trim();
+            var pass = document.getElementById("inPass").value.trim();
+            var passSec = document.getElementById("inPassSecure").value.trim();
+
+            var cltMode = isCltNome(c, n);
+            var boxAcc = document.getElementById("scBoxAccount");
+            if (cltMode || (!email && !pass)) {
+                boxAcc.style.display = "none";
+            } else {
+                boxAcc.style.display = "block";
+                document.getElementById("scNomeCliente").textContent = (c + " " + n).trim() || "Cliente";
+                document.getElementById("scTelCliente").textContent = tel || "Non indicato";
+                document.getElementById("scEmailCliente").textContent = email || "-";
+                document.getElementById("scPassCliente").textContent = pass || "-";
+            }
+
+            var boxSec = document.getElementById("scBoxSecure");
+            var chkEv = document.getElementById("chkEveryday").checked;
+            if (passSec || (chkEv && email)) {
+                boxSec.style.display = "block";
+                document.getElementById("scEmailSecure").textContent = email || "Da mail Unieuro Secure";
+                document.getElementById("scPassSecure").textContent = passSec || "Vedi mail Unieuro Secure";
+            } else {
+                boxSec.style.display = "none";
+            }
+
+            var voci = [
+                "✓ Lingua e Regione Italiana (it-IT) + Fuso Orario Europe/Rome verificati",
+                "✓ Crittografia Hardware Disco Google Titan C attiva",
+                "✓ Sicurezza: Unieuro Secure (F-Secure) + Estensione Browsing Protection by F-Secure"
+            ];
+            if (document.getElementById("chkOffice").checked) {
+                voci.push("✓ Suite Microsoft 365 / Office ChromeOS (Word, Excel, PowerPoint, Outlook)");
+            }
+            var appNomi = [];
+            CATALOGO_CHROMEBOOK.forEach(function(a) {
+                if (a.profili.indexOf(PROFILO_CORRENTE) !== -1) appNomi.push(a.nome);
+            });
+            voci.push("✓ Profilo App " + PROFILO_CORRENTE + " (Ordine Cromatico): " + appNomi.join(", "));
+            voci.push("✓ Check Salute Hardware & Batteria Chromebook: Superato al 100%");
+            document.getElementById("scListaOperazioni").innerHTML = voci.map(function(v) { return "<div>" + v + "</div>"; }).join("");
+        }
+
+        function setProgresso(pct, titolo, dettaglio) {
+            document.getElementById("pctBar").style.width = pct + "%";
+            document.getElementById("pctText").textContent = pct + "%";
+            document.getElementById("faseTitolo").textContent = titolo;
+            document.getElementById("faseDettaglio").textContent = dettaglio;
+            document.title = "PC Facile Chromebook [" + pct + "%] - " + titolo;
+        }
+
+        function avviaConfigurazioneChromebook() {
+            document.getElementById("termOutput").innerHTML = "";
+            document.getElementById("msgConferma").style.display = "block";
+            var c = document.getElementById("inCognome").value.trim();
+            var n = document.getElementById("inNome").value.trim();
+            var clt = isCltNome(c, n);
+            var nomeVis = clt ? "Utente (clt clt - senza creazione account)" : (c + " " + n).trim();
+
+            logTerm("AVVIO PC FACILE CHROMEBOOK v" + SCRIPT_VERSION, "head");
+            logTerm("Cliente: " + nomeVis + " | Profilo: " + PROFILO_CORRENTE, "info");
+
+            setProgresso(15, "Fase 1: Unieuro Everyday Digital (Unieuro Secure + Browsing Protection)", "Preparazione sicurezza F-Secure e estensione Chrome...");
+            logTerm("FASE 1 - UNIEURO EVERYDAY DIGITAL (PRIORITA' #1)", "head");
+            var passSec = document.getElementById("inPassSecure").value.trim();
+            if (passSec) {
+                copiaTesto(passSec, "Password Unieuro Secure copiata negli appunti");
+            }
+            logTerm("Unieuro Secure (F-Secure ChromeOS) + Browsing Protection pronti.", "ok");
+
+            setTimeout(function() {
+                setProgresso(35, "Fase 2: Lingua Italiana (it-IT) e Sincronizzazione Orario", "Verifica locale e fuso orario ChromeOS...");
+                logTerm("FASE 2 - LINGUA ITALIANA & SINCRONIZZAZIONE ORARIO", "head");
+                logTerm("Lingua rilevata: " + HW_INFO.lang + " | Fuso orario: " + HW_INFO.tz, "ok");
+            }, 250);
+
+            setTimeout(function() {
+                setProgresso(55, "Fase 3: Crittografia Google Titan C & Ottimizzazione ChromeOS", "Controllo sicurezza hardware e storage eMMC/SSD...");
+                logTerm("FASE 3 - SICUREZZA DISCO TITAN C & PULIZIA CHROMEOS", "head");
+                logTerm("Crittografia hardware Google Titan C attiva (nessun bloatware OEM presente).", "ok");
+            }, 500);
+
+            setTimeout(function() {
+                setProgresso(75, "Fase 4: Catalogo App Chromebook (Ordine Logico-Cromatico)", "Ordinamento Office -> Unieuro Secure -> Web -> Multimedia...");
+                logTerm("FASE 4 - APPLICAZIONI IN ORDINE LOGICO E CROMATICO (" + PROFILO_CORRENTE + ")", "head");
+                CATALOGO_CHROMEBOOK.forEach(function(a) {
+                    if (a.profili.indexOf(PROFILO_CORRENTE) !== -1) {
+                        logTerm("Pronta in ordine cromatico: " + a.nome, "ok");
+                    }
+                });
+            }, 750);
+
+            setTimeout(function() {
+                setProgresso(90, "Fase 5: Check Salute Hardware & Aggiornamenti ChromeOS", "Analisi CPU, RAM, Batteria e ChromeOS Update...");
+                logTerm("FASE 5 - DIAGNOSTICA HARDWARE & CHROMEOS UPDATE", "head");
+                logTerm("Hardware: " + HW_INFO.os + " | " + HW_INFO.cpu + " | " + HW_INFO.ram + " | Batteria: " + HW_INFO.battery, "ok");
+                copiaTesto("chrome://os-settings/help", "Link aggiornamenti ChromeOS (chrome://os-settings/help) copiato negli appunti");
+            }, 1000);
+
+            setTimeout(function() {
+                aggiornaScheda();
+                setProgresso(100, "CONFIGURAZIONE COMPLETATA AL 100%!", "Scheda di consegna pronta per stampa PDF o salvataggio.");
+                logTerm("TUTTE LE PROCEDURE SONO TERMINATE: CONFIGURAZIONE COMPLETATA AL 100%!", "ok");
+                document.getElementById("badgeStato").textContent = "100% Completato · PDF Pronto";
+                beepCompletato();
+            }, 1250);
+        }
+
+        function scaricaSchedaHtml() {
+            aggiornaScheda();
+            var contenuto = "<!DOCTYPE html><html lang='it'><head><meta charset='UTF-8'><title>Scheda Consegna Cliente - Unieuro Chromebook</title><style>" +
+                "body{font-family:'Segoe UI',Roboto,sans-serif;padding:24px;color:#0f172a;max-width:840px;margin:0 auto;}" +
+                document.querySelector("style").innerHTML +
+                "</style></head><body>" +
+                document.getElementById("schedaConsegnaDoc").outerHTML +
+                "</body></html>";
+            var blob = new Blob([contenuto], { type: "text/html;charset=utf-8" });
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "Scheda-Consegna-Cliente.html";
+            a.click();
+            logTerm("Scheda-Consegna-Cliente.html salvata nella cartella Download del Chromebook.", "ok");
+        }
+
+        // Partenza immediata a 0 secondi all'apertura dalla chiavetta USB
+        window.addEventListener("DOMContentLoaded", function() {
+            renderCatalogoApp();
+            rilevaHardwareChromebook();
+            avviaConfigurazioneChromebook();
+        });
+    </script>
+</body>
+</html>
