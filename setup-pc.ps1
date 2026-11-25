@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.15.0 (2026-11-25)"
+$SCRIPT_VERSION = "13.16.0 (2026-11-25)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -298,6 +298,9 @@ function Invoke-AggiornamentoUSB {
     }
     if ($null -eq $voci -or $voci.Count -eq 0) {
         Write-Info "Aggiornamento chiavetta saltato (manifest non raggiungibile): uso i file gia' presenti."
+        if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
+            try { [void](Invoke-OrdinaChiavetta -Destinazione $Destinazione) } catch {}
+        }
         return $esito
     }
 
@@ -6253,7 +6256,143 @@ function Repair-DesktopShortcuts {
         if ($riparati -gt 0) {
             Write-OK "Riparate icone desktop per $riparati collegamenti."
         }
+        Set-DesktopIconOrder
         Update-DesktopIconCache
+    } catch {}
+}
+
+# Restituisce la priorita' logica e cromatica di un'icona Desktop:
+# 1) Office & Documenti (Word Blu -> Excel Verde -> PowerPoint Arancio -> Outlook Azzurro -> OneNote Viola -> LibreOffice -> Adobe Rosso -> Sumatra Giallo)
+# 2) Sicurezza Unieuro (Unieuro Secure Blu/Arancio -> Unieuro Cyber Protection Navy/Arancio -> AV)
+# 3) Browser & Comunicazione (Chrome Multicolore -> Browser -> Zoom Blu -> WhatsApp Verde -> Discord Viola -> AnyDesk Rosso -> TeamViewer Blu)
+# 4) Multimedia, Utilita' & Gaming (Spotify Verde -> VLC Arancio -> AIMP Arancio -> GIMP Ambra -> 7-Zip -> Steam Blu Notte -> Epic Nero -> GPU)
+# 5) Scheda di Consegna Finale (PDF/HTML cliente sempre in fondo)
+function Get-DesktopIconPriority {
+    param([string]$Nome)
+    if (-not $Nome) { return 800 }
+    $n = $Nome.Trim()
+    if ($n -match '^(Microsoft\s+)?Word\b')                { return 10 }
+    if ($n -match '^(Microsoft\s+)?Excel\b')               { return 20 }
+    if ($n -match '^(Microsoft\s+)?PowerPoint\b')          { return 30 }
+    if ($n -match '^(Microsoft\s+)?Outlook\b')             { return 40 }
+    if ($n -match '^(Microsoft\s+)?OneNote\b')             { return 50 }
+    if ($n -match '^(Microsoft\s+)?(Access|Publisher)\b')  { return 60 }
+    if ($n -match 'LibreOffice')                           { return 70 }
+    if ($n -match 'Adobe|Acrobat')                         { return 80 }
+    if ($n -match 'Sumatra')                               { return 90 }
+    if ($n -match 'Unieuro\s*Secure|F-Secure')             { return 110 }
+    if ($n -match 'Cyber\s*Protection')                    { return 120 }
+    if ($n -match 'McAfee|Norton')                         { return 130 }
+    if ($n -match 'Chrome')                                { return 210 }
+    if ($n -match 'Firefox|Brave|Opera')                   { return 220 }
+    if ($n -match 'Zoom')                                  { return 230 }
+    if ($n -match 'WhatsApp')                              { return 240 }
+    if ($n -match 'Discord')                               { return 250 }
+    if ($n -match 'AnyDesk')                               { return 260 }
+    if ($n -match 'TeamViewer')                            { return 270 }
+    if ($n -match 'Spotify')                               { return 310 }
+    if ($n -match 'VLC')                                   { return 320 }
+    if ($n -match 'AIMP')                                  { return 330 }
+    if ($n -match 'GIMP')                                  { return 340 }
+    if ($n -match '7-Zip|7Zip|Unarchiver')                 { return 350 }
+    if ($n -match 'Steam')                                 { return 360 }
+    if ($n -match 'Epic\s*Games')                          { return 370 }
+    if ($n -match 'NVIDIA|GeForce|Adrenalin|Intel')        { return 380 }
+    if ($n -match 'Scheda-Consegna')                       { return 900 }
+    return 800
+}
+
+# Riordina le icone sul Desktop del cliente secondo l'ordine logico e cromatico
+# (prima Office, poi Sicurezza Unieuro, Browser/Comunicazione, Multimedia/Utility
+# e per ultima la Scheda di Consegna PDF). Consolida i collegamenti da Public\Desktop
+# e User\Desktop e li reinserisce in sequenza in modo che la griglia di Windows 11
+# li disponga dall'alto in basso colonna per colonna.
+function Set-DesktopIconOrder {
+    param([switch]$Test)
+    if ($Test -or -not $RunReale) { return }
+    try {
+        $userD = Get-DesktopDir
+        if (-not $userD -or -not (Test-Path -LiteralPath $userD)) { return }
+        $pubD  = [Environment]::GetFolderPath('CommonDesktopDirectory')
+        $dirs  = @($userD, $pubD) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
+
+        $candidati = @()
+        foreach ($d in $dirs) {
+            $candidati += @(Get-ChildItem -LiteralPath $d -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.Extension -ieq '.lnk' -or $_.BaseName -like 'Scheda-Consegna*' })
+        }
+        if ($candidati.Count -le 1) { return }
+
+        # Deduplica eventuali doppioni tra Desktop Utente e Desktop Pubblico
+        $unici = @()
+        foreach ($f in $candidati) {
+            $gia = $unici | Where-Object {
+                ($_.Name -ieq $f.Name) -or ($_.Extension -ieq '.lnk' -and $f.Extension -ieq '.lnk' -and (Test-NomeSimile $_.BaseName $f.BaseName))
+            } | Select-Object -First 1
+            if ($gia) {
+                if ($f.FullName -ne $gia.FullName) {
+                    try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue } catch {}
+                }
+            } else {
+                $unici += $f
+            }
+        }
+
+        $ordinati = @($unici | Sort-Object -Property @{ Expression = { Get-DesktopIconPriority $_.BaseName } }, @{ Expression = { $_.BaseName } })
+        $tmpBase = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+        $stageDir = Join-Path $tmpBase ("pcfacile-desk-order-" + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $stageDir -Force -ErrorAction Stop | Out-Null
+
+        $staged = @()
+        foreach ($item in $ordinati) {
+            $destTmp = Join-Path $stageDir $item.Name
+            try {
+                Copy-Item -LiteralPath $item.FullName -Destination $destTmp -Force -ErrorAction Stop
+                if (Test-Path -LiteralPath $destTmp) {
+                    try {
+                        Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
+                        $staged += [pscustomobject]@{ Name = $item.Name; TmpPath = $destTmp; TargetDir = $userD }
+                    } catch {
+                        # Se un collegamento su Public\Desktop fosse bloccato, non lo duplichiamo
+                        Remove-Item -LiteralPath $destTmp -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            } catch {}
+        }
+
+        if ($staged.Count -gt 0) {
+            try {
+                Get-Item -Path 'HKCU:\Software\Microsoft\Windows\Shell\Bags\1\Desktop' -ErrorAction SilentlyContinue |
+                    ForEach-Object {
+                        foreach ($p in $_.Property) {
+                            if ($p -like 'ItemPos*') {
+                                Remove-ItemProperty -Path $_.PSPath -Name $p -ErrorAction SilentlyContinue
+                            }
+                        }
+                    }
+            } catch {}
+            Update-DesktopIconCache
+            Start-Sleep -Milliseconds 350
+
+            $t0 = (Get-Date).AddMinutes(-5)
+            $idx = 0
+            foreach ($s in $staged) {
+                $idx++
+                $finalPath = Join-Path $s.TargetDir $s.Name
+                try {
+                    $ts = $t0.AddSeconds($idx * 2)
+                    $fi = Get-Item -LiteralPath $s.TmpPath -ErrorAction SilentlyContinue
+                    if ($fi) {
+                        $fi.CreationTime = $ts
+                        $fi.LastWriteTime = $ts
+                    }
+                    Move-Item -LiteralPath $s.TmpPath -Destination $finalPath -Force -ErrorAction Stop
+                    Start-Sleep -Milliseconds 110
+                } catch {}
+            }
+            Update-DesktopIconCache
+        }
+        Remove-Item -LiteralPath $stageDir -Recurse -Force -ErrorAction SilentlyContinue
     } catch {}
 }
 
@@ -9897,6 +10036,7 @@ if ($RunReale) {
     Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
     }
     Invoke-SchedaConsegnaFinale
+    Set-DesktopIconOrder
 }
 
 # -----------------------------------------------------------------------------

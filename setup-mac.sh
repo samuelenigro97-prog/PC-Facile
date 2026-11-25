@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.22 (2026-11-25)"
+SCRIPT_VERSION="2.23 (2026-11-25)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1536,29 +1536,38 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
     pkill -f -i "Zoom" 2>/dev/null || true
     pkill -f -i "Steam" 2>/dev/null || true
 
-    # Crea collegamenti sul Desktop per le app installate (come su Windows)
+    # Crea collegamenti sul Desktop nell'ordine logico e cromatico (Office -> Sicurezza Unieuro -> Browser/Comunicazione -> Multimedia/Utilità)
     if [[ -d "$HOME/Desktop" ]]; then
         local _app_bundle _app_match
         for _app_match in \
-            "Google Chrome.app" \
-            "VLC.app" \
+            "Microsoft Word.app" \
+            "Microsoft Excel.app" \
+            "Microsoft PowerPoint.app" \
+            "Microsoft Outlook.app" \
+            "Microsoft OneNote.app" \
+            "LibreOffice.app" \
             "Adobe Acrobat Reader.app" \
             "Adobe Acrobat.app" \
-            "The Unarchiver.app" \
+            "Unieuro Secure.app" \
+            "Google Chrome.app" \
+            "zoom.us.app" \
             "WhatsApp.app" \
+            "Discord.app" \
             "AnyDesk.app" \
             "TeamViewer.app" \
             "Spotify.app" \
-            "LibreOffice.app" \
-            "zoom.us.app" \
-            "Discord.app" \
+            "VLC.app" \
+            "The Unarchiver.app" \
             "Steam.app"; do
             _app_bundle="/Applications/$_app_match"
-            if [[ -d "$_app_bundle" && ! -e "$HOME/Desktop/$_app_match" ]]; then
-                ln -s "$_app_bundle" "$HOME/Desktop/$_app_match" 2>/dev/null || true
+            if [[ -d "$_app_bundle" ]]; then
+                [[ -L "$HOME/Desktop/$_app_match" ]] && rm -f "$HOME/Desktop/$_app_match" 2>/dev/null
+                if [[ ! -e "$HOME/Desktop/$_app_match" ]]; then
+                    ln -s "$_app_bundle" "$HOME/Desktop/$_app_match" 2>/dev/null || true
+                fi
             fi
         done
-        ok "Collegamenti app aggiunti sulla Scrivania."
+        ok "Collegamenti app ordinati sulla Scrivania (Office -> Sicurezza -> Web -> Multimedia)."
     fi
 
     add_report "App profilo $PROFILO (${#INSTALLATE} installate)" "OK"

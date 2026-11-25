@@ -31,6 +31,7 @@ BeforeAll {
         'Install-WindowsUpdateDrivers',
         'Convert-PngToIco', 'Get-AppxPackageIcon',
         'Get-FileWifiManifest', 'Test-PercorsoManifestSicuro', 'Read-ManifestPcFacile', 'Invoke-AggiornamentoUSB', 'Invoke-OrdinaChiavetta', 'Invoke-SelfUpdateIfOutdated', 'Test-CartellaKitUSB',
+        'Get-DesktopIconPriority', 'Set-DesktopIconOrder',
         'Test-DatiClienteConfermati', 'Start-ServerPannello',
         'Get-AntivirusInstallati', 'Test-AvDaTenere', 'Get-AntivirusTerzi', 'Test-LinguaItaliana', 'Test-PuntoRipristinoOggi', 'Get-OsppPath',
         'Test-OfficeInstallato', 'Test-OfficeAttivato', 'Test-PassoGiaFatto', 'Test-VCRuntimePresente',
@@ -1362,5 +1363,19 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $script:SrcPs1 | Should -Match 'StartInteractiveScan'
         $script:SrcPs1 | Should -Match 'StartDownload'
         $script:SrcPs1 | Should -Match 'StartInstall'
+    }
+    It 'ordina le icone Desktop in sequenza logica e cromatica (Office -> Unieuro Secure -> Browser/Chat -> Multimedia -> Scheda Consegna)' {
+        (Get-DesktopIconPriority 'Word') | Should -BeLessThan (Get-DesktopIconPriority 'Excel')
+        (Get-DesktopIconPriority 'Excel') | Should -BeLessThan (Get-DesktopIconPriority 'PowerPoint')
+        (Get-DesktopIconPriority 'PowerPoint') | Should -BeLessThan (Get-DesktopIconPriority 'Adobe Acrobat Reader')
+        (Get-DesktopIconPriority 'Adobe Acrobat Reader') | Should -BeLessThan (Get-DesktopIconPriority 'Unieuro Secure')
+        (Get-DesktopIconPriority 'Unieuro Secure') | Should -BeLessThan (Get-DesktopIconPriority 'Unieuro Cyber Protection')
+        (Get-DesktopIconPriority 'Unieuro Cyber Protection') | Should -BeLessThan (Get-DesktopIconPriority 'Google Chrome')
+        (Get-DesktopIconPriority 'Google Chrome') | Should -BeLessThan (Get-DesktopIconPriority 'Zoom Workplace')
+        (Get-DesktopIconPriority 'Zoom Workplace') | Should -BeLessThan (Get-DesktopIconPriority 'WhatsApp')
+        (Get-DesktopIconPriority 'WhatsApp') | Should -BeLessThan (Get-DesktopIconPriority 'Spotify')
+        (Get-DesktopIconPriority 'Spotify') | Should -BeLessThan (Get-DesktopIconPriority 'VLC media player')
+        (Get-DesktopIconPriority 'VLC media player') | Should -BeLessThan (Get-DesktopIconPriority '7-Zip File Manager')
+        (Get-DesktopIconPriority '7-Zip File Manager') | Should -BeLessThan (Get-DesktopIconPriority 'Scheda-Consegna-Cliente')
     }
 }

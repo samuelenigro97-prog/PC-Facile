@@ -17,3 +17,22 @@
 manifest.txt text eol=lf
 LEGGIMI.md   text eol=lf
 wifi/*       -text
+
+# Escludi file e cartelle di sviluppo dallo ZIP scaricato da GitHub ("Download ZIP")
+# cosi' chi scarica il pacchetto da GitHub ottiene SOLO i file ordinati per la chiavetta USB.
+.agents                       export-ignore
+.github                       export-ignore
+.gitattributes                export-ignore
+.gitignore                    export-ignore
+AGENTS.md                     export-ignore
+CHANGELOG.md                  export-ignore
+CLAUDE.md                     export-ignore
+LICENSE.md                    export-ignore
+PARITA.md                     export-ignore
+PSScriptAnalyzerSettings.psd1 export-ignore
+README.md                     export-ignore
+SECURITY.md                   export-ignore
+docs                          export-ignore
+pannello                      export-ignore
+tests                         export-ignore
+tools                         export-ignore
