@@ -1416,4 +1416,11 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $fnInst | Should -Not -BeNullOrEmpty
         $fnInst.Extent.Text | Should -Match 'if \(-not \(Confirm-Winget\)\)[\s\S]*?Install-AppDirectFallback'
     }
+    It 'il pannello espone il pulsante Salta accanto a ogni operazione e il server gestisce POST /skip' {
+        $html = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'pannello/pannello-operatore.html') -Raw
+        $html | Should -Match 'function saltaOperazione'
+        $html | Should -Match 'btn-skip-task'
+        $script:SrcPs1 | Should -Match "/skip"
+        $script:SrcPs1 | Should -Match "SkipCurrent"
+    }
 }

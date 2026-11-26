@@ -64,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.20.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.21.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1768,6 +1768,10 @@ function Update-PannelloStatus {
         }
 
         if ($TaskId -and $Global:PannelloStatus.Tasks.Contains($TaskId)) {
+            if ($Global:PannelloSync -and $Global:PannelloSync.Saltati -and $Global:PannelloSync.Saltati[$TaskId] -and $Stato -eq 'running') {
+                $Stato = 'skipped'
+                $Dettaglio = "Saltato dall'operatore"
+            }
             if ($Stato) { $Global:PannelloStatus.Tasks[$TaskId].Stato = $Stato }
             if ($Dettaglio) { $Global:PannelloStatus.Tasks[$TaskId].Dettaglio = $Dettaglio }
         }
@@ -1814,13 +1818,18 @@ function Start-ServerPannello {
         if ($Global:CredHttpListener -and $Global:CredHttpListener.IsListening) { return $true }
         if (-not $Global:PannelloSync) {
             $Global:PannelloSync = [hashtable]::Synchronized(@{
-                StatusJson = '{}'
-                CodaCred   = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
-                CodaStep   = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+                StatusJson  = '{}'
+                CodaCred    = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+                CodaStep    = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+                Saltati     = [hashtable]::Synchronized(@{})
+                SkipCurrent = $false
             })
         }
         if (-not $Global:PannelloSync.CodaStep) {
             $Global:PannelloSync.CodaStep = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
+        }
+        if (-not $Global:PannelloSync.Saltati) {
+            $Global:PannelloSync.Saltati = [hashtable]::Synchronized(@{})
         }
         $Global:PannelloSync.TestMode = [bool]($Test -or $Global:Test -or $env:PESTER_TEST)
         $Global:PannelloSync.Origini = @($Origini)
@@ -1956,6 +1965,50 @@ function Start-ServerPannello {
                                 Invia $res 200 $respObj
                             }
                         }
+                    } elseif ($req.HttpMethod -eq 'POST' -and $percorso -eq '/skip') {
+                        $reader = New-Object System.IO.StreamReader($req.InputStream, [System.Text.Encoding]::UTF8)
+                        $body = $reader.ReadToEnd()
+                        $dati = $null
+                        try { $dati = $body | ConvertFrom-Json } catch {}
+                        $tk = if ($dati -and $dati.TaskId) { ([string]$dati.TaskId).Trim().ToLower() } else { 'current' }
+                        try {
+                            $stObj = $Sync.StatusJson | ConvertFrom-Json
+                            if ($stObj -and $stObj.Tasks) {
+                                if ($tk -eq 'current') {
+                                    foreach ($prop in $stObj.Tasks.PSObject.Properties) {
+                                        if ($prop.Value.Stato -eq 'running') { $tk = $prop.Name; break }
+                                    }
+                                }
+                                if ($tk -and $tk -ne 'current') {
+                                    $Sync.Saltati[$tk] = $true
+                                    $propTk = $stObj.Tasks.PSObject.Properties[$tk]
+                                    if ($propTk) {
+                                        if ($propTk.Value.Stato -eq 'running') {
+                                            $Sync.SkipCurrent = $true
+                                        }
+                                        $propTk.Value.Stato = 'skipped'
+                                        $propTk.Value.Dettaglio = "Saltato dall'operatore"
+                                    }
+                                } else {
+                                    $Sync.SkipCurrent = $true
+                                }
+                                $Sync.StatusJson = ($stObj | ConvertTo-Json -Depth 5 -Compress)
+                            }
+                        } catch {
+                            if ($tk -and $tk -ne 'current') { $Sync.Saltati[$tk] = $true }
+                            $Sync.SkipCurrent = $true
+                        }
+                        if (-not $Sync.TestMode) {
+                            try {
+                                switch ($tk) {
+                                    'avprova'  { Get-Process -Name 'sbbd*','InstStub*','Norton*','MCPR*','NRnR*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+                                    'everyday' { Get-Process -Name 'UnieuroSecure*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+                                    'pulizia'  { Get-Process -Name 'OneDriveSetup*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+                                    default    { Get-Process -Name 'winget*','curl*' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+                                }
+                            } catch {}
+                        }
+                        Invia $res 200 '{"ok":true,"saltato":true}'
                     } else {
                         Invia $res 404 '{"ok":false,"motivo":"percorso sconosciuto"}'
                     }
@@ -2265,6 +2318,22 @@ function Open-PannelloOperatore {
         .task-name { color: #e2e8f0; font-weight: 600; }
         .task-detail { color: #fed7aa; font-size: 14px; grid-column: 2; }
         .task-detail:empty { display: none; }
+        .task-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .btn-skip-task {
+            background: #1e293b;
+            border: 1.5px solid #475569;
+            color: #e2e8f0;
+            font-size: 12.5px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-skip-task:hover { background: #EE7203; border-color: #EE7203; color: #00122b; }
+        .task-item.running .btn-skip-task { background: #431407; border-color: #EE7203; color: #fed7aa; }
+        .task-item.running .btn-skip-task:hover { background: #EE7203; color: #00122b; }
+        .task-item.done .btn-skip-task, .task-item.skipped .btn-skip-task { display: none; }
         .task-badge {
             font-size: 13px;
             font-weight: 800;
@@ -2566,9 +2635,12 @@ function Open-PannelloOperatore {
                 <div class="progress-bar-bg" role="progressbar" aria-label="Avanzamento configurazione" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
                     <div id="progressBarFill" class="progress-bar-fill"></div>
                 </div>
-                <div class="progress-status-row" aria-live="polite">
-                    <div><span class="muted">Ora:</span> <span id="currentFaseText" class="current-fase">In attesa dello script</span></div>
-                    <div id="currentDetailText" class="current-detail"></div>
+                <div class="progress-status-row" aria-live="polite" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <div>
+                        <div><span class="muted">Ora:</span> <span id="currentFaseText" class="current-fase">In attesa dello script</span></div>
+                        <div id="currentDetailText" class="current-detail"></div>
+                    </div>
+                    <button type="button" id="btnSkipCurrent" class="btn-skip-task" style="display:none; background:#431407; border-color:#EE7203; color:#fed7aa; padding:6px 12px; font-size:13px;" onclick="saltaOperazione('current')">Salta operazione in corso &#10140;</button>
                 </div>
             </div>
 
@@ -2709,21 +2781,21 @@ function Open-PannelloOperatore {
                 <div class="card-subtitle">Nella Fase 1 inserisci i dati del cliente e completi Office, antivirus e servizi; poi la Fase 2 va dritta da sola dalla lingua fino agli aggiornamenti. I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
                     <li class="task-gruppo">Fase 1 &middot; Rimozione AV di prova, Dati cliente, Everyday Digital e Office</li>
-                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-everyday" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Unieuro Everyday Digital (Secure + Cyber)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Rimozione antivirus di prova</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('avprova')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-everyday" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Unieuro Everyday Digital (Secure + Cyber)</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('everyday')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Office: installazione e attivazione</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('office')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Nome PC e account cliente</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('account')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Protezione antivirus</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('antivirus')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Unieuro Cyber Protection</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('cyber')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li class="task-gruppo">Fase 2 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Lingua italiana e tastiera</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('lingua')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Punto di ripristino</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('ripristino')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('runtime')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Programmi</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('app')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('pulizia')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Driver hardware</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('driver')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('aggiorna')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('diagnostica')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                 </ul>
             </div>
         </div>
@@ -3351,6 +3423,32 @@ function Open-PannelloOperatore {
             box.className = 'step-esito ' + (tipo || 'ok');
         }
 
+        function saltaOperazione(taskKey) {
+            var targetKey = taskKey;
+            if (targetKey === 'current' && ultimoStato && (ultimoStato.Tasks || ultimoStato.tasks)) {
+                var tt = ultimoStato.Tasks || ultimoStato.tasks;
+                for (var k in tt) {
+                    if (((tt[k].Stato || tt[k].stato || '') + '').toLowerCase() === 'running') {
+                        targetKey = k;
+                        break;
+                    }
+                }
+            }
+            showToast('Salto operazione in corso...');
+            fetchConTimeout(SERVER + '/skip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ TaskId: targetKey })
+            }).then(function(r) {
+                return r.json().catch(function() { return {}; });
+            }).then(function() {
+                showToast('Operazione saltata: passo alla successiva');
+                checkConnection();
+            }).catch(function() {
+                showToast('PC Facile non risponde', 'errore');
+            });
+        }
+
         function eseguiPasso(step, paramOverride) {
             var payload = { Step: step, Param: paramOverride || '' };
             if (step === 'app') {
@@ -3532,6 +3630,16 @@ function Open-PannelloOperatore {
             }
 
             var completato = !!(data.Completato || data.completato);
+            var btnSkipCur = el('btnSkipCurrent');
+            if (btnSkipCur) {
+                var haRunning = false;
+                if (tasks) {
+                    for (var rk in tasks) {
+                        if (((tasks[rk].Stato || tasks[rk].stato || '') + '').toLowerCase() === 'running') { haRunning = true; break; }
+                    }
+                }
+                btnSkipCur.style.display = (!completato && haRunning) ? 'inline-block' : 'none';
+            }
             var banner = el('completionBanner');
             if (completato) {
                 var lista = el('completionAvvisi');
@@ -5964,6 +6072,12 @@ function Invoke-WingetConBarra {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         $ultimoBeat = 0
         while (-not $p.HasExited) {
+            if ($Global:PannelloSync -and $Global:PannelloSync.SkipCurrent) {
+                Write-Host ""
+                Write-Info "Operazione '$Nome' saltata dall'operatore dal pannello."
+                try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+                return -9998
+            }
             $sec = [int]$sw.Elapsed.TotalSeconds
             if ($sec -ge $TimeoutSec) {
                 Write-Host ""
@@ -8538,6 +8652,16 @@ $bar = (([string]$BOX_FULL) * $pieni) + (([string]$BOX_EMPTY) * ($barLen - $pien
 Write-Host ("$AON  Passo $passoMostrato/$totPassi  [$bar]  $($voce.Nome)$AOFF") -ForegroundColor $THEME_COL
 Update-PannelloStatus -Percentuale (5 + [int](90 * $passo / $totPassi)) -PercentualeGuida -FaseCorrente $voce.Nome
 
+if ($Global:PannelloSync) { $Global:PannelloSync.SkipCurrent = $false }
+if ($Global:PannelloSync -and $Global:PannelloSync.Saltati -and $Global:PannelloSync.Saltati[$voce.Task]) {
+    Write-Info "Passo '$($voce.Nome)' saltato dall'operatore dal pannello."
+    Add-Report "$($voce.Nome) (saltato dall'operatore)" "SALTATO"
+    Update-PannelloStatus -TaskId $voce.Task -Stato "skipped" -Dettaglio "Saltato dall'operatore"
+    $passo++
+    Save-Fase $passo $voce.Nome
+    continue wizard
+}
+
 $giaFatto = Test-PassoGiaFatto -Id $voce.Id
 if ($giaFatto) {
     Write-Titolo $voce.Nome
@@ -8681,20 +8805,38 @@ Update-PannelloStatus -TaskId "avprova" -Stato "running" -FaseCorrente "Rimozion
             Write-Info "Provo a rimuovere: $($av.Nome)..."
             Start-BarraAnimata "Rimuovo $($av.Nome)"
             try {
-                # 1) Disinstallatore SILENZIOSO dal registro (ARP): e' il modo piu'
-                #    efficace, becca anche le versioni che winget non gestisce.
-                #    Preferisco QuietUninstallString; se manca, provo UninstallString
-                #    aggiungendo flag silenziosi tipici (McAfee usa /silent).
-                if ($av.QuietUninstall) {
-                    try { cmd /c $av.QuietUninstall 2>$null | Out-Null } catch {}
-                } elseif ($av.Uninstall) {
-                    try { cmd /c "$($av.Uninstall) /silent /quiet /norestart" 2>$null | Out-Null } catch {}
+                # 1) Disinstallatore SILENZIOSO dal registro (ARP) con timeout max 30s e supporto tasto Salta
+                $cmdAv = if ($av.QuietUninstall) { $av.QuietUninstall } elseif ($av.Uninstall) { "$($av.Uninstall) /silent /quiet /norestart" } else { "" }
+                if ($cmdAv) {
+                    try {
+                        $pAv = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c `"$cmdAv`"" -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+                        $tAv = 0
+                        while ($pAv -and -not $pAv.HasExited -and $tAv -lt 60) {
+                            if ($Global:PannelloSync -and ($Global:PannelloSync.SkipCurrent -or $Global:PannelloSync.Saltati['avprova'])) {
+                                try { $pAv.Kill() } catch {}
+                                break
+                            }
+                            Start-Sleep -Milliseconds 500
+                            $tAv++
+                        }
+                        if ($pAv -and -not $pAv.HasExited) { try { $pAv.Kill() } catch {} }
+                    } catch {}
                 }
-                # 2) winget come rinforzo (Avast/AVG e i McAfee che gestisce).
-                #    McAfee/Norton spesso resistono: sotto ci pensano i tool
-                #    ufficiali (MCPR / NRnR).
-                if (Confirm-Winget) {
-                    winget uninstall --name $av.Nome --silent --accept-source-agreements 2>$null | Out-Null
+                # 2) winget come rinforzo (max 20s, salta se l'operatore ha premuto Salta)
+                if ((-not ($Global:PannelloSync -and ($Global:PannelloSync.SkipCurrent -or $Global:PannelloSync.Saltati['avprova']))) -and (Confirm-Winget)) {
+                    try {
+                        $pWgAv = Start-Process -FilePath "winget.exe" -ArgumentList @('uninstall', '--name', $av.Nome, '--silent', '--accept-source-agreements') -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+                        $tWg = 0
+                        while ($pWgAv -and -not $pWgAv.HasExited -and $tWg -lt 40) {
+                            if ($Global:PannelloSync -and ($Global:PannelloSync.SkipCurrent -or $Global:PannelloSync.Saltati['avprova'])) {
+                                try { $pWgAv.Kill() } catch {}
+                                break
+                            }
+                            Start-Sleep -Milliseconds 500
+                            $tWg++
+                        }
+                        if ($pWgAv -and -not $pWgAv.HasExited) { try { $pWgAv.Kill() } catch {} }
+                    } catch {}
                 }
             } finally { Stop-BarraAnimata }
         }
