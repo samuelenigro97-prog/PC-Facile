@@ -27,9 +27,9 @@ Sulla chiavetta USB trovi i **3 file di avvio** (lo ZIP scaricato da GitHub cont
    - Se lasci **Cognome e Nome vuoti** (o scrivi `clt clt` / `Utente`), il PC viene configurato come **`Utente`** senza registrare email e senza stampare il box account nel PDF di consegna.
    - Nel riquadro **Password Unieuro Secure**, clicca **`Incolla mail`** (o incolla l'intero testo della mail `Email: ... Password: ...` ricevuta dal cliente): il pannello estrae da solo Email e Password temporanea di Unieuro Secure, le offre col tasto **`Copia`** a 1 clic e le stampa nella **`Scheda-Consegna-Cliente.pdf`**.
 4. **Icone sul Desktop in ordine logico e cromatico**:
-   - A fine lavoro tutte le icone sul Desktop vengono riordinate dall'alto in basso per categoria e armonia cromatica:
-     1. **Office & Documenti** (*Word → Excel → PowerPoint → Outlook → OneNote → LibreOffice → Adobe Acrobat Reader → SumatraPDF*)
-     2. **Sicurezza Unieuro** (*Unieuro Secure → Unieuro Cyber Protection*)
+   - A fine lavoro tutte le icone sul Desktop vengono riordinate dall'alto in basso mettendo **per prime le due app di sicurezza Unieuro** e poi le altre categorie in armonia cromatica:
+     1. **Prime 2 App — Sicurezza Unieuro** (*1. `Unieuro Secure` → 2. `Unieuro Cyber Protection`*)
+     2. **Office & Documenti** (*Word → Excel → PowerPoint → Outlook → OneNote → LibreOffice → Adobe Acrobat Reader → SumatraPDF*)
      3. **Browser & Comunicazione** (*Google Chrome → Zoom → WhatsApp → Discord → AnyDesk → TeamViewer*)
      4. **Multimedia, Utilità & Gaming** (*Spotify → VLC → AIMP → GIMP → 7-Zip / The Unarchiver → Steam → Epic Games*)
      5. **Documento finale** (*`Scheda-Consegna-Cliente.pdf`*)

@@ -64,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.19.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.20.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -6339,6 +6339,12 @@ function Repair-DesktopShortcuts {
         try {
             if (Test-OfficeInstallato) { Add-CollegamentiOffice }
         } catch {}
+        # Assicura che il collegamento Desktop a Unieuro Cyber Protection sia sempre presente accanto a Unieuro Secure
+        try {
+            if (-not $Global:serviziSelezionati -or $Global:serviziSelezionati.Everyday -or $Global:serviziSelezionati.Cyber) {
+                Add-ShortcutCyberProtection
+            }
+        } catch {}
 
         if ($riparati -gt 0) {
             Write-OK "Riparate icone desktop per $riparati collegamenti."
@@ -6349,8 +6355,8 @@ function Repair-DesktopShortcuts {
 }
 
 # Restituisce la priorita' logica e cromatica di un'icona Desktop:
-# 1) Office & Documenti (Word Blu -> Excel Verde -> PowerPoint Arancio -> Outlook Azzurro -> OneNote Viola -> LibreOffice -> Adobe Rosso -> Sumatra Giallo)
-# 2) Sicurezza Unieuro (Unieuro Secure Blu/Arancio -> Unieuro Cyber Protection Navy/Arancio -> AV)
+# 1) PRIME DUE APP: Unieuro Secure (#1) e Unieuro Cyber Protection / Cybersecurity (#2)
+# 2) Office & Documenti (Word Blu -> Excel Verde -> PowerPoint Arancio -> Outlook Azzurro -> OneNote Viola -> LibreOffice -> Adobe Rosso -> Sumatra Giallo)
 # 3) Browser & Comunicazione (Chrome Multicolore -> Browser -> Zoom Blu -> WhatsApp Verde -> Discord Viola -> AnyDesk Rosso -> TeamViewer Blu)
 # 4) Multimedia, Utilita' & Gaming (Spotify Verde -> VLC Arancio -> AIMP Arancio -> GIMP Ambra -> 7-Zip -> Steam Blu Notte -> Epic Nero -> GPU)
 # 5) Scheda di Consegna Finale (PDF/HTML cliente sempre in fondo)
@@ -6358,6 +6364,8 @@ function Get-DesktopIconPriority {
     param([string]$Nome)
     if (-not $Nome) { return 800 }
     $n = $Nome.Trim()
+    if ($n -match 'Unieuro\s*Secure|F-Secure')             { return 1 }
+    if ($n -match 'Cyber\s*Protection|Cybersecurity')      { return 2 }
     if ($n -match '^(Microsoft\s+)?Word\b')                { return 10 }
     if ($n -match '^(Microsoft\s+)?Excel\b')               { return 20 }
     if ($n -match '^(Microsoft\s+)?PowerPoint\b')          { return 30 }
@@ -6367,8 +6375,6 @@ function Get-DesktopIconPriority {
     if ($n -match 'LibreOffice')                           { return 70 }
     if ($n -match 'Adobe|Acrobat')                         { return 80 }
     if ($n -match 'Sumatra')                               { return 90 }
-    if ($n -match 'Unieuro\s*Secure|F-Secure')             { return 110 }
-    if ($n -match 'Cyber\s*Protection')                    { return 120 }
     if ($n -match 'McAfee|Norton')                         { return 130 }
     if ($n -match 'Chrome')                                { return 210 }
     if ($n -match 'Firefox|Brave|Opera')                   { return 220 }

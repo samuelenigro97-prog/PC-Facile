@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.25 (2026-11-25)"
+SCRIPT_VERSION="2.26 (2026-11-26)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
@@ -1536,10 +1536,20 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
     pkill -f -i "Zoom" 2>/dev/null || true
     pkill -f -i "Steam" 2>/dev/null || true
 
-    # Crea collegamenti sul Desktop nell'ordine logico e cromatico (Office -> Sicurezza Unieuro -> Browser/Comunicazione -> Multimedia/Utilità)
+    # Crea app bundle nativa per Unieuro Cyber Protection e ordina i collegamenti sul Desktop
+    # (PRIME DUE APP: 1. Unieuro Secure, 2. Unieuro Cyber Protection -> poi Office -> Browser/Chat -> Multimedia)
     if [[ -d "$HOME/Desktop" ]]; then
+        if $RUN_REALE && ! $MODO_TEST; then
+            local _cp_app="/Applications/Unieuro Cyber Protection.app"
+            sudo mkdir -p "$_cp_app/Contents/MacOS" 2>/dev/null || true
+            printf '#!/bin/sh\nopen "https://unieuro-cyber-protection.covercare.it"\n' | sudo tee "$_cp_app/Contents/MacOS/UnieuroCyberProtection" >/dev/null 2>&1 || true
+            sudo chmod +x "$_cp_app/Contents/MacOS/UnieuroCyberProtection" 2>/dev/null || true
+            printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleExecutable</key><string>UnieuroCyberProtection</string><key>CFBundleIdentifier</key><string>it.unieuro.cyberprotection</string><key>CFBundleName</key><string>Unieuro Cyber Protection</string><key>CFBundlePackageType</key><string>APPL</string></dict></plist>\n' | sudo tee "$_cp_app/Contents/Info.plist" >/dev/null 2>&1 || true
+        fi
         local _app_bundle _app_match
         for _app_match in \
+            "Unieuro Secure.app" \
+            "Unieuro Cyber Protection.app" \
             "Microsoft Word.app" \
             "Microsoft Excel.app" \
             "Microsoft PowerPoint.app" \
@@ -1548,7 +1558,6 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
             "LibreOffice.app" \
             "Adobe Acrobat Reader.app" \
             "Adobe Acrobat.app" \
-            "Unieuro Secure.app" \
             "Google Chrome.app" \
             "zoom.us.app" \
             "WhatsApp.app" \
@@ -1567,7 +1576,7 @@ if [[ -n "$PROFILO" ]] && $RUN_REALE; then
                 fi
             fi
         done
-        ok "Collegamenti app ordinati sulla Scrivania (Office -> Sicurezza -> Web -> Multimedia)."
+        ok "Collegamenti app ordinati sulla Scrivania (1. Unieuro Secure, 2. Unieuro Cyber Protection -> Office -> Web -> Multimedia)."
     fi
 
     add_report "App profilo $PROFILO (${#INSTALLATE} installate)" "OK"
