@@ -64,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.21.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.22.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -931,16 +931,41 @@ function Set-NomeUtenteEPc {
 
     if (-not ($Test -or $Global:Test -or $env:PESTER_TEST)) {
         try {
-            Set-LocalUser -Name $env:USERNAME -FullName $NomeUtente -ErrorAction Stop
+            Set-LocalUser -Name $env:USERNAME -FullName $NomeUtente -PasswordNeverExpires $true -ErrorAction Stop
             $esitoUtente = $true
         } catch {
             try {
-                $u = [ADSI]("WinNT://./$env:USERNAME,user")
-                $u.FullName = $NomeUtente
-                $u.SetInfo()
+                Set-LocalUser -Name $env:USERNAME -FullName $NomeUtente -ErrorAction Stop
                 $esitoUtente = $true
-            } catch {}
+            } catch {
+                try {
+                    $u = [ADSI]("WinNT://./$env:USERNAME,user")
+                    $u.FullName = $NomeUtente
+                    $u.SetInfo()
+                    $esitoUtente = $true
+                } catch {}
+            }
         }
+        # Disattiva per sempre la scadenza password Windows (42 giorni), rimuove la password locale
+        # se impostata per errore durante OOBE e disabilita il blocco password al risveglio dallo standby.
+        try {
+            & net.exe accounts /maxpwage:unlimited 2>$null | Out-Null
+            Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
+                try { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}
+            }
+            & net.exe user $env:USERNAME "" 2>$null | Out-Null
+            $pwLess = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"
+            if (Test-Path $pwLess) {
+                Set-ItemProperty -Path $pwLess -Name "DevicePasswordLessBuildVersion" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            }
+            $pwrPol = "HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51"
+            if (-not (Test-Path $pwrPol)) { New-Item -Path $pwrPol -Force -ErrorAction SilentlyContinue | Out-Null }
+            Set-ItemProperty -Path $pwrPol -Name "ACSettingIndex" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            Set-ItemProperty -Path $pwrPol -Name "DCSettingIndex" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+            & powercfg.exe /setdcvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+            & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+        } catch {}
         # Pulisce anche la cache del nome visualizzato di Windows 11 (LogonUI / Start Menu)
         # cosi' se all'OOBE l'account era stato chiamato 'clt clt', cambia subito.
         try {
@@ -1847,7 +1872,7 @@ function Start-ServerPannello {
                 $Res.ContentLength64 = $b.Length
                 $Res.OutputStream.Write($b, 0, $b.Length)
             }
-            $passiValidi = @('everyday','ripristino','sysdm','avprova','lingua','runtime','app','icone','office','officeattiva','account','netplwiz','antivirus','cyber','pulizia','driver','devmgmt','aggiorna','winupdate','scheda','diagnostica')
+            $passiValidi = @('everyday','ripristino','sysdm','avprova','lingua','runtime','app','icone','office','officeattiva','account','netplwiz','nopass','antivirus','cyber','pulizia','driver','devmgmt','aggiorna','winupdate','scheda','diagnostica')
             while ($Listener.IsListening) {
                 try { $ctx = $Listener.GetContext() } catch { break }
                 $res = $ctx.Response
@@ -1945,6 +1970,30 @@ function Start-ServerPannello {
                                 }
                                 $Sync.CodaStep.Enqueue($body)
                                 $respObj = @{ ok = $true; messaggio = "Nome utente impostato su '$nu' e Nome PC su '$np' (attivo al riavvio)." } | ConvertTo-Json -Compress
+                                Invia $res 200 $respObj
+                            } elseif ($st -eq 'nopass') {
+                                if (-not $Sync.TestMode) {
+                                    try {
+                                        & net.exe accounts /maxpwage:unlimited 2>$null | Out-Null
+                                        & net.exe user $env:USERNAME "" 2>$null | Out-Null
+                                        Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
+                                            try { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}
+                                        }
+                                        $pwLess = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device"
+                                        if (Test-Path $pwLess) {
+                                            Set-ItemProperty -Path $pwLess -Name "DevicePasswordLessBuildVersion" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                                        }
+                                        $winLogon = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+                                        if (Test-Path $winLogon) {
+                                            Remove-ItemProperty -Path $winLogon -Name "DefaultPassword" -ErrorAction SilentlyContinue
+                                            Set-ItemProperty -Path $winLogon -Name "AutoAdminLogon" -Value "0" -ErrorAction SilentlyContinue
+                                        }
+                                        & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+                                        & powercfg.exe /setdcvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+                                        & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+                                    } catch {}
+                                }
+                                $respObj = @{ ok = $true; messaggio = "Password login Windows rimossa e scadenza disattivata: accesso diretto al Desktop attivo." } | ConvertTo-Json -Compress
                                 Invia $res 200 $respObj
                             } elseif ($st -in @('sysdm','netplwiz','devmgmt','winupdate')) {
                                 if (-not $Sync.TestMode) {
@@ -2898,6 +2947,7 @@ function Open-PannelloOperatore {
                         </div>
                         <div class="step-tool-actions">
                             <button type="button" class="btn-tool primary" onclick="eseguiPasso('account')">&#10004; Applica Nome Utente e PC</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('nopass')">&#128275; Rimuovi password Windows (accesso diretto)</button>
                             <button type="button" class="btn-tool" onclick="eseguiPasso('netplwiz')">&#128100; Utenti Windows (netplwiz)</button>
                         </div>
                         <div id="esitoStep-account" class="step-esito"></div>
@@ -3413,7 +3463,7 @@ function Open-PannelloOperatore {
             if (stepKey === 'sysdm') mapKey = 'ripristino';
             if (stepKey === 'icone') mapKey = 'app';
             if (stepKey === 'officeattiva') mapKey = 'office';
-            if (stepKey === 'netplwiz') mapKey = 'account';
+            if (stepKey === 'netplwiz' || stepKey === 'nopass') mapKey = 'account';
             if (stepKey === 'devmgmt') mapKey = 'driver';
             if (stepKey === 'winupdate') mapKey = 'aggiorna';
             if (stepKey === 'scheda') mapKey = 'diagnostica';
