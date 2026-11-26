@@ -1365,13 +1365,13 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $script:SrcPs1 | Should -Match 'StartDownload'
         $script:SrcPs1 | Should -Match 'StartInstall'
     }
-    It 'ordina le icone Desktop in sequenza logica e cromatica (Office -> Unieuro Secure -> Browser/Chat -> Multimedia -> Scheda Consegna)' {
+    It 'ordina le icone Desktop con Unieuro Secure e Unieuro Cyber Protection come prime due app, seguite da Office, Browser/Chat, Multimedia e Scheda Consegna' {
+        (Get-DesktopIconPriority 'Unieuro Secure') | Should -BeLessThan (Get-DesktopIconPriority 'Unieuro Cyber Protection')
+        (Get-DesktopIconPriority 'Unieuro Cyber Protection') | Should -BeLessThan (Get-DesktopIconPriority 'Word')
         (Get-DesktopIconPriority 'Word') | Should -BeLessThan (Get-DesktopIconPriority 'Excel')
         (Get-DesktopIconPriority 'Excel') | Should -BeLessThan (Get-DesktopIconPriority 'PowerPoint')
         (Get-DesktopIconPriority 'PowerPoint') | Should -BeLessThan (Get-DesktopIconPriority 'Adobe Acrobat Reader')
-        (Get-DesktopIconPriority 'Adobe Acrobat Reader') | Should -BeLessThan (Get-DesktopIconPriority 'Unieuro Secure')
-        (Get-DesktopIconPriority 'Unieuro Secure') | Should -BeLessThan (Get-DesktopIconPriority 'Unieuro Cyber Protection')
-        (Get-DesktopIconPriority 'Unieuro Cyber Protection') | Should -BeLessThan (Get-DesktopIconPriority 'Google Chrome')
+        (Get-DesktopIconPriority 'Adobe Acrobat Reader') | Should -BeLessThan (Get-DesktopIconPriority 'Google Chrome')
         (Get-DesktopIconPriority 'Google Chrome') | Should -BeLessThan (Get-DesktopIconPriority 'Zoom Workplace')
         (Get-DesktopIconPriority 'Zoom Workplace') | Should -BeLessThan (Get-DesktopIconPriority 'WhatsApp')
         (Get-DesktopIconPriority 'WhatsApp') | Should -BeLessThan (Get-DesktopIconPriority 'Spotify')
