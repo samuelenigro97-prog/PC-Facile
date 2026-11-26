@@ -219,6 +219,22 @@
         .task-name { color: #e2e8f0; font-weight: 600; }
         .task-detail { color: #fed7aa; font-size: 14px; grid-column: 2; }
         .task-detail:empty { display: none; }
+        .task-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .btn-skip-task {
+            background: #1e293b;
+            border: 1.5px solid #475569;
+            color: #e2e8f0;
+            font-size: 12.5px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-skip-task:hover { background: #EE7203; border-color: #EE7203; color: #00122b; }
+        .task-item.running .btn-skip-task { background: #431407; border-color: #EE7203; color: #fed7aa; }
+        .task-item.running .btn-skip-task:hover { background: #EE7203; color: #00122b; }
+        .task-item.done .btn-skip-task, .task-item.skipped .btn-skip-task { display: none; }
         .task-badge {
             font-size: 13px;
             font-weight: 800;
@@ -520,9 +536,12 @@
                 <div class="progress-bar-bg" role="progressbar" aria-label="Avanzamento configurazione" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar">
                     <div id="progressBarFill" class="progress-bar-fill"></div>
                 </div>
-                <div class="progress-status-row" aria-live="polite">
-                    <div><span class="muted">Ora:</span> <span id="currentFaseText" class="current-fase">In attesa dello script</span></div>
-                    <div id="currentDetailText" class="current-detail"></div>
+                <div class="progress-status-row" aria-live="polite" style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <div>
+                        <div><span class="muted">Ora:</span> <span id="currentFaseText" class="current-fase">In attesa dello script</span></div>
+                        <div id="currentDetailText" class="current-detail"></div>
+                    </div>
+                    <button type="button" id="btnSkipCurrent" class="btn-skip-task" style="display:none; background:#431407; border-color:#EE7203; color:#fed7aa; padding:6px 12px; font-size:13px;" onclick="saltaOperazione('current')">Salta operazione in corso &#10140;</button>
                 </div>
             </div>
 
@@ -663,21 +682,21 @@
                 <div class="card-subtitle">Nella Fase 1 inserisci i dati del cliente e completi Office, antivirus e servizi; poi la Fase 2 va dritta da sola dalla lingua fino agli aggiornamenti. I passi gi&agrave; fatti vengono saltati.</div>
                 <ul class="bg-tasks" id="tasksContainer">
                     <li class="task-gruppo">Fase 1 &middot; Rimozione AV di prova, Dati cliente, Everyday Digital e Office</li>
-                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Rimozione antivirus di prova</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-everyday" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Unieuro Everyday Digital (Secure + Cyber)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Office: installazione e attivazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Nome PC e account cliente</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Protezione antivirus</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Unieuro Cyber Protection</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Rimozione antivirus di prova</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('avprova')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-everyday" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Unieuro Everyday Digital (Secure + Cyber)</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('everyday')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Office: installazione e attivazione</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('office')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Nome PC e account cliente</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('account')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Protezione antivirus</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('antivirus')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Unieuro Cyber Protection</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('cyber')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li class="task-gruppo">Fase 2 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</li>
-                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Lingua italiana e tastiera</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Punto di ripristino</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Programmi</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Driver hardware</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><span class="task-badge badge-pending">In attesa</span></li>
+                    <li id="task-lingua" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">7. Lingua italiana e tastiera</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('lingua')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-ripristino" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">8. Punto di ripristino</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('ripristino')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-runtime" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">9. Componenti Microsoft (Visual C++)</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('runtime')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-app" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">10. Programmi</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('app')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('pulizia')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Driver hardware</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('driver')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('aggiorna')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('diagnostica')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                 </ul>
             </div>
         </div>
@@ -1305,6 +1324,32 @@
             box.className = 'step-esito ' + (tipo || 'ok');
         }
 
+        function saltaOperazione(taskKey) {
+            var targetKey = taskKey;
+            if (targetKey === 'current' && ultimoStato && (ultimoStato.Tasks || ultimoStato.tasks)) {
+                var tt = ultimoStato.Tasks || ultimoStato.tasks;
+                for (var k in tt) {
+                    if (((tt[k].Stato || tt[k].stato || '') + '').toLowerCase() === 'running') {
+                        targetKey = k;
+                        break;
+                    }
+                }
+            }
+            showToast('Salto operazione in corso...');
+            fetchConTimeout(SERVER + '/skip', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ TaskId: targetKey })
+            }).then(function(r) {
+                return r.json().catch(function() { return {}; });
+            }).then(function() {
+                showToast('Operazione saltata: passo alla successiva');
+                checkConnection();
+            }).catch(function() {
+                showToast('PC Facile non risponde', 'errore');
+            });
+        }
+
         function eseguiPasso(step, paramOverride) {
             var payload = { Step: step, Param: paramOverride || '' };
             if (step === 'app') {
@@ -1486,6 +1531,16 @@
             }
 
             var completato = !!(data.Completato || data.completato);
+            var btnSkipCur = el('btnSkipCurrent');
+            if (btnSkipCur) {
+                var haRunning = false;
+                if (tasks) {
+                    for (var rk in tasks) {
+                        if (((tasks[rk].Stato || tasks[rk].stato || '') + '').toLowerCase() === 'running') { haRunning = true; break; }
+                    }
+                }
+                btnSkipCur.style.display = (!completato && haRunning) ? 'inline-block' : 'none';
+            }
             var banner = el('completionBanner');
             if (completato) {
                 var lista = el('completionAvvisi');

@@ -134,6 +134,8 @@ allineati come flusso e funzioni.
   - **Prevenzione Modern Standby anche a batteria (`-dc`)**: disattivato lo standby sia a corrente (`-ac`) sia a batteria (`-dc`) durante il setup.
 - **Unieuro Secure e Unieuro Cyber Protection come prime due app sul Desktop e nel catalogo (Win & Mac & Chromebook — v13.20.0 / Mac 2.26)**:
   - In `Get-DesktopIconPriority` (`setup-pc.ps1`), `setup-mac.sh` e `PC Facile Chromebook.html`, le **prime due app in assoluto** sono sempre **1. `Unieuro Secure`** e **2. `Unieuro Cyber Protection`** (con creazione garantita del collegamento Desktop anche in `Repair-DesktopShortcuts` su Windows e come app bundle nativa `/Applications/Unieuro Cyber Protection.app` su Mac), seguite da **Office & Documenti** (`Word`, `Excel`, `PowerPoint`, `Outlook`, `OneNote`, `LibreOffice`, `Adobe Acrobat Reader`), **Browser & Comunicazione**, **Multimedia & Gaming** e per ultima la **`Scheda-Consegna-Cliente.pdf`**.
+- **Pulsante `Salta ➔` accanto a ogni operazione nella scheda `2. Avanzamento` e nella barra di stato superiore (Solo Windows — v13.21.0)**:
+  - Aggiunto accanto al badge (`In corso` / `In attesa` / `Fatto`) di ogni operazione nella scheda `2. Avanzamento` (e nella barra di avanzamento fissa in alto) il tasto **`Salta ➔`** (`saltaOperazione` -> `POST /skip`): se cliccato su un'operazione *In attesa* la prenota come `Saltato`; se cliccato sull'operazione *In corso* (es. rimozione antivirus di prova Norton/McAfee o download lungo) interrompe istantaneamente il processo figlio bloccato e passa subito all'operazione successiva.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
