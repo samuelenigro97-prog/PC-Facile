@@ -64,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.22.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.23.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2870,6 +2870,10 @@ function Open-PannelloOperatore {
                     <div class="portal-divider">Antivirus da card</div>
                     <a href="https://www.mcafee.com/activate" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card McAfee</span><span class="portal-tag">Apri &rarr;</span></a>
                     <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span><span class="portal-tag">Apri &rarr;</span></a>
+
+                    <div class="portal-divider">Download Kit USB (GitHub)</div>
+                    <a href="https://github.com/samuelenigro97-prog/PC-Facile/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>&#11015; Scarica Ultima Versione Progetto (ZIP per Chiavetta USB)</span><span class="portal-tag">Scarica &rarr;</span></a>
+                    <a href="https://github.com/samuelenigro97-prog/PC-Facile" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Repository GitHub PC Facile</span><span class="portal-tag">Apri &rarr;</span></a>
                 </div>
             </div>
         </div>

@@ -1,5 +1,7 @@
 # PC Facile — Kit USB Unieuro (Windows · Mac · Chromebook)
 
+> **⬇️ [Scarica Ultima Versione del Progetto (ZIP per Chiavetta USB)](https://github.com/samuelenigro97-prog/PC-Facile/archive/refs/heads/main.zip)** *(oppure fai doppio clic sul collegamento **`Scarica Ultima Versione.url`** presente nella chiavetta/archivio)*
+
 Kit automatico da chiavetta USB per configurare in negozio PC **Windows**, **Apple Mac** e **Chromebook (ChromeOS)**:
 - **Unieuro Everyday Digital** (**Unieuro Secure / F-Secure** + estensione **Browsing Protection** + **Unieuro Cyber Protection**)
 - **Lingua Italiana (`it-IT`)** e sincronizzazione orario
@@ -42,6 +44,7 @@ A ogni avvio con Internet, `PC Facile.bat` (Windows) e `PC Facile.command` (Mac)
 - `PC Facile.bat` *(Windows)*
 - `PC Facile.command` *(Mac)*
 - `PC Facile Chromebook.html` *(Chromebook / ChromeOS)*
+- `Scarica Ultima Versione.url` *(Link diretto al download dello ZIP aggiornato da GitHub)*
 - `setup-pc.ps1` + `setup-pc.ps1.sha256`
 - `setup-mac.sh` + `setup-mac.sh.sha256`
 - `LEGGIMI.md`
