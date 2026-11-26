@@ -95,6 +95,9 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist" /v "1"
 reg add "HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" /v "1" /t REG_SZ /d "jmjjnhpacphpjmnnlnccpfmhkcloaade;https://clients2.google.com/service/update2/crx" /f >nul 2>&1
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v AllowNewsAndInterests /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v BingSearchEnabled /t REG_DWORD /d 0 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppInstaller" /v EnableBypassCertificatePinningForMicrosoftStore /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppInstaller" /v EnableAdditionalSources /t REG_DWORD /d 1 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppInstaller" /v EnableSettings /t REG_DWORD /d 1 /f >nul 2>&1
 
 REM Disattiva per sempre la scadenza password Windows (42 giorni), rimuove la richiesta
 REM di password al risveglio dallo standby e riabilita l'accesso diretto senza password.
