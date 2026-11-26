@@ -1211,17 +1211,18 @@ Describe 'Ordine dei passi e pannello' {
         $fase2[0] | Should -Be 'lingua'
         [array]::IndexOf($script:Ids, 'driver') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'aggiorna'))
     }
-    It 'fase 1 = dati cliente, Everyday Digital e attivazioni (everyday -> cyber), fase 2 = automatica (lingua -> aggiorna)' {
+    It 'fase 1 = rimozione AV di prova, dati cliente, Everyday Digital e attivazioni (avprova -> cyber), fase 2 = automatica (lingua -> aggiorna)' {
         $gruppi = @($script:Passi | ForEach-Object { [int]$_.Gruppo })
         for ($i = 1; $i -lt $gruppi.Count; $i++) { $gruppi[$i] | Should -BeGreaterOrEqual $gruppi[$i - 1] }
         $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
-        ($fase1 -join ',') | Should -Be 'everyday,office,nome,account,officeattiva,antivirus,cyber'
+        ($fase1 -join ',') | Should -Be 'avprova,everyday,office,nome,account,officeattiva,antivirus,cyber'
         $fase2 = @($script:Passi | Where-Object { $_.Gruppo -eq 2 } | ForEach-Object { $_.Id })
-        ($fase2 -join ',') | Should -Be 'lingua,ripristino,avprova,app,pulizia,driver,aggiorna'
+        ($fase2 -join ',') | Should -Be 'lingua,ripristino,app,pulizia,driver,aggiorna'
     }
-    It 'Unieuro Everyday Digital apre la procedura (gruppo 1) prima della fase automatica' {
+    It 'Rimozione antivirus di prova (avprova) apre la procedura (passo 1) subito prima di Unieuro Everyday Digital' {
         $fase1 = @($script:Passi | Where-Object { $_.Gruppo -eq 1 } | ForEach-Object { $_.Id })
-        $fase1[0] | Should -Be 'everyday'
+        $fase1[0] | Should -Be 'avprova'
+        $fase1[1] | Should -Be 'everyday'
         [array]::IndexOf($script:Ids, 'cyber') | Should -BeLessThan ([array]::IndexOf($script:Ids, 'lingua'))
     }
     It 'ogni passo ha un id unico e un task presente nel pannello (script e HTML)' {

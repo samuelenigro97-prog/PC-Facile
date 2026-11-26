@@ -126,6 +126,8 @@ allineati come flusso e funzioni.
 - **Attivazione istantanea tastiera Italiana (`@` / `AltGr+ò`) a 0 secondi + scansione Wi-Fi su tutte le porte USB (Solo Windows — v13.18.3)**:
   - **Tastiera Italiana attiva subito all'avvio (`00000410`)**: su PC nuovi che partono in inglese (`This PC`, layout tastiera `ENG` dove `AltGr + ò` non digita `@`), `PC Facile.bat` e `setup-pc.ps1` attivano immediatamente a secondo 0 il layout tastiera italiano (`Set-WinUserLanguageList it-IT` + Win32 `LoadKeyboardLayout("00000410", 1)` e `WM_INPUTLANGCHANGEREQUEST`), così la `@` funziona subito sia per la password Wi-Fi (`W1f1@Un13uro`) sia nel Pannello Operatore, senza dover attendere la Fase 2.
   - **Scansione `wifi\wifi.txt` su tutte le unità USB + copia password Wi-Fi negli appunti**: `PC Facile.bat` cerca la cartella `wifi` su tutte le unità collegate (`D:\`, `E:\`, `F:\`) e copia anche la password Wi-Fi negli appunti di Windows (`Ctrl+V`).
+- **Rimozione antivirus di prova (`avprova`) come Passo #1 assoluto prima di tutte le funzionalità (Solo Windows — v13.18.4)**:
+  - Spostato `avprova` (*1. Rimozione antivirus di prova* — McAfee, Norton, Avast, AVG) al **primo posto assoluto** sia all'avvio di `PC Facile.bat` sia come **Passo 1** di `$Global:Passi` e del Pannello Operatore (`setup-pc.ps1` e `pannello/pannello-operatore.html`), subito prima di *2. Unieuro Everyday Digital (Unieuro Secure + Cyber)*, *Office*, *Lingua* e *Programmi*.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
