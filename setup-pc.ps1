@@ -46,14 +46,18 @@ if (-not ($Test -or $env:PESTER_TEST) -and (-not $TargetDir -or $TargetDir -like
         foreach ($drv in @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
             $r = $drv.Root
             if (-not $r -or $r -like "$env:SystemDrive*") { continue }
-            if ((Test-Path -LiteralPath (Join-Path $r 'PC Facile.bat')) -or (Test-Path -LiteralPath (Join-Path $r 'setup-pc.ps1'))) {
-                $TargetDir = $r.TrimEnd('\', '/')
-                $Global:TargetDir = $TargetDir
-                if (-not $LauncherPath -or $LauncherPath -like "$env:SystemRoot*") {
-                    $LauncherPath = Join-Path $r 'PC Facile.bat'
+            $candidatiUsb = @($r, (Join-Path $r 'PC Facile'), (Join-Path $r 'PC-Facile'), (Join-Path $r 'PC-Facile-main'))
+            foreach ($cand in $candidatiUsb) {
+                if ((Test-Path -LiteralPath (Join-Path $cand 'PC Facile.bat')) -or (Test-Path -LiteralPath (Join-Path $cand 'setup-pc.ps1'))) {
+                    $TargetDir = $cand.TrimEnd('\', '/')
+                    $Global:TargetDir = $TargetDir
+                    if (-not $LauncherPath -or $LauncherPath -like "$env:SystemRoot*") {
+                        $LauncherPath = Join-Path $cand 'PC Facile.bat'
+                    }
+                    break
                 }
-                break
             }
+            if ($TargetDir -and $TargetDir -notlike "$env:SystemRoot*") { break }
         }
     } catch {}
 }
@@ -64,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.23.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.23.1 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2872,7 +2876,7 @@ function Open-PannelloOperatore {
                     <a href="https://www.norton.com/setup" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Attivazione card Norton</span><span class="portal-tag">Apri &rarr;</span></a>
 
                     <div class="portal-divider">Download Kit USB (GitHub)</div>
-                    <a href="https://github.com/samuelenigro97-prog/PC-Facile/archive/refs/heads/main.zip" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>&#11015; Scarica Ultima Versione Progetto (ZIP per Chiavetta USB)</span><span class="portal-tag">Scarica &rarr;</span></a>
+                    <a href="https://github.com/samuelenigro97-prog/PC-Facile/releases/latest/download/PC-Facile.zip" target="_blank" rel="noopener noreferrer" class="portal-btn highlight"><span>&#11015; Scarica Cartella &ldquo;PC Facile&rdquo; (Ultima Versione ZIP)</span><span class="portal-tag">Scarica &rarr;</span></a>
                     <a href="https://github.com/samuelenigro97-prog/PC-Facile" target="_blank" rel="noopener noreferrer" class="portal-btn"><span>Repository GitHub PC Facile</span><span class="portal-tag">Apri &rarr;</span></a>
                 </div>
             </div>
@@ -5282,8 +5286,11 @@ function Connect-AutoWiFi {
             $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -gt 0 }
             foreach ($drv in $drives) {
                 $root = $drv.Root
-                if (Test-Path (Join-Path $root "wifi")) { $searchDirs += (Join-Path $root "wifi") }
-                if (Test-Path $root) { $searchDirs += $root }
+                foreach ($sub in @('', 'PC Facile', 'PC-Facile', 'PC-Facile-main')) {
+                    $baseUsb = if ($sub) { Join-Path $root $sub } else { $root }
+                    if (Test-Path (Join-Path $baseUsb "wifi")) { $searchDirs += (Join-Path $baseUsb "wifi") }
+                    if (Test-Path $baseUsb) { $searchDirs += $baseUsb }
+                }
             }
         } catch {}
 
