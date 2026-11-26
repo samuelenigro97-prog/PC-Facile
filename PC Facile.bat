@@ -1,5 +1,8 @@
 @echo off
 title PC Facile
+set "SCRIPT_DIR=%~dp0"
+set "SCRIPT_PATH=%~f0"
+cd /d "%SCRIPT_DIR%" >nul 2>&1
 REM ============================================================
 REM  PC Facile.bat - launcher ottimizzato 1-Click per setup-pc.ps1
 REM  - Elevazione amministratore immediata (UN SOLO prompt UAC)
@@ -14,20 +17,19 @@ REM "PC Facile.bat.nuovo" perche' cmd.exe legge il .bat mentre lo esegue: non si
 REM puo' sovrascrivere mentre gira. Qui (e alla fine) la metto al suo posto.
 REM Tutto dentro UN blocco tra parentesi: cmd lo legge per intero prima di
 REM eseguirlo, quindi dopo il MOVE non rilegge il vecchio file e passa al nuovo.
-if exist "%~f0.nuovo" (
-    move /y "%~f0.nuovo" "%~f0" >nul 2>&1 && "%~f0" %*
+if exist "%SCRIPT_PATH%.nuovo" (
+    move /y "%SCRIPT_PATH%.nuovo" "%SCRIPT_PATH%" >nul 2>&1 && "%SCRIPT_PATH%" %*
 )
 
 REM --- 1. Elevazione immediata ad amministratore (UN SOLO prompt UAC) ---
 REM "elevated"/"run" come primo argomento e' un marcatore interno del launcher:
-REM lo tolgo con SHIFT. Attenzione: SHIFT non modifica %*, quindi gli argomenti
-REM utente vengono ricostruiti piu' sotto partendo da %1 (vedi :elevato).
+REM lo tolgo con SHIFT /1 (cosi' %0 non viene mai sovrascritto da "elevated").
 if /i "%~1"=="elevated" (
-    shift
+    shift /1
     goto :elevato
 )
 if /i "%~1"=="run" (
-    shift
+    shift /1
     goto :elevato
 )
 
@@ -36,7 +38,7 @@ if %errorlevel% equ 0 goto :elevato
 fltmc >nul 2>&1
 if %errorlevel% equ 0 goto :elevato
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%~f0'; $q=[char]34; try { Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c ' + $q + $q + $p + $q + ' elevated' + $q) -Verb RunAs -ErrorAction Stop } catch { try { Start-Process -FilePath $p -ArgumentList 'elevated' -Verb RunAs -ErrorAction Stop } catch { exit 1 } }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%SCRIPT_PATH%'; $q=[char]34; try { Start-Process -FilePath 'cmd.exe' -ArgumentList ('/c ' + $q + $q + $p + $q + ' elevated' + $q) -Verb RunAs -ErrorAction Stop } catch { try { Start-Process -FilePath $p -ArgumentList 'elevated' -Verb RunAs -ErrorAction Stop } catch { exit 1 } }"
 if %errorlevel% neq 0 (
     echo.
     echo   [!] Richiesta privilegi amministratore annullata o non concessa.
@@ -47,11 +49,12 @@ if %errorlevel% neq 0 (
 exit
 
 :elevato
+cd /d "%SCRIPT_DIR%" >nul 2>&1
 set "USER_ARGS="
 :raccogli_argomenti
 if "%~1"=="" goto :argomenti_pronti
 set "USER_ARGS=%USER_ARGS% %1"
-shift
+shift /1
 goto :raccogli_argomenti
 :argomenti_pronti
 
@@ -94,20 +97,25 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v AllowNewsAndInterests /t REG_D
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v BingSearchEnabled /t REG_DWORD /d 0 /f >nul 2>&1
 
 REM Sblocca automaticamente tutti i file della chiavetta ed elimina gli avvisi SmartScreen / Apri file
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:SEE_MASK_NOZONECHECKS=1; Get-ChildItem -Path '%~dp0' -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(ps1|bat|cmd|command)$' } | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:SEE_MASK_NOZONECHECKS=1; Get-ChildItem -Path '%SCRIPT_DIR%' -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(ps1|bat|cmd|command)$' } | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
 
-REM --- 2b. Antivirus di prova preinstallato (McAfee, Norton, Avast, AVG) ---
-REM Rimozione 100%% automatica e silenziosa PRIMA di scaricare/avviare setup-pc.ps1.
+REM --- 2b. Antivirus di prova preinstallato (McAfee) ---
+REM Rimuoviamo subito McAfee se presente (puo' bloccare PowerShell); Norton/Avast/AVG
+REM vengono rimossi nel passo dedicato di setup-pc.ps1 per non resettare la scheda Wi-Fi prima del download.
 call :mcafee
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $paths=@('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'); $avs=Get-ItemProperty $paths | Where-Object { $_.DisplayName -match 'Norton|Avast|AVG' -and ($_.QuietUninstallString -or $_.UninstallString) }; foreach($av in $avs){ Write-Host ('[AUTO] Rimozione silenziosa antivirus preinstallato: ' + $av.DisplayName) -ForegroundColor Cyan; if($av.QuietUninstallString){ cmd /c $av.QuietUninstallString | Out-Null } elseif($av.UninstallString){ cmd /c ($av.UninstallString + ' /quiet /silent /norestart') | Out-Null } }"
 
 REM --- Auto-connessione Wi-Fi Negozio da chiavetta USB (se non ancora connesso a Internet) ---
 REM Controllo Internet via HTTP con piu' fallback: il solo ping ICMP a 8.8.8.8 e'
 REM spesso bloccato dalle reti dei negozi anche quando Internet funziona.
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { if ((Invoke-WebRequest 'http://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 2).Content -like 'Microsoft Connect Test*') { exit 0 } } catch {}; foreach ($u in @('https://raw.githubusercontent.com/','https://www.google.com/generate_204')) { try { Invoke-WebRequest $u -Method Head -UseBasicParsing -TimeoutSec 2 | Out-Null; exit 0 } catch { if ($_.Exception.Response) { exit 0 } } }; if (@(Test-Connection -ComputerName 1.1.1.1,8.8.8.8 -Count 1 -Quiet -ErrorAction SilentlyContinue) -contains $true) { exit 0 }; exit 1" >nul 2>&1
-if %errorlevel% equ 0 goto :wifi_ok
+set "NET_OK="
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { if ((Invoke-WebRequest 'http://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200) { exit 0 } } catch {}; foreach ($u in @('https://raw.githubusercontent.com/','https://www.google.com/generate_204')) { try { Invoke-WebRequest $u -Method Head -UseBasicParsing -TimeoutSec 3 | Out-Null; exit 0 } catch { if ($_.Exception.Response) { exit 0 } } }; if (@(Test-Connection -ComputerName 1.1.1.1,8.8.8.8 -Count 1 -Quiet -ErrorAction SilentlyContinue) -contains $true) { exit 0 }; exit 1" >nul 2>&1
+if %errorlevel% equ 0 (
+    set "NET_OK=1"
+    goto :wifi_ok
+)
 echo [AUTO] Connessione Wi-Fi da chiavetta USB in corso...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $q=[char]34; $dirs=@('%~dp0wifi','%~dp0'); foreach($d in $dirs){ if(Test-Path $d){ Get-ChildItem -Path $d -Filter '*.xml' | ForEach-Object { $c=Get-Content $_.FullName -Raw; if($c -match '<name>(.*?)</name>'){ & netsh wlan add profile ('filename=' + $_.FullName) 'user=all' | Out-Null; & netsh wlan connect ('name=' + $Matches[1]) | Out-Null } }; if(Test-Path (Join-Path $d 'wifi.txt')){ $lines=Get-Content (Join-Path $d 'wifi.txt'); $s=''; $p=''; foreach($l in $lines){ if($l -match '^(SSID|WIFI|RETE)\s*[:=]\s*(.+)$'){$s=$Matches[2].Trim()} elseif($l -match '^(PASS|PASSWORD|KEY|CHIAVE)\s*[:=]\s*(.+)$'){$p=$Matches[2].Trim()} }; if($s -and $p){ $se=[Security.SecurityElement]::Escape($s); $pe=[Security.SecurityElement]::Escape($p); $xml = '<?xml version='+$q+'1.0'+$q+'?><WLANProfile xmlns='+$q+'http://www.microsoft.com/networking/WLAN/profile/v1'+$q+'><name>'+$se+'</name><SSIDConfig><SSID><name>'+$se+'</name></SSID></SSIDConfig><connectionType>ESS</connectionType><connectionMode>auto</connectionMode><MSM><security><authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>'+$pe+'</keyMaterial></sharedKey></security></MSM></WLANProfile>'; $t=$env:TEMP+'\w.xml'; [IO.File]::WriteAllText($t,$xml); & netsh wlan add profile ('filename=' + $t) 'user=all' | Out-Null; & netsh wlan connect ('name=' + $s) | Out-Null; Remove-Item $t -Force } } } }; $ok=$false; for($w=0;$w -lt 8;$w++){ Start-Sleep -Seconds 1; try { if ((Invoke-WebRequest 'http://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 2).Content -like 'Microsoft Connect Test*') { $ok=$true; break } } catch { try { Invoke-WebRequest 'https://www.google.com/generate_204' -Method Head -UseBasicParsing -TimeoutSec 2 | Out-Null; $ok=$true; break } catch {} } }; if($ok){ Write-Host '[OK] Internet connesso con successo!' -ForegroundColor Green } else { Write-Host '[!] Connessione non ancora attiva: proseguo comunque.' -ForegroundColor Yellow }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $q=[char]34; $giaConnesso=((& netsh wlan show interfaces) -match '^\s*(State|Stato)\s*:\s*(connected|connesso)'); $retiVisibili=(& netsh wlan show networks) -join ' '; $dirs=@('%SCRIPT_DIR%wifi','%SCRIPT_DIR%'); foreach($d in $dirs){ if(Test-Path $d){ Get-ChildItem -Path $d -Filter '*.xml' | ForEach-Object { $c=Get-Content $_.FullName -Raw; if($c -match '<name>(.*?)</name>'){ $ssid=$Matches[1]; & netsh wlan add profile ('filename=' + $_.FullName) 'user=all' | Out-Null; if(-not $giaConnesso -and $retiVisibili -match [regex]::Escape($ssid)){ & netsh wlan connect ('name=' + $ssid) | Out-Null } } }; if(Test-Path (Join-Path $d 'wifi.txt')){ $lines=Get-Content (Join-Path $d 'wifi.txt'); $s=''; $p=''; foreach($l in $lines){ if($l -match '^(SSID|WIFI|RETE)\s*[:=]\s*(.+)$'){$s=$Matches[2].Trim()} elseif($l -match '^(PASS|PASSWORD|KEY|CHIAVE)\s*[:=]\s*(.+)$'){$p=$Matches[2].Trim()} }; if($s -and $p){ $se=[Security.SecurityElement]::Escape($s); $pe=[Security.SecurityElement]::Escape($p); $xml = '<?xml version='+$q+'1.0'+$q+'?><WLANProfile xmlns='+$q+'http://www.microsoft.com/networking/WLAN/profile/v1'+$q+'><name>'+$se+'</name><SSIDConfig><SSID><name>'+$se+'</name></SSID></SSIDConfig><connectionType>ESS</connectionType><connectionMode>auto</connectionMode><MSM><security><authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>'+$pe+'</keyMaterial></sharedKey></security></MSM></WLANProfile>'; $t=$env:TEMP+'\w.xml'; [IO.File]::WriteAllText($t,$xml); & netsh wlan add profile ('filename=' + $t) 'user=all' | Out-Null; if(-not $giaConnesso -and $retiVisibili -match [regex]::Escape($s)){ & netsh wlan connect ('name=' + $s) | Out-Null }; Remove-Item $t -Force } } } }; $ok=$false; for($w=0;$w -lt 6;$w++){ Start-Sleep -Seconds 1; try { if ((Invoke-WebRequest 'http://www.msftconnecttest.com/connecttest.txt' -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200) { $ok=$true; break } } catch { try { Invoke-WebRequest 'https://www.google.com/generate_204' -Method Head -UseBasicParsing -TimeoutSec 2 | Out-Null; $ok=$true; break } catch {} } }; if($ok){ Write-Host '[OK] Internet connesso con successo!' -ForegroundColor Green; exit 0 } else { Write-Host '[!] Connessione non ancora attiva: proseguo comunque.' -ForegroundColor Yellow; exit 1 }"
+if %errorlevel% equ 0 set "NET_OK=1"
 :wifi_ok
 
 REM --- 3. Scarica l'ultima versione da GitHub (con fallback offline) ---
@@ -115,16 +123,19 @@ REM Il file scaricato viene tenuto SOLO se il suo SHA256 combacia con
 REM setup-pc.ps1.sha256. Se l'impronta non si scarica o non combacia il download
 REM viene scartato e si usa la copia sulla chiavetta (nessuna esecuzione "al buio").
 set "HAS_LOCAL="
-if exist "%~dp0setup-pc.ps1" set "HAS_LOCAL=1"
+if exist "%SCRIPT_DIR%setup-pc.ps1" set "HAS_LOCAL=1"
 
-echo Scarico l'ultima versione da GitHub...
 del "%TEMP%\setup-pc*.ps1" /f /q >nul 2>&1
 set "PS1=%TEMP%\setup-pc-%RANDOM%%RANDOM%.ps1"
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; $bases=@('https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main','https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main'); $done=$false; foreach($base in $bases){ if($done){break}; for($i=1;$i -le 2 -and -not $done;$i++){ try { $t=(Get-Date).Ticks; irm ($base+'/setup-pc.ps1?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -OutFile '%PS1%' -ErrorAction Stop; $atteso=((([string](irm ($base+'/setup-pc.ps1.sha256?t='+$t) -Headers @{ 'Cache-Control'='no-cache' } -ErrorAction Stop)).Trim()) -split '\s+')[0].ToLower(); $reale=(Get-FileHash '%PS1%' -Algorithm SHA256).Hash.ToLower(); if ($atteso -match '^[0-9a-f]{64}$' -and $reale -eq $atteso) { Write-Host ('Scaricato e verificato da: '+$base) -ForegroundColor Green; $done=$true } else { Write-Host 'Impronta SHA256 assente o non combacia: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue } } catch { Write-Host 'Download o verifica SHA256 non riusciti: scarto il download.' -ForegroundColor Yellow; Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500 } } }; if(-not $done){ Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; if ('%HAS_LOCAL%' -eq '1') { Write-Host 'Download online non riuscito: avvio diretto dalla copia offline su chiavetta...' -ForegroundColor Yellow } else { Write-Host 'Impossibile scaricare lo script: connessione assente o bloccata.' -ForegroundColor Yellow } }"
+if not defined NET_OK if defined HAS_LOCAL goto :avvia_esecuzione
 
+echo Scarico l'ultima versione da GitHub...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12; $bases=@('https://raw.githubusercontent.com/samuelenigro97-prog/pc-facile/main','https://cdn.jsdelivr.net/gh/samuelenigro97-prog/pc-facile@main'); $done=$false; foreach($base in $bases){ if($done){break}; try { $t=(Get-Date).Ticks; Invoke-WebRequest -Uri ($base+'/setup-pc.ps1?t='+$t) -UseBasicParsing -TimeoutSec 12 -Headers @{ 'Cache-Control'='no-cache' } -OutFile '%PS1%' -ErrorAction Stop; $rawSha=[string](Invoke-WebRequest -Uri ($base+'/setup-pc.ps1.sha256?t='+$t) -UseBasicParsing -TimeoutSec 6 -Headers @{ 'Cache-Control'='no-cache' } -ErrorAction Stop).Content; $atteso=(($rawSha.Trim()) -split '\s+')[0].ToLower(); $reale=(Get-FileHash '%PS1%' -Algorithm SHA256).Hash.ToLower(); if ($atteso -match '^[0-9a-f]{64}$' -and $reale -eq $atteso) { Write-Host ('Scaricato e verificato da: '+$base) -ForegroundColor Green; $done=$true } else { Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue } } catch { Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue } }; if(-not $done){ Remove-Item '%PS1%' -Force -ErrorAction SilentlyContinue; if ('%HAS_LOCAL%' -eq '1') { Write-Host 'Uso la copia su chiavetta USB...' -ForegroundColor Yellow } else { Write-Host 'Impossibile scaricare lo script: connessione assente o bloccata.' -ForegroundColor Yellow } }"
+
+:avvia_esecuzione
 REM --- 4. Esecuzione script ---
-set "TARGET_DIR=%~dp0"
+set "TARGET_DIR=%SCRIPT_DIR%"
 if "%TARGET_DIR:~-1%"=="\" set "TARGET_DIR=%TARGET_DIR:~0,-1%"
 
 REM %PS1% esiste solo se il download e' stato VERIFICATO (SHA256): solo allora
@@ -133,21 +144,21 @@ REM verificato SHA256 prima di sostituire la copia; i file Wi-Fi non si toccano)
 REM Se qualcosa non va, restano i file attuali e si prosegue comunque.
 if exist "%PS1%" (
     echo Aggiorno i file della chiavetta ^(manifest.txt^)...
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -AggiornaUSB -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -AggiornaUSB -TargetDir "%TARGET_DIR%" -LauncherPath "%SCRIPT_PATH%"
     if defined USER_ARGS (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -NoSelfUpdate -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0" %USER_ARGS%
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -NoSelfUpdate -TargetDir "%TARGET_DIR%" -LauncherPath "%SCRIPT_PATH%" %USER_ARGS%
     ) else (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -NoSelfUpdate -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -NoSelfUpdate -TargetDir "%TARGET_DIR%" -LauncherPath "%SCRIPT_PATH%"
     )
     goto :fine
 )
 
-if exist "%~dp0setup-pc.ps1" (
+if exist "%SCRIPT_DIR%setup-pc.ps1" (
     echo Offline: uso la copia sulla chiavetta ^(funziona al 100%% senza Internet^).
     if defined USER_ARGS (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup-pc.ps1" -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0" %USER_ARGS%
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%setup-pc.ps1" -TargetDir "%TARGET_DIR%" -LauncherPath "%SCRIPT_PATH%" %USER_ARGS%
     ) else (
-        powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0setup-pc.ps1" -TargetDir "%TARGET_DIR%" -LauncherPath "%~f0"
+        powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT_DIR%setup-pc.ps1" -TargetDir "%TARGET_DIR%" -LauncherPath "%SCRIPT_PATH%"
     )
 ) else (
     echo.
@@ -168,8 +179,8 @@ if exist "%~dp0setup-pc.ps1" (
 :fine
 REM Auto-aggiornamento del launcher: sostituisco questo file con la nuova
 REM versione verificata ed esco nello STESSO blocco (cmd non rilegge il file).
-if exist "%~f0.nuovo" (
-    move /y "%~f0.nuovo" "%~f0" >nul 2>&1
+if exist "%SCRIPT_PATH%.nuovo" (
+    move /y "%SCRIPT_PATH%.nuovo" "%SCRIPT_PATH%" >nul 2>&1
 )
 exit /b
 
