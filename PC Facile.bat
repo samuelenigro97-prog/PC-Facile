@@ -104,10 +104,10 @@ REM funziona all'istante sia per la password Wi-Fi sia nel Pannello Operatore, a
 reg add "HKCU\Keyboard Layout\Preload" /v "1" /t REG_SZ /d "00000410" /f >nul 2>&1
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; try { $l=New-WinUserLanguageList 'it-IT'; $l[0].InputMethodTips.Clear(); $l[0].InputMethodTips.Add('0410:00000410'); Set-WinUserLanguageList -LanguageList $l -Force | Out-Null } catch {}; try { Add-Type -Name KbdIt -Namespace Win32 -MemberDefinition '[DllImport(\"user32.dll\", CharSet=CharSet.Auto)] public static extern IntPtr LoadKeyboardLayout(string pwszKLID, uint Flags); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);'; $h=[Win32.KbdIt]::LoadKeyboardLayout('00000410', 1); [void][Win32.KbdIt]::PostMessage([IntPtr]0xFFFF, 0x0050, [IntPtr]::Zero, $h) } catch {}" >nul 2>&1
 
-REM --- 2b. Antivirus di prova preinstallato (McAfee) ---
-REM Rimuoviamo subito McAfee se presente (puo' bloccare PowerShell); Norton/Avast/AVG
-REM vengono rimossi nel passo dedicato di setup-pc.ps1 per non resettare la scheda Wi-Fi prima del download.
+REM --- 2b. Antivirus di prova preinstallato (McAfee, Norton, Avast, AVG) ---
+REM Rimozione 100%% automatica PRIMA dell'avvio di tutte le altre funzionalita'.
 call :mcafee
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='SilentlyContinue'; $paths=@('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'); $avs=Get-ItemProperty $paths | Where-Object { $_.DisplayName -match 'Norton|Avast|AVG' -and ($_.QuietUninstallString -or $_.UninstallString) }; foreach($av in $avs){ Write-Host ('[AUTO] Rimozione antivirus di prova preinstallato: ' + $av.DisplayName) -ForegroundColor Cyan; $cmd = if($av.QuietUninstallString){ $av.QuietUninstallString } else { $av.UninstallString + ' /silent /quiet /norestart' }; $p = Start-Process -FilePath 'cmd.exe' -ArgumentList ('/d /s /c \"' + $cmd + '\"') -PassThru -ErrorAction SilentlyContinue; if($p){ [void]$p.WaitForExit(45000) } }"
 
 REM --- Auto-connessione Wi-Fi Negozio da chiavetta USB (se non ancora connesso a Internet) ---
 REM Controllo Internet via HTTP con piu' fallback: il solo ping ICMP a 8.8.8.8 e'
