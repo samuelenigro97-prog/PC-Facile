@@ -2,9 +2,13 @@ name: Build PC Facile ZIP Archive
 
 on:
   release:
-    types: [published, edited]
+    types: [published]
   push:
     branches: [main]
+
+concurrency:
+  group: release-zip
+  cancel-in-progress: true
 
 permissions:
   contents: write
