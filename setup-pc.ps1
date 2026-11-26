@@ -48,11 +48,11 @@ if (-not ($Test -or $env:PESTER_TEST) -and (-not $TargetDir -or $TargetDir -like
             if (-not $r -or $r -like "$env:SystemDrive*") { continue }
             $candidatiUsb = @($r, (Join-Path $r 'PC Facile'), (Join-Path $r 'PC-Facile'), (Join-Path $r 'PC-Facile-main'))
             foreach ($cand in $candidatiUsb) {
-                if ((Test-Path -LiteralPath (Join-Path $cand 'PC Facile.bat')) -or (Test-Path -LiteralPath (Join-Path $cand 'setup-pc.ps1'))) {
+                if ((Test-Path -LiteralPath (Join-Path $cand 'PC Facile Windows.bat')) -or (Test-Path -LiteralPath (Join-Path $cand 'PC Facile.bat')) -or (Test-Path -LiteralPath (Join-Path $cand 'setup-pc.ps1'))) {
                     $TargetDir = $cand.TrimEnd('\', '/')
                     $Global:TargetDir = $TargetDir
                     if (-not $LauncherPath -or $LauncherPath -like "$env:SystemRoot*") {
-                        $LauncherPath = Join-Path $cand 'PC Facile.bat'
+                        $LauncherPath = if (Test-Path -LiteralPath (Join-Path $cand 'PC Facile Windows.bat')) { Join-Path $cand 'PC Facile Windows.bat' } else { Join-Path $cand 'PC Facile.bat' }
                     }
                     break
                 }
@@ -68,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.24.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.25.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -414,7 +414,8 @@ function Invoke-OrdinaChiavetta {
     $fileSuperflui = @(
         '.gitattributes', '.gitignore', 'AGENTS.md', 'CHANGELOG.md', 'CLAUDE.md',
         'LICENSE.md', 'PARITA.md', 'PSScriptAnalyzerSettings.psd1', 'README.md', 'SECURITY.md',
-        '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', '3 - ISTRUZIONI.txt'
+        '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', '3 - ISTRUZIONI.txt',
+        'PC Facile.bat', 'PC Facile.command'
     )
     foreach ($f in $fileSuperflui) {
         $p = Join-Path $Destinazione $f
@@ -2655,7 +2656,7 @@ function Open-PannelloOperatore {
         <!-- AVVISO: SCRIPT NON RAGGIUNGIBILE (visibile in tutte le schede) -->
         <div id="offlineNoticeBox" class="notice notice-off" style="display: block;">
             <h2>&#9888; PC Facile non risponde</h2>
-            <p>Questo pannello lo apre PC Facile da solo e parla solo con lo script avviato su questo PC. Controlla la finestra di PC Facile: se l'hai chiusa, riapri <strong>PC Facile.bat</strong> dalla chiavetta (riprende da dove era arrivato).</p>
+            <p>Questo pannello lo apre PC Facile da solo e parla solo con lo script avviato su questo PC. Controlla la finestra di PC Facile: se l'hai chiusa, riapri <strong>PC Facile Windows.bat</strong> dalla chiavetta (riprende da dove era arrivato).</p>
         </div>
 
         <!-- AVVISO: IL PC ASPETTA I DATI DEL CLIENTE -->
@@ -5174,7 +5175,7 @@ function Invoke-PreparaUSBOffline {
     if (-not $Test) {
         # Il launcher che sta girando (se e' sulla stessa chiavetta) non va
         # sovrascritto: la sua nuova versione va in "PC Facile.bat.nuovo".
-        $launcherAttivo = if ($LauncherPath) { $LauncherPath } elseif ($TargetDir) { Join-Path $(if ($TargetDir -match '^[A-Za-z]:$') { "$TargetDir\" } else { $TargetDir }) 'PC Facile.bat' } else { $null }
+        $launcherAttivo = if ($LauncherPath) { $LauncherPath } elseif ($TargetDir) { Join-Path $(if ($TargetDir -match '^[A-Za-z]:$') { "$TargetDir\" } else { $TargetDir }) 'PC Facile Windows.bat' } else { $null }
         try {
             $aggUsb = Invoke-AggiornamentoUSB -Destinazione $targetBase -LauncherInEsecuzione $launcherAttivo
             if ($launcherAttivo -and -not $LauncherPath) { Start-SostituzioneLauncherDifferita -Launcher $launcherAttivo }
@@ -5185,7 +5186,7 @@ function Invoke-PreparaUSBOffline {
     } else {
         try {
             if ($PSScriptRoot -and (Test-Path (Join-Path $PSScriptRoot "setup-pc.ps1"))) {
-                foreach ($nomeFile in @("setup-pc.ps1", "setup-pc.ps1.sha256", "PC Facile.bat", "PC Facile.command", "setup-mac.sh", "setup-mac.sh.sha256")) {
+                foreach ($nomeFile in @("setup-pc.ps1", "setup-pc.ps1.sha256", "PC Facile Windows.bat", "PC Facile Mac.command", "PC Facile Chromebook.html", "Scarica Ultima Versione.url", "setup-mac.sh", "setup-mac.sh.sha256")) {
                     $src = Join-Path $PSScriptRoot $nomeFile
                     $dst = Join-Path $targetBase $nomeFile
                     if ((Test-Path -LiteralPath $src) -and ([System.IO.Path]::GetFullPath($src) -ne [System.IO.Path]::GetFullPath($dst))) {

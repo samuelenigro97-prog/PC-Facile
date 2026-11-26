@@ -4,7 +4,7 @@ set "SCRIPT_DIR=%~dp0"
 set "SCRIPT_PATH=%~f0"
 cd /d "%SCRIPT_DIR%" >nul 2>&1
 REM ============================================================
-REM  PC Facile.bat - launcher ottimizzato 1-Click per setup-pc.ps1
+REM  PC Facile Windows.bat - launcher ottimizzato 1-Click per setup-pc.ps1
 REM  - Elevazione amministratore immediata (UN SOLO prompt UAC)
 REM  - Sblocco automatico file (elimina gli avvisi SmartScreen/Apri file)
 REM  - Parte SEMPRE con ExecutionPolicy Bypass (niente errori di blocco)
@@ -13,7 +13,7 @@ REM ============================================================
 
 REM --- 0. Completa un auto-aggiornamento del launcher rimasto in sospeso ---
 REM La nuova versione (gia' verificata SHA256 dal manifest) viene salvata come
-REM "PC Facile.bat.nuovo" perche' cmd.exe legge il .bat mentre lo esegue: non si
+REM "PC Facile Windows.bat.nuovo" perche' cmd.exe legge il .bat mentre lo esegue: non si
 REM puo' sovrascrivere mentre gira. Qui (e alla fine) la metto al suo posto.
 REM Tutto dentro UN blocco tra parentesi: cmd lo legge per intero prima di
 REM eseguirlo, quindi dopo il MOVE non rilegge il vecchio file e passa al nuovo.
@@ -42,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$p='%SCRIPT_PATH%'; $q=[
 if %errorlevel% neq 0 (
     echo.
     echo   [!] Richiesta privilegi amministratore annullata o non concessa.
-    echo   Per avviare: fai click destro su "PC Facile.bat" e scegli "Esegui come amministratore".
+    echo   Per avviare: fai click destro su "PC Facile Windows.bat" e scegli "Esegui come amministratore".
     echo.
     powershell -NoProfile -Command "Start-Sleep -Seconds 5" >nul 2>&1
 )
@@ -197,7 +197,7 @@ if exist "%SCRIPT_DIR%setup-pc.ps1" (
     echo   Soluzioni:
     echo   1. Connetti questo PC al Wi-Fi (in basso a destra) e riprova.
     echo   2. Oppure copia 'setup-pc.ps1' sulla chiavetta USB accanto
-    echo      a 'PC Facile.bat' per farlo funzionare sempre al 100%% OFFLINE!
+    echo      a 'PC Facile Windows.bat' per farlo funzionare sempre al 100%% OFFLINE!
     echo ============================================================
     echo.
     echo Premi un tasto per chiudere...
