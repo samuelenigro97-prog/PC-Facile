@@ -414,9 +414,14 @@ function Invoke-OrdinaChiavetta {
     $fileSuperflui = @(
         '.gitattributes', '.gitignore', 'AGENTS.md', 'CHANGELOG.md', 'CLAUDE.md',
         'LICENSE.md', 'PARITA.md', 'PSScriptAnalyzerSettings.psd1', 'README.md', 'SECURITY.md',
-        '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', '3 - ISTRUZIONI.txt',
-        'PC Facile.bat', 'PC Facile.command'
+        '1 - AVVIA PER WINDOWS.bat', '2 - AVVIA PER MAC.command', '3 - ISTRUZIONI.txt'
     )
+    if (Test-Path -LiteralPath (Join-Path $Destinazione 'PC Facile Windows.bat') -PathType Leaf) {
+        $fileSuperflui += 'PC Facile.bat'
+    }
+    if (Test-Path -LiteralPath (Join-Path $Destinazione 'PC Facile Mac.command') -PathType Leaf) {
+        $fileSuperflui += 'PC Facile.command'
+    }
     foreach ($f in $fileSuperflui) {
         $p = Join-Path $Destinazione $f
         if (Test-Path -LiteralPath $p -PathType Leaf) {
