@@ -46,7 +46,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.18.0 (2026-11-25)"
+$SCRIPT_VERSION = "13.18.1 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1688,6 +1688,9 @@ function Update-PannelloStatus {
         [switch]$PercentualeGuida
     )
     try {
+        if (-not $Global:StopwatchInizio) {
+            $Global:StopwatchInizio = [System.Diagnostics.Stopwatch]::StartNew()
+        }
         if (-not $Global:PannelloStatus) {
             $versione = Get-Variable -Name SCRIPT_VERSION -ValueOnly -ErrorAction SilentlyContinue
             $Global:PannelloStatus = [ordered]@{
@@ -1695,8 +1698,8 @@ function Update-PannelloStatus {
                 FaseCorrente  = "Inizializzazione Setup"
                 Dettaglio     = "Avvio pannello operatore Unieuro..."
                 Completato    = $false
-                # Istante di avvio (ms Unix): il pannello calcola il tempo trascorso
-                # da qui, non dall'apertura della pagina.
+                # Istante di avvio ricalcolato col cronometro monotono: immune ai salti
+                # di orologio (+1h) quando w32tm /resync corregge l'ora di fabbrica.
                 Inizio        = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
                 InAttesaDati  = $false
                 Versione      = [string]$versione
@@ -1721,6 +1724,9 @@ function Update-PannelloStatus {
                     "diagnostica" = [ordered]@{ Nome = "Diagnostica Hardware, BitLocker & Scheda Consegna"; Stato = "pending"; Dettaglio = "In attesa" }
                 }
             }
+        }
+        if ($Global:StopwatchInizio) {
+            $Global:PannelloStatus.Inizio = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - [long]($Global:StopwatchInizio.Elapsed.TotalMilliseconds)
         }
         if ($Percentuale -ge 0 -and ($PercentualeGuida -or -not $Global:PercentualeDaPassi)) { $Global:PannelloStatus.Percentuale = $Percentuale }
         if ($FaseCorrente) { $Global:PannelloStatus.FaseCorrente = $FaseCorrente }
@@ -2972,7 +2978,7 @@ function Open-PannelloOperatore {
 
     <script>
         var SERVER = 'http://127.0.0.1:8899';
-        var TIMEOUT_MS = 2000;
+        var TIMEOUT_MS = 6000;
         var currentDomain = 'outlook.it';
         var currentProviderName = 'Microsoft';
         var manualEdit = false;
@@ -3008,6 +3014,7 @@ function Open-PannelloOperatore {
         setInterval(function() {
             var e = el('elapsedTimerText');
             if (!e) return;
+            if (!isScriptConnected || (ultimoStato && (ultimoStato.Completato || ultimoStato.completato))) return;
             e.innerText = inizioLavori > 0 ? formatoTempo(Math.max(0, Math.floor((Date.now() - inizioLavori) / 1000))) : '--:--';
         }, 1000);
 
@@ -3420,7 +3427,7 @@ function Open-PannelloOperatore {
                     }
                 })
                 .catch(function() {
-                    if (Date.now() - lastStatusPing > 4000) setConnected(false);
+                    if (Date.now() - lastStatusPing > 12000) setConnected(false);
                 });
         }
         setInterval(checkConnection, 1500);
@@ -7752,28 +7759,39 @@ trap {
         "*AcerUserExperience*", "*AcerExplorerAssistant*"
     )
 
-    foreach ($pkg in $bloatwareAppx) {
-        try {
-            $trovati = Get-AppxPackage -AllUsers -Name $pkg -ErrorAction SilentlyContinue
-            foreach ($t in $trovati) {
+    try {
+        $tuttiAppx = @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue)
+        foreach ($t in $tuttiAppx) {
+            if (-not $t -or -not $t.Name) { continue }
+            $daRimuovere = $false
+            foreach ($pkg in $bloatwareAppx) {
+                if ($t.Name -like $pkg) { $daRimuovere = $true; break }
+            }
+            if ($daRimuovere) {
                 Write-Info "Rimuovo app Store: $($t.Name)"
-                Remove-AppxPackage -Package $t.PackageFullName -AllUsers -ErrorAction SilentlyContinue
+                Update-PannelloStatus -TaskId "pulizia" -Stato "running" -Dettaglio "Rimozione app Store: $($t.Name)..."
+                try { Remove-AppxPackage -Package $t.PackageFullName -AllUsers -ErrorAction SilentlyContinue | Out-Null } catch {}
                 $rimosse++
             }
-            # Rimuovi anche il provisioning (sia per DisplayName che per PackageName)
-            Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
-                Where-Object {
-                    ($_.DisplayName -and $_.DisplayName -like $pkg) -or
-                    ($_.PackageName -and $_.PackageName -like $pkg)
-                } |
-                ForEach-Object {
-                    Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue | Out-Null
+        }
+        $tuttiProv = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue)
+        foreach ($pr in $tuttiProv) {
+            if (-not $pr) { continue }
+            $daRimuovereProv = $false
+            foreach ($pkg in $bloatwareAppx) {
+                if (($pr.DisplayName -and $pr.DisplayName -like $pkg) -or ($pr.PackageName -and $pr.PackageName -like $pkg)) {
+                    $daRimuovereProv = $true
+                    break
                 }
-        } catch {}
-    }
+            }
+            if ($daRimuovereProv) {
+                try { Remove-AppxProvisionedPackage -Online -PackageName $pr.PackageName -ErrorAction SilentlyContinue | Out-Null } catch {}
+            }
+        }
+    } catch {}
 
     # 2) Disinstallazione DIRETTA da REGISTRO per programmi Win32 OEM (offline-safe,
-    # non dipende da winget: intercetta Dropbox, Booking, Acer Care Center, trial, ecc.)
+    # con timeout massimo di 35s per evitare che un disinstallatore con finestra nascosta blocchi lo script)
     $bloatwareWin32Patterns = @(
         '*Dropbox*', '*Booking*', '*Evernote*', '*WildTangent*',
         '*ExpressVPN*', '*CyberLink*', '*Google Play Games*',
@@ -7790,6 +7808,7 @@ trap {
         'HKLM:\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
         'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*'
     )
+    $nomiWin32Trovati = @()
     if ($RunReale) {
         foreach ($uPath in $uninstallKeys) {
             try {
@@ -7798,6 +7817,7 @@ trap {
                 foreach ($item in $items) {
                     $dispName = $item.DisplayName
                     if (-not $dispName) { continue }
+                    $nomiWin32Trovati += [string]$dispName
 
                     $matchFound = $false
                     foreach ($pat in $bloatwareWin32Patterns) {
@@ -7811,27 +7831,32 @@ trap {
                     $uninst = $item.QuietUninstallString
                     if (-not $uninst) { $uninst = $item.UninstallString }
                     if ($uninst) {
-                        Write-Info "Disinstallo programma Win32: $dispName"
+                        Write-Info "Disinstallo programma Win32 (max 35s): $dispName"
+                        Update-PannelloStatus -TaskId "pulizia" -Stato "running" -Dettaglio "Disinstallazione $dispName..."
                         try {
+                            $procUn = $null
                             if ($uninst -match 'msiexec(\.exe)?' -or $item.PSChildName -match '^\{[0-9A-Fa-f\-]+\}$') {
                                 $prodCode = if ($item.PSChildName -match '^\{[0-9A-Fa-f\-]+\}$') { $item.PSChildName } else {
                                     if ($uninst -match '\{[0-9A-Fa-f\-]+\}') { $matches[0] } else { $null }
                                 }
                                 if ($prodCode) {
-                                    Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$prodCode`" /qn /norestart" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
-                                    $rimosse++
-                                    Write-OK "Disinstallato via MSI: $dispName"
+                                    $procUn = Start-Process -FilePath "msiexec.exe" -ArgumentList "/x `"$prodCode`" /qn /norestart" -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
                                 }
                             } elseif ($item.QuietUninstallString) {
-                                Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$($item.QuietUninstallString)`"" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
-                                $rimosse++
-                                Write-OK "Disinstallato: $dispName"
+                                $procUn = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c `"$($item.QuietUninstallString)`"" -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
                             } else {
                                 $cmd = $uninst
-                                if ($cmd -notmatch '/S|/silent|/verysilent|/qn') { $cmd = "$cmd /S /silent /qn" }
-                                Start-Process -FilePath "cmd.exe" -ArgumentList "/c $cmd" -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue
-                                $rimosse++
-                                Write-OK "Disinstallato: $dispName"
+                                if ($cmd -notmatch '/S|/silent|/verysilent|/qn') { $cmd = "$cmd /S /silent /qn /norestart" }
+                                $procUn = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c `"$cmd`"" -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+                            }
+                            if ($procUn) {
+                                if ($procUn.WaitForExit(35000)) {
+                                    $rimosse++
+                                    Write-OK "Disinstallato: $dispName"
+                                } else {
+                                    try { $procUn.Kill() } catch {}
+                                    Write-Info "Timeout (35s) disinstallazione '$dispName': interrotto per non bloccare il setup."
+                                }
                             }
                         } catch {}
                     }
@@ -7840,30 +7865,40 @@ trap {
         }
     }
 
-    # 3) Passaggio di completamento Win32 via Winget (se disponibile)
+    # 3) Passaggio di completamento Win32 via Winget SOLO per i bloatware effettivamente rilevati nel registro (max 25s ciascuno)
     $trialWin32Winget = @(
         "Dropbox", "Dropbox Promotion", "Dropbox OEM", "Booking.com",
         "Evernote", "WildTangent Games", "ExpressVPN", "CyberLink PowerDVD",
         "HP Support Assistant", "HP Documentation", "HP Sure Recover",
         "MyASUS", "ASUS GiftBox", "GlideX", "ASUS Product Registration Program",
-        "Acer Care Center", "Planet9"
+        "Acer Care Center", "Planet9", "Google Play Games"
     )
-    if (Confirm-Winget) {
+    if ($RunReale -and $nomiWin32Trovati.Count -gt 0 -and (Confirm-Winget)) {
         foreach ($nome in $trialWin32Winget) {
-            winget uninstall --name $nome --silent --accept-source-agreements 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): $nome"; $rimosse++ }
+            $presente = $false
+            foreach ($inst in $nomiWin32Trovati) {
+                if ($inst -like "*$nome*") { $presente = $true; break }
+            }
+            if (-not $presente) { continue }
+            try {
+                $pWg = Start-Process -FilePath "winget.exe" -ArgumentList @('uninstall', '--name', $nome, '--silent', '--accept-source-agreements') -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+                if ($pWg) {
+                    if ($pWg.WaitForExit(25000) -and $pWg.ExitCode -eq 0) {
+                        Write-Info "Rimosso (winget): $nome"
+                        $rimosse++
+                    } elseif (-not $pWg.HasExited) {
+                        try { $pWg.Kill() } catch {}
+                    }
+                }
+            } catch {}
         }
-        # Google Play Games (bloatware Acer): l'EULA interattiva fa fallire
-        # sempre "winget upgrade --all" in silenzioso, quindi lo tolgo qui
-        # per ID esatto invece di lasciarlo installato e provare ad aggiornarlo.
-        winget uninstall --id Google.PlayGames --silent --accept-source-agreements 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { Write-Info "Rimosso (winget): Google Play Games"; $rimosse++ }
     }
 
     # 4) Pulizia COLLEGAMENTI (.lnk e .url) dal Menu Start, Desktop (Utente, Pubblico e OneDrive)
+    # NB: NON usare il filtro Adobe generico altrimenti elimina Adobe Acrobat Reader appena installato!
     $junkShortcutPatterns = @(
         '*Booking*', '*Dropbox*', '*Evernote*', '*WildTangent*', '*ExpressVPN*',
-        '*CyberLink*', '*Offerte Adobe*', '*Adobe offers*', '*Adobe*', '*Amazon*',
+        '*CyberLink*', '*Offerte Adobe*', '*Adobe offers*', '*Amazon*',
         '*TikTok*', '*Instagram*', '*Facebook*', '*Disney*', '*Netflix*',
         '*Acer Collection*', '*Acer Care Center*', '*Acer Jumpstart*', '*Acer Registration*',
         '*Planet9*', '*HP Support Assistant*', '*HP Documentation*', '*Lenovo Welcome*',
@@ -7960,7 +7995,7 @@ trap {
     # tocca driver, OneDrive, gli updater dei browser, ne' le app del setup.
     $avvioJunk = @(
         'HP*', '*Lenovo*', 'Dell*', '*ASUS*', 'Acer*', '*SupportAssist*', '*Vantage*',
-        'Adobe*', 'SunJavaUpdate*', 'iTunesHelper', 'QuickTime*', 'CCleaner*',
+        'SunJavaUpdate*', 'iTunesHelper', 'QuickTime*', 'CCleaner*',
         'WildTangent*', 'ExpressVPN*', '*Booking*', '*Dropbox*', '*Evernote*',
         '*CyberLink*', '*Planet9*', '*ACCStd*', '*CareCenter*', '*Google Play Games*'
     )
@@ -8006,7 +8041,7 @@ trap {
     # c) Task pianificati all'avvio/logon: DISABILITO (non elimino) i junk noti.
     #    Salto i task di sistema \Microsoft\Windows\ e gli updater dei browser.
     $taskJunk = @(
-        '*Adobe*', '*HP*', '*Lenovo*', '*Dell*', '*ASUS*', '*Acer*',
+        '*Offerte Adobe*', '*Adobe offers*', '*HP*', '*Lenovo*', '*Dell*', '*ASUS*', '*Acer*',
         '*SupportAssist*', '*Vantage*', '*CCleaner*', '*WildTangent*',
         '*ExpressVPN*', '*Java Update*', '*JavaUpdate*',
         '*Dropbox*', '*Booking*', '*Evernote*', '*CyberLink*', '*Planet9*'
@@ -8081,11 +8116,17 @@ trap {
         taskkill /f /im OneDrive.exe 2>$null | Out-Null
         $odSetup = @("$env:SystemRoot\SysWOW64\OneDriveSetup.exe", "$env:SystemRoot\System32\OneDriveSetup.exe") |
             Where-Object { Test-Path $_ } | Select-Object -First 1
-        if ($odSetup) { Start-Process $odSetup -ArgumentList "/uninstall" -Wait -ErrorAction SilentlyContinue }
+        if ($odSetup) {
+            $pOd = Start-Process $odSetup -ArgumentList "/uninstall /silent" -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+            if ($pOd -and -not $pOd.WaitForExit(40000)) {
+                try { $pOd.Kill() } catch {}
+                Write-Info "Timeout (40s) disinstallazione OneDrive: proseguo."
+            }
+        }
         Get-AppxPackage -AllUsers *OneDrive* -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
-        Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -like "*OneDrive*" } |
-            ForEach-Object { Remove-AppxProvisionedPackage -Online -PackageName $_.PackageName -ErrorAction SilentlyContinue | Out-Null }
+        foreach ($prOd in @($tuttiProv | Where-Object { $_.DisplayName -like "*OneDrive*" })) {
+            try { Remove-AppxProvisionedPackage -Online -PackageName $prOd.PackageName -ErrorAction SilentlyContinue | Out-Null } catch {}
+        }
         $run = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
         if (Get-ItemProperty -Path $run -Name "OneDrive" -ErrorAction SilentlyContinue) { Remove-ItemProperty -Path $run -Name "OneDrive" -ErrorAction SilentlyContinue }
         if (Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") {
@@ -8147,16 +8188,8 @@ trap {
         }
     } catch {}
 
-    try {
-        if (-not $Test) {
-            Write-Info "Avvio pulizia componenti obsoleti WinSxS (DISM in background)..."
-            Start-Process dism.exe -ArgumentList "/Online /Cleanup-Image /StartComponentCleanup /NoRestart" -NoNewWindow -ErrorAction SilentlyContinue | Out-Null
-        } else {
-            Write-OK "TEST: simulazione pulizia componenti WinSxS (DISM)."
-        }
-        Add-Report "Pulizia componenti WinSxS (DISM)" "OK"
-    } catch {}
-
+    # Nota: NON avviamo dism.exe /StartComponentCleanup prima di Driver e Windows Update,
+    # perche' blocca il Windows Servicing Stack (TiWorker/CBS) e rallenta l'SSD su PC nuovi.
     Write-OK "Pulizia e ottimizzazione iniziale completata."
 }
 

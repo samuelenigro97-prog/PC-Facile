@@ -953,7 +953,7 @@
 
     <script>
         var SERVER = 'http://127.0.0.1:8899';
-        var TIMEOUT_MS = 2000;
+        var TIMEOUT_MS = 6000;
         var currentDomain = 'outlook.it';
         var currentProviderName = 'Microsoft';
         var manualEdit = false;
@@ -989,6 +989,7 @@
         setInterval(function() {
             var e = el('elapsedTimerText');
             if (!e) return;
+            if (!isScriptConnected || (ultimoStato && (ultimoStato.Completato || ultimoStato.completato))) return;
             e.innerText = inizioLavori > 0 ? formatoTempo(Math.max(0, Math.floor((Date.now() - inizioLavori) / 1000))) : '--:--';
         }, 1000);
 
@@ -1401,7 +1402,7 @@
                     }
                 })
                 .catch(function() {
-                    if (Date.now() - lastStatusPing > 4000) setConnected(false);
+                    if (Date.now() - lastStatusPing > 12000) setConnected(false);
                 });
         }
         setInterval(checkConnection, 1500);

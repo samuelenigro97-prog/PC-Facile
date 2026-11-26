@@ -1391,4 +1391,13 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $cbHtml | Should -Match 'inSerialeCb'
         $cbHtml | Should -Match 'window\.print\(\)'
     }
+    It 'Invoke-PuliziaSistema interroga Get-AppxProvisionedPackage una sola volta, non ha Start-Process -Wait senza timeout e non cancella Adobe Acrobat' {
+        $fnPul = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Invoke-PuliziaSistema' }, $true) | Select-Object -First 1
+        $fnPul | Should -Not -BeNullOrEmpty
+        $txtPul = $fnPul.Extent.Text
+        ([regex]::Matches($txtPul, 'Get-AppxProvisionedPackage')).Count | Should -Be 1
+        $txtPul | Should -Not -Match 'Start-Process\b[^\r\n]*-Wait\b'
+        $txtPul | Should -Not -Match "'\*Adobe\*'"
+        $txtPul | Should -Match 'WaitForExit\(35000\)'
+    }
 }
