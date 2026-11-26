@@ -1407,5 +1407,7 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $script:SrcBat | Should -Not -Match '(?m)^\s*shift\s*$'
         $script:SrcBat | Should -Match 'Invoke-WebRequest -Uri'
         $script:SrcBat | Should -Match '-UseBasicParsing'
+        $script:SrcBat | Should -Match 'LoadKeyboardLayout'
+        $script:SrcPs1 | Should -Match 'LoadKeyboardLayout'
     }
 }

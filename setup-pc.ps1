@@ -64,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.18.2 (2026-11-26)"
+$SCRIPT_VERSION = "13.18.3 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -5608,6 +5608,20 @@ $RunReale = (-not $Test -and -not $Diagnostica)
 if ($RunReale) {
     try { Enable-SilentElevation } catch {}
     try { Set-PreventSleep $true } catch {}
+    # Attiva SUBITO la tastiera italiana (00000410) a secondo 0 (prima di Wi-Fi e Pannello)
+    # cosi' la chiocciola (@ = AltGr+o') funziona subito anche su PC nuovi partiti in inglese.
+    try {
+        Set-ItemProperty -Path 'HKCU:\Keyboard Layout\Preload' -Name '1' -Value '00000410' -ErrorAction SilentlyContinue
+        $kList = New-WinUserLanguageList 'it-IT'
+        $kList[0].InputMethodTips.Clear()
+        $kList[0].InputMethodTips.Add('0410:00000410')
+        Set-WinUserLanguageList -LanguageList $kList -Force -ErrorAction SilentlyContinue | Out-Null
+        if (-not ([System.Management.Automation.PSTypeName]'Win32.KbdItLive').Type) {
+            Add-Type -Name KbdItLive -Namespace Win32 -MemberDefinition '[DllImport("user32.dll", CharSet=CharSet.Auto)] public static extern IntPtr LoadKeyboardLayout(string pwszKLID, uint Flags); [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);' -ErrorAction SilentlyContinue
+        }
+        $hKbd = [Win32.KbdItLive]::LoadKeyboardLayout('00000410', 1)
+        [void][Win32.KbdItLive]::PostMessage([IntPtr]0xFFFF, 0x0050, [IntPtr]::Zero, $hKbd)
+    } catch {}
     try { Set-EdgeFirstRunPolicies } catch {}
     try { Connect-AutoWiFi -TargetDir $TargetDir } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
     if (-not $NoSelfUpdate) {
