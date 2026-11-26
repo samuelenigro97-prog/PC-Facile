@@ -68,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.23.1 (2026-11-26)"
+$SCRIPT_VERSION = "13.24.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -4295,7 +4295,7 @@ function Install-OfflinePackage {
             elseif ($FilePath -like "*TeamViewer*") { $arg = "/S" }
             elseif ($FilePath -like "*Zoom*") { $arg = "/silent" }
             elseif ($FilePath -like "*Discord*") { $arg = "-s" }
-            elseif ($FilePath -like "*WhatsApp*") { $arg = "/silent" }
+            elseif ($FilePath -like "*WhatsApp*") { $arg = "--silent" }
             elseif ($FilePath -like "*LibreOffice*" -or $FilePath -like "*OpenOffice*") { $arg = "/S" }
             elseif ($FilePath -like "*aimp*") { $arg = "/AUTO=`"$env:ProgramFiles\AIMP`" /SILENT" }
             elseif ($FilePath -like "*gimp*") { $arg = "/VERYSILENT /NORESTART /ALLUSERS" }
@@ -4303,6 +4303,7 @@ function Install-OfflinePackage {
             elseif ($FilePath -like "*Intel*") { $arg = "/quiet /norestart" }
             elseif ($FilePath -like "*vc_redist*" -or $FilePath -like "*vcredist*") { $arg = "/install /quiet /norestart" }
 
+            $isWhatsAppStub = ($FilePath -like "*WhatsApp*" -or $Nome -like "*WhatsApp*")
             $proc = Start-Process -FilePath $FilePath -ArgumentList $arg -WorkingDirectory $workDir -PassThru -ErrorAction Stop
             $timer = 0
             $maxWait = 300
@@ -4311,6 +4312,38 @@ function Install-OfflinePackage {
                 $timer += 1
                 if ($timer % 5 -eq 0) {
                     Write-Host "     -> ${Nome}: installazione in corso... (${timer}s / max ${maxWait}s)" -ForegroundColor DarkGray
+                }
+                if ($isWhatsAppStub -and ($timer % 2 -eq 0)) {
+                    try {
+                        # Se il pacchetto Store di WhatsApp risulta gia' installato, chiudi subito la mini-finestra dello Store
+                        if (Get-AppxPackage -Name "*WhatsApp*" -ErrorAction SilentlyContinue) {
+                            try { $proc.Kill() } catch {}
+                            Get-Process -Name "WhatsAppInstaller*","StoreInstaller*" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+                            break
+                        }
+                        # Premi automaticamente il pulsante "Installa" / "Install" nella finestra Microsoft Store (PEGI) via UIAutomation
+                        Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes -ErrorAction SilentlyContinue
+                        $rootEl = [System.Windows.Automation.AutomationElement]::RootElement
+                        if ($rootEl) {
+                            $winCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Window)
+                            foreach ($win in $rootEl.FindAll([System.Windows.Automation.TreeScope]::Children, $winCond)) {
+                                $wName = [string]$win.Current.Name
+                                if ($wName -match '(?i)(Microsoft Store|WhatsApp|StoreInstaller)') {
+                                    $btnCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+                                    foreach ($btn in $win.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond)) {
+                                        $bName = ([string]$btn.Current.Name).Trim()
+                                        if ($bName -match '^(?i)(Installa|Install|Ottieni|Get)$') {
+                                            $inv = $null
+                                            if ($btn.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$inv) -and $inv) {
+                                                $inv.Invoke()
+                                                Write-Info "Premuto automaticamente '$bName' nella finestra Microsoft Store per $Nome."
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch {}
                 }
                 try {
                     # Rileva e chiudi all'istante eventuali finestre di dialogo o di errore bloccanti (es. 7-Zip "Can't load config info")
@@ -5990,13 +6023,40 @@ $Global:LogFile = $null
 # Primo tentativo SOLO aggiornamento: il "reset" azzera anche gli accordi e va
 # usato solo se davvero serve (cioe' se l'aggiornamento fallisce). Se qualcosa
 # fallisce, l'errore reale di winget diventa VISIBILE (non piu' nascosto).
+function Enable-WingetStoreCertBypass {
+    if ($Test -or $Global:Test -or $env:PESTER_TEST) { return }
+    try {
+        $polKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller"
+        if (-not (Test-Path $polKey)) { New-Item -Path $polKey -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $polKey -Name "EnableBypassCertificatePinningForMicrosoftStore" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $polKey -Name "EnableAdditionalSources" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $polKey -Name "EnableSettings" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+    } catch {}
+    try {
+        $jsonCfg = '{"$schema":"https://aka.ms/winget-settings.schema.json","network":{"bypassCertificatePinningForMicrosoftStore":true}}'
+        $cfgPaths = @(
+            (Join-Path $env:LOCALAPPDATA "Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\settings.json"),
+            (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Settings\settings.json")
+        )
+        foreach ($cp in $cfgPaths) {
+            $dirCp = Split-Path $cp -Parent
+            if (-not (Test-Path -LiteralPath $dirCp)) { New-Item -ItemType Directory -Path $dirCp -Force -ErrorAction SilentlyContinue | Out-Null }
+            [System.IO.File]::WriteAllText($cp, $jsonCfg, (New-Object System.Text.UTF8Encoding($false)))
+        }
+    } catch {}
+    try {
+        & winget.exe settings --enable BypassCertificatePinningForMicrosoftStore 2>$null | Out-Null
+    } catch {}
+}
+
 function Repair-WingetSources {
     param([switch]$Forza)
     if ($Global:WingetRiparato -and -not $Forza) { return }
     $Global:WingetRiparato = $true
-    Write-Info "Riparazione sorgenti winget (source.msix diretto + update)..."
+    Write-Info "Riparazione sorgenti winget (bypass certificato Store 0x8a15005e + source.msix)..."
     Start-BarraAnimata "Riparo le sorgenti winget"
     try {
+        Enable-WingetStoreCertBypass
         # Su Windows 11 nuovi di fabbrica (winget v1.2/v1.3), 'winget source update'
         # fallisce con 0x8A15005E (certificato CDN fissato scaduto). Installare
         # direttamente source.msix con Add-AppxPackage usa i certificati di sistema
@@ -6014,10 +6074,32 @@ function Repair-WingetSources {
                 Add-AppxPackage -Path $srcMsix -ErrorAction Stop
                 Remove-Item -LiteralPath $srcMsix -Force -ErrorAction SilentlyContinue
                 Write-OK "Catalogo sorgente Microsoft.WinGet.Source installato direttamente."
-                return
             }
         } catch {}
         Remove-Item -LiteralPath $srcMsix -Force -ErrorAction SilentlyContinue
+
+        # Se anche il binario winget di fabbrica e' vecchio (es. 2022) e rifiuta il certificato
+        # di msstore (0x8a15005e su WhatsApp), aggiorna DesktopAppInstaller da aka.ms/getwinget
+        if ($Forza) {
+            try {
+                & winget.exe search --exact --id 9NKSQGP7F2NH --source msstore --accept-source-agreements 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) {
+                    $wgBundle = Join-Path $env:TEMP "Microsoft.DesktopAppInstaller.msixbundle"
+                    Remove-Item -LiteralPath $wgBundle -Force -ErrorAction SilentlyContinue
+                    if (Test-Path -LiteralPath $curlBin) {
+                        & $curlBin -fsSL --connect-timeout 10 --max-time 90 -o $wgBundle "https://aka.ms/getwinget" 2>$null
+                    } else {
+                        Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile $wgBundle -UseBasicParsing -TimeoutSec 90 -ErrorAction SilentlyContinue
+                    }
+                    if ((Test-Path -LiteralPath $wgBundle) -and ((Get-Item -LiteralPath $wgBundle).Length -gt 5242880)) {
+                        Add-AppxPackage -Path $wgBundle -ErrorAction SilentlyContinue
+                        Remove-Item -LiteralPath $wgBundle -Force -ErrorAction SilentlyContinue
+                        Enable-WingetStoreCertBypass
+                        Write-OK "Winget (App Installer) aggiornato all'ultima versione."
+                    }
+                }
+            } catch {}
+        }
 
         $out = winget source update 2>&1
         if ($LASTEXITCODE -eq 0) {
@@ -6066,6 +6148,7 @@ function Confirm-Winget {
         Write-OK "Winget trovato."
         $Global:WingetOk = $true
         if (-not $Test -and -not $Global:Test -and -not $env:PESTER_TEST) {
+            Enable-WingetStoreCertBypass
             # Test rapido catalogo: su Windows 11 nuovi di fabbrica il certificato
             # sorgente preinstallato e' scaduto (0x8a15005e); se la ricerca fallisce,
             # riparo subito installando source.msix prima di avviare il ciclo app.
@@ -7031,26 +7114,25 @@ function Installa-Pacchetto {
             continue
         }
 
-        # Spotify o pacchetti msstore/certificato: passaggio diretto all'installer ufficiale.
-        if ($WingetId -eq 'Spotify.Spotify' -or $Nome -eq 'Spotify' -or ($WingetId -match '^[A-Z0-9]{12}$' -and $erroriSorgente -contains $codeInstall)) {
-            Write-Info "Winget/Store non riuscito per $Nome (codice: $codeInstall): provo download diretto ufficiale..."
-            if (Install-AppDirectFallback -WingetId $WingetId -Nome $Nome) {
-                Add-Report "$Nome (installazione)" "OK"
-                Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
-                $Global:UltimaInstallOk = $true
-                return
-            }
-        }
-
-        Write-Errore "Installazione $Nome fallita (codice: $codeInstall)."
-
-        if (($erroriSorgente -contains $codeInstall) -and -not $riparatoQui) {
-            # Sorgenti corrotte: riparo (reset+update forzato) e ritento
-            Write-Info "Errore di integrita' sorgente: riparo le sorgenti winget e ritento..."
+        # Se un pacchetto (Spotify, WhatsApp Store 9NKSQGP7F2NH, AIMP 404, ecc.) fallisce al primo
+        # tentativo con Winget, prova subito a riparare le sorgenti (una sola volta per msstore 0x8a15005e)
+        # oppure passa direttamente all'installer ufficiale (Install-AppDirectFallback) senza ripetere 3 volte!
+        if (($WingetId -match '^[A-Z0-9]{12}$' -or $erroriSorgente -contains $codeInstall) -and -not $riparatoQui) {
+            Write-Info "Errore sorgente/certificato Store ($codeInstall): riparo le sorgenti winget e riprovo..."
             Repair-WingetSources -Forza
             $riparatoQui = $true
             continue
         }
+
+        Write-Info "Winget non riuscito per $Nome (codice: $codeInstall): passo subito al download diretto ufficiale..."
+        if (Install-AppDirectFallback -WingetId $WingetId -Nome $Nome) {
+            Add-Report "$Nome (installazione)" "OK"
+            Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrima
+            $Global:UltimaInstallOk = $true
+            return
+        }
+
+        Write-Errore "Installazione $Nome fallita (codice: $codeInstall)."
 
         # CONNESSIONE CADUTA? Molti fallimenti (revoca certificato, hash, download
         # interrotto) sono di rete. Avviso FORTE e aspetto che torni (max ~90s).
