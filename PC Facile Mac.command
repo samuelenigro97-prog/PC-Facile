@@ -1,7 +1,7 @@
 #!/bin/zsh
 # =============================================================================
-# PC Facile.command - launcher doppio-click per setup-mac.sh (macOS)
-# Gemello di "PC Facile.bat". Scarica SEMPRE l'ultima versione da GitHub e la
+# PC Facile Mac.command - launcher doppio-click per setup-mac.sh (macOS)
+# Gemello di "PC Facile Windows.bat". Scarica SEMPRE l'ultima versione da GitHub e la
 # esegue solo se il suo SHA256 combacia con setup-mac.sh.sha256; altrimenti usa
 # la copia accanto (fallback offline). Doppio-click dal Finder.
 # =============================================================================
@@ -77,6 +77,8 @@ aggiorna_chiavetta() {
         fi
     done < "$man"
     rm -f -- "$man"
+    [[ -f "./PC Facile Windows.bat" && -f "./PC Facile.bat" ]] && rm -f -- "./PC Facile.bat" 2>/dev/null
+    [[ -f "./PC Facile Mac.command" && -f "./PC Facile.command" ]] && rm -f -- "./PC Facile.command" 2>/dev/null
 }
 
 echo "Scarico l'ultima versione da GitHub..."

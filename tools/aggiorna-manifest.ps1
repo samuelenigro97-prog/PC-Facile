@@ -16,8 +16,8 @@ $radice = Split-Path $PSScriptRoot -Parent
 $fileKit = @(
     'setup-pc.ps1',
     'setup-pc.ps1.sha256',
-    'PC Facile.bat',
-    'PC Facile.command',
+    'PC Facile Windows.bat',
+    'PC Facile Mac.command',
     'PC Facile Chromebook.html',
     'Scarica Ultima Versione.url',
     'setup-mac.sh',

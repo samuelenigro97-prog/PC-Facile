@@ -738,8 +738,8 @@ Describe 'Integrita file distribuiti' {
         $reale = (Get-FileHash (Join-Path $script:Radice 'setup-mac.sh') -Algorithm SHA256).Hash.ToLower()
         $reale | Should -Be $atteso
     }
-    It 'PC Facile.bat ha fine riga CRLF (come servito da GitHub raw)' {
-        $bytes = [System.IO.File]::ReadAllBytes((Join-Path $script:Radice 'PC Facile.bat'))
+    It 'PC Facile Windows.bat ha fine riga CRLF (come servito da GitHub raw)' {
+        $bytes = [System.IO.File]::ReadAllBytes((Join-Path $script:Radice 'PC Facile Windows.bat'))
         $lfTotali = @($bytes | Where-Object { $_ -eq 10 }).Count
         $crlf = 0
         for ($i = 1; $i -lt $bytes.Length; $i++) { if ($bytes[$i] -eq 10 -and $bytes[$i - 1] -eq 13) { $crlf++ } }
@@ -755,7 +755,7 @@ Describe 'manifest.txt (file della chiavetta)' {
     }
     It 'elenca tutti i file necessari alla chiavetta' {
         $nomi = $script:Voci | ForEach-Object { $_.Percorso }
-        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'PC Facile Chromebook.html', 'Scarica Ultima Versione.url', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
+        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile Windows.bat', 'PC Facile Mac.command', 'PC Facile Chromebook.html', 'Scarica Ultima Versione.url', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
             $nomi | Should -Contain $f
         }
     }
@@ -916,7 +916,7 @@ Describe 'Invoke-AggiornamentoUSB' {
     It 'Invoke-OrdinaChiavetta rimuove file superflui/vecchi e lascia intatti kit, wifi e repo Git' {
         $kit = Join-Path $script:Root 'kit-pulito'
         New-Item -ItemType Directory -Path (Join-Path $kit '.github'), (Join-Path $kit 'tests'), (Join-Path $kit 'wifi'), (Join-Path $kit 'installers') -Force | Out-Null
-        Set-Content -LiteralPath (Join-Path $kit 'PC Facile.bat') -Value 'bat'
+        Set-Content -LiteralPath (Join-Path $kit 'PC Facile Windows.bat') -Value 'bat'
         Set-Content -LiteralPath (Join-Path $kit 'setup-pc.ps1') -Value 'ps1'
         Set-Content -LiteralPath (Join-Path $kit 'wifi\wifi.txt') -Value 'SSID=store'
         Set-Content -LiteralPath (Join-Path $kit 'README.md') -Value 'readme'
@@ -926,7 +926,7 @@ Describe 'Invoke-AggiornamentoUSB' {
         Test-Path -LiteralPath (Join-Path $kit 'tests') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $kit 'README.md') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $kit '1 - AVVIA PER WINDOWS.bat') | Should -BeFalse
-        Test-Path -LiteralPath (Join-Path $kit 'PC Facile.bat') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $kit 'PC Facile Windows.bat') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $kit 'setup-pc.ps1') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $kit 'wifi\wifi.txt') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $kit 'installers') | Should -BeTrue
@@ -1147,9 +1147,9 @@ Describe 'Server locale del pannello (runspace in background)' {
 # Rilevamento McAfee nel launcher (solo Windows: esegue davvero cmd.exe).
 # Estraggo le subroutine :mcafee_rileva / :mcafee_voce da PC Facile.bat in un
 # .bat temporaneo e le lancio, senza avviare nessun disinstallatore.
-Describe 'PC Facile.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
+Describe 'PC Facile Windows.bat - rilevamento McAfee' -Skip:($env:OS -ne 'Windows_NT') {
     BeforeAll {
-        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile.bat'))
+        $bat = [System.IO.File]::ReadAllText((Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile Windows.bat'))
         $i = $bat.IndexOf("`n:mcafee_rileva") + 1   # la definizione, non 'call :mcafee_rileva'
         $j = $bat.IndexOf("`n:mcafee_uno", $i)
         $corpo = $bat.Substring($i, $j - $i)
@@ -1294,7 +1294,7 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
     BeforeAll {
         $script:RadiceTest = Split-Path $PSScriptRoot -Parent
         $script:SrcPs1 = [System.IO.File]::ReadAllText($script:SetupPath)
-        $script:SrcBat = [System.IO.File]::ReadAllText((Join-Path $script:RadiceTest 'PC Facile.bat'))
+        $script:SrcBat = [System.IO.File]::ReadAllText((Join-Path $script:RadiceTest 'PC Facile Windows.bat'))
         $script:AstPs1 = [System.Management.Automation.Language.Parser]::ParseFile($script:SetupPath, [ref]$null, [ref]$null)
     }
     It 'nessuna chiamata a funzioni interne usa parametri inesistenti (AST check)' {

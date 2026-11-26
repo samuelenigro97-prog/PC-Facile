@@ -6,7 +6,7 @@ allineati come flusso e funzioni.
 
 | Passo / funzione            | Windows (`setup-pc.ps1`)                  | Mac (`setup-mac.sh`)                          | Note |
 |-----------------------------|-------------------------------------------|-----------------------------------------------|------|
-| Avvio unico (no menu)       | doppio click `PC Facile.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
+| Avvio unico (no menu)       | doppio click `PC Facile Windows.bat` = configura; `-Test` solo CI, `-PreparaUSB`/`-Diagnostica` manutenzione | doppio click `PC Facile Mac.command` = configura; `--test` solo CI, `--diagnostica` manutenzione | pari |
 | Dati cliente (una volta)    | pannello locale → server `127.0.0.1:8899` (unico canale); console solo se il pannello non si apre | pannello locale → file `pcfacile-cred.json` in Download (zsh non ha un server HTTP) ; INVIO = nome in console | canale diverso per limite tecnico |
 | Ordine                      | fase 1 dati cliente, Office e attivazioni · fase 2 lingua, app, pulizia, driver e aggiornamenti (automatico fino alla fine) | fase 1 dati cliente, nome e servizi · fase 2 lingua, app e aggiornamenti (automatico fino alla fine) | pari |
 | Lingua italiana             | `Install-Language it-IT -CopyToSettings`  | `defaults write AppleLanguages/AppleLocale`   | pari |
@@ -143,6 +143,8 @@ allineati come flusso e funzioni.
 - **Installazione WhatsApp 100% automatica senza click su "Installa" + fix `0x8a15005e` Microsoft Store (Solo Windows — v13.24.0)**:
   - **Fix certificato Microsoft Store `0x8a15005e`**: attivato `EnableBypassCertificatePinningForMicrosoftStore = 1` via Group Policy (`HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller`), `settings.json` (`bypassCertificatePinningForMicrosoftStore: true`) e aggiornamento automatico di `Microsoft.DesktopAppInstaller` da `https://aka.ms/getwinget` quando `msstore` fallisce su PC nuovi di fabbrica.
   - **Auto-click `"Installa"` via UIAutomation e fallback immediato al 1° tentativo**: se `winget` fallisce su un'app (es. AIMP 404 o WhatsApp Store), passa subito al download diretto ufficiale senza ripetere 3 tentativi inutili; inoltre, se si apre la mini-finestra del Microsoft Store (`WhatsAppInstaller.exe` con avviso PEGI *"Supervisione dei genitori consigliata"*), `Install-OfflinePackage` preme automaticamente il pulsante **`Installa`** tramite `.NET UIAutomation` e chiude la finestra appena il pacchetto `WhatsApp` risulta installato.
+- **Nomi launcher con nome piattaforma (`PC Facile Windows.bat`, `PC Facile Mac.command`, `PC Facile Chromebook.html`) (Win & Mac & Chromebook — v13.25.0 / Mac 2.27)**:
+  - Rinominati i launcher principali in **`PC Facile Windows.bat`** e **`PC Facile Mac.command`** (allineati a **`PC Facile Chromebook.html`**) con pulizia automatica dei vecchi `PC Facile.bat` / `PC Facile.command` sulla chiavetta USB durante `Invoke-OrdinaChiavetta` e `aggiorna_chiavetta`.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.

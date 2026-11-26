@@ -4,11 +4,11 @@
 # Stesso flusso/menu/report della versione Windows, con gli strumenti nativi
 # di macOS: Homebrew (app), scutil (nome), defaults (impostazioni), fdesetup
 # (FileVault = equivalente di BitLocker), softwareupdate (aggiornamenti).
-# Gira in zsh nativo: doppio-click su "PC Facile.command". Nessuna dipendenza
+# Gira in zsh nativo: doppio-click su "PC Facile Mac.command". Nessuna dipendenza
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.26 (2026-11-26)"
+SCRIPT_VERSION="2.27 (2026-11-26)"
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1

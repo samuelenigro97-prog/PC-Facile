@@ -16,13 +16,13 @@ Kit automatico da chiavetta USB per configurare in negozio PC **Windows**, **App
 
 Sulla chiavetta USB trovi i **3 file di avvio** (lo ZIP scaricato da GitHub contiene già solo i file puliti della chiavetta):
 
-1. 🪟 **Su PC Windows**: doppio clic su **`PC Facile.bat`** (conferma UAC → *Sì*).
-2. 🍎 **Su Apple Mac**: doppio clic su **`PC Facile.command`** (inserisci una sola volta all'inizio la password del Mac).
+1. 🪟 **Su PC Windows**: doppio clic su **`PC Facile Windows.bat`** (conferma UAC → *Sì*).
+2. 🍎 **Su Apple Mac**: doppio clic su **`PC Facile Mac.command`** (inserisci una sola volta all'inizio la password del Mac).
 3. 💻 **Su Chromebook (ChromeOS)**: apri l'app *File*, vai sulla chiavetta USB e fai doppio clic su **`PC Facile Chromebook.html`**.
 
 ### Come lavora il flusso automatico (0 secondi di attesa)
 
-1. **Rimozione AV di prova e connessione Wi-Fi automatica**: su Windows `PC Facile.bat` rimuove in silenzio eventuali antivirus preinstallati (`McAfee`, `Norton`, `Avast`, `AVG`), collega il PC al Wi-Fi del negozio (`wifi/wifi.txt` o `wifi/UNIEURO_EXPO.xml`) e allinea automaticamente la chiavetta all'ultima versione su GitHub verificata via SHA256.
+1. **Rimozione AV di prova e connessione Wi-Fi automatica**: su Windows `PC Facile Windows.bat` rimuove in silenzio eventuali antivirus preinstallati (`McAfee`, `Norton`, `Avast`, `AVG`), collega il PC al Wi-Fi del negozio (`wifi/wifi.txt` o `wifi/UNIEURO_EXPO.xml`) e allinea automaticamente la chiavetta all'ultima versione su GitHub verificata via SHA256.
 2. **Partenza istantanea a 0 secondi**: lo script apre a sinistra il **Pannello Operatore** e a destra il **Terminale** e **parte subito a 0 secondi** con **Unieuro Secure** (installato in automatico su ogni PC con l'estensione **Browsing Protection by F-Secure** su Edge e Chrome), la lingua italiana, le app, la pulizia, i driver e gli aggiornamenti.
 3. **Inserimento dati cliente e `Incolla mail` per Unieuro Secure**:
    - Puoi inserire i dati del cliente nel Pannello Operatore in qualsiasi momento mentre lo script lavora.
@@ -40,9 +40,9 @@ Sulla chiavetta USB trovi i **3 file di avvio** (lo ZIP scaricato da GitHub cont
 
 ## 2. La Chiavetta USB Sempre Aggiornata (`manifest.txt`)
 
-A ogni avvio con Internet, `PC Facile.bat` (Windows) e `PC Facile.command` (Mac) controllano `manifest.txt` su GitHub e aggiornano automaticamente sulla chiavetta tutti i file del kit:
-- `PC Facile.bat` *(Windows)*
-- `PC Facile.command` *(Mac)*
+A ogni avvio con Internet, `PC Facile Windows.bat` (Windows) e `PC Facile Mac.command` (Mac) controllano `manifest.txt` su GitHub e aggiornano automaticamente sulla chiavetta tutti i file del kit:
+- `PC Facile Windows.bat` *(Windows)*
+- `PC Facile Mac.command` *(Mac)*
 - `PC Facile Chromebook.html` *(Chromebook / ChromeOS)*
 - `Scarica Ultima Versione.url` *(Link diretto al download dello ZIP aggiornato da GitHub)*
 - `setup-pc.ps1` + `setup-pc.ps1.sha256`
