@@ -96,6 +96,16 @@ reg add "HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" /v "1" 
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v AllowNewsAndInterests /t REG_DWORD /d 0 /f >nul 2>&1
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v BingSearchEnabled /t REG_DWORD /d 0 /f >nul 2>&1
 
+REM Disattiva per sempre la scadenza password Windows (42 giorni), rimuove la richiesta
+REM di password al risveglio dallo standby e riabilita l'accesso diretto senza password.
+net accounts /maxpwage:unlimited >nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\PasswordLess\Device" /v DevicePasswordLessBuildVersion /t REG_DWORD /d 0 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" /v ACSettingIndex /t REG_DWORD /d 0 /f >nul 2>&1
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\0e796bdb-100d-47d6-a2d5-f7d2daa51f51" /v DCSettingIndex /t REG_DWORD /d 0 /f >nul 2>&1
+powercfg /setacvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 >nul 2>&1
+powercfg /setdcvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 >nul 2>&1
+powercfg /setactive SCHEME_CURRENT >nul 2>&1
+
 REM Sblocca automaticamente tutti i file della chiavetta ed elimina gli avvisi SmartScreen / Apri file
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$env:SEE_MASK_NOZONECHECKS=1; Get-ChildItem -Path '%SCRIPT_DIR%' -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -match '^\.(ps1|bat|cmd|command)$' } | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
 

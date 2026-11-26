@@ -799,6 +799,7 @@
                         </div>
                         <div class="step-tool-actions">
                             <button type="button" class="btn-tool primary" onclick="eseguiPasso('account')">&#10004; Applica Nome Utente e PC</button>
+                            <button type="button" class="btn-tool" onclick="eseguiPasso('nopass')">&#128275; Rimuovi password Windows (accesso diretto)</button>
                             <button type="button" class="btn-tool" onclick="eseguiPasso('netplwiz')">&#128100; Utenti Windows (netplwiz)</button>
                         </div>
                         <div id="esitoStep-account" class="step-esito"></div>
@@ -1314,7 +1315,7 @@
             if (stepKey === 'sysdm') mapKey = 'ripristino';
             if (stepKey === 'icone') mapKey = 'app';
             if (stepKey === 'officeattiva') mapKey = 'office';
-            if (stepKey === 'netplwiz') mapKey = 'account';
+            if (stepKey === 'netplwiz' || stepKey === 'nopass') mapKey = 'account';
             if (stepKey === 'devmgmt') mapKey = 'driver';
             if (stepKey === 'winupdate') mapKey = 'aggiorna';
             if (stepKey === 'scheda') mapKey = 'diagnostica';
