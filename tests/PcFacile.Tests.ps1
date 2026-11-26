@@ -1400,4 +1400,12 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $txtPul | Should -Not -Match "'\*Adobe\*'"
         $txtPul | Should -Match 'WaitForExit\(35000\)'
     }
+    It 'PC Facile.bat salva SCRIPT_DIR/SCRIPT_PATH prima di shift /1 e usa Invoke-WebRequest -UseBasicParsing' {
+        $script:SrcBat | Should -Match 'set "SCRIPT_DIR=%~dp0"'
+        $script:SrcBat | Should -Match 'set "SCRIPT_PATH=%~f0"'
+        $script:SrcBat | Should -Match 'shift /1'
+        $script:SrcBat | Should -Not -Match '(?m)^\s*shift\s*$'
+        $script:SrcBat | Should -Match 'Invoke-WebRequest -Uri'
+        $script:SrcBat | Should -Match '-UseBasicParsing'
+    }
 }

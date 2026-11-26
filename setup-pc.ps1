@@ -39,6 +39,24 @@ if ($TargetDir) {
     $TargetDir = ($TargetDir -replace '["'']', '').Trim().TrimEnd('\').TrimEnd('/')
     $Global:TargetDir = $TargetDir
 }
+# Auto-correzione per chiavette con un vecchio PC Facile.bat in cui "shift" (senza /1)
+# dopo l'elevazione UAC trasformava %~dp0 in C:\Windows\System32 e %~f0 in C:\Windows\System32\elevated:
+if (-not ($Test -or $env:PESTER_TEST) -and (-not $TargetDir -or $TargetDir -like "$env:SystemRoot*")) {
+    try {
+        foreach ($drv in @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
+            $r = $drv.Root
+            if (-not $r -or $r -like "$env:SystemDrive*") { continue }
+            if ((Test-Path -LiteralPath (Join-Path $r 'PC Facile.bat')) -or (Test-Path -LiteralPath (Join-Path $r 'setup-pc.ps1'))) {
+                $TargetDir = $r.TrimEnd('\', '/')
+                $Global:TargetDir = $TargetDir
+                if (-not $LauncherPath -or $LauncherPath -like "$env:SystemRoot*") {
+                    $LauncherPath = Join-Path $r 'PC Facile.bat'
+                }
+                break
+            }
+        }
+    } catch {}
+}
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -46,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.18.1 (2026-11-26)"
+$SCRIPT_VERSION = "13.18.2 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -529,7 +547,10 @@ if ($TargetDir -and -not $LauncherPath -and -not $AggiornaUSB -and -not $Test -a
 if ($AggiornaUSB) {
     $cartellaKit = if ($TargetDir) { $TargetDir } else { $PSScriptRoot }
     if (Test-CartellaKitUSB $cartellaKit) {
-        try { [void](Invoke-AggiornamentoUSB -Destinazione $cartellaKit -LauncherInEsecuzione $LauncherPath) }
+        try {
+            [void](Invoke-AggiornamentoUSB -Destinazione $cartellaKit -LauncherInEsecuzione $LauncherPath)
+            if ($LauncherPath) { Start-SostituzioneLauncherDifferita -Launcher $LauncherPath }
+        }
         catch { Write-Info "Aggiornamento chiavetta non riuscito: $($_.Exception.Message)" }
     } else {
         Write-Info "Aggiornamento chiavetta saltato: '$cartellaKit' non e' una chiavetta/cartella PC Facile."
