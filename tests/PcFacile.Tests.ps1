@@ -880,23 +880,23 @@ Describe 'Invoke-AggiornamentoUSB' {
     }
 
     It 'usa la seconda sorgente se la prima non ha il file' {
-        Set-Content -LiteralPath (Join-Path $script:Remoto2 'PC Facile.command') -Value 'mac'
-        $h = Hash (Join-Path $script:Remoto2 'PC Facile.command')
-        "$h  PC Facile.command" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
+        Set-Content -LiteralPath (Join-Path $script:Remoto2 'PC Facile Mac.command') -Value 'mac'
+        $h = Hash (Join-Path $script:Remoto2 'PC Facile Mac.command')
+        "$h  PC Facile Mac.command" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
         $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1, $script:Base2) -Scarica $script:Scarica
         $r.Aggiornati | Should -Be 1
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.command') -Raw).Trim() | Should -Be 'mac'
+        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile Mac.command') -Raw).Trim() | Should -Be 'mac'
     }
 
-    It 'non sovrascrive il launcher in esecuzione: prepara PC Facile.bat.nuovo' {
-        Set-Content -LiteralPath (Join-Path $script:Remoto1 'PC Facile.bat') -Value 'bat nuovo'
-        Set-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat') -Value 'bat vecchio'
-        $h = Hash (Join-Path $script:Remoto1 'PC Facile.bat')
-        "$h  PC Facile.bat" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
-        $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1) -Scarica $script:Scarica -LauncherInEsecuzione (Join-Path $script:Usb 'PC Facile.bat')
+    It 'non sovrascrive il launcher in esecuzione: prepara PC Facile Windows.bat.nuovo' {
+        Set-Content -LiteralPath (Join-Path $script:Remoto1 'PC Facile Windows.bat') -Value 'bat nuovo'
+        Set-Content -LiteralPath (Join-Path $script:Usb 'PC Facile Windows.bat') -Value 'bat vecchio'
+        $h = Hash (Join-Path $script:Remoto1 'PC Facile Windows.bat')
+        "$h  PC Facile Windows.bat" | Set-Content -LiteralPath (Join-Path $script:Remoto1 'manifest.txt')
+        $r = Invoke-AggiornamentoUSB -Destinazione $script:Usb -Basi @($script:Base1) -Scarica $script:Scarica -LauncherInEsecuzione (Join-Path $script:Usb 'PC Facile Windows.bat')
         $r.InAttesa | Should -Be 1
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat') -Raw).Trim() | Should -Be 'bat vecchio'
-        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile.bat.nuovo') -Raw).Trim() | Should -Be 'bat nuovo'
+        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile Windows.bat') -Raw).Trim() | Should -Be 'bat vecchio'
+        (Get-Content -LiteralPath (Join-Path $script:Usb 'PC Facile Windows.bat.nuovo') -Raw).Trim() | Should -Be 'bat nuovo'
     }
 
     It 'senza manifest raggiungibile non modifica nulla' {
