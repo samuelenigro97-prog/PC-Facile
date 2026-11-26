@@ -64,7 +64,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.18.4 (2026-11-26)"
+$SCRIPT_VERSION = "13.19.0 (2026-11-26)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -5624,6 +5624,18 @@ if ($RunReale) {
     } catch {}
     try { Set-EdgeFirstRunPolicies } catch {}
     try { Connect-AutoWiFi -TargetDir $TargetDir } catch { Write-Info "Connessione Wi-Fi automatica: $_" }
+    # Sincronizza SUBITO fuso orario e orologio PRIMA di Invoke-SelfUpdateIfOutdated
+    # cosi' un PC nuovo con batteria tampone/BIOS indietro di mesi non fallisce i controlli HTTPS.
+    try {
+        & tzutil.exe /s "W. Europe Standard Time" 2>$null | Out-Null
+        Set-Service -Name w32time -StartupType Automatic -ErrorAction SilentlyContinue
+        Start-Service -Name w32time -ErrorAction SilentlyContinue
+        & w32tm.exe /resync /force 2>$null | Out-Null
+        & powercfg.exe /change standby-timeout-ac 0 2>$null | Out-Null
+        & powercfg.exe /change standby-timeout-dc 0 2>$null | Out-Null
+        & powercfg.exe /change monitor-timeout-ac 0 2>$null | Out-Null
+        & powercfg.exe /change monitor-timeout-dc 0 2>$null | Out-Null
+    } catch {}
     if (-not $NoSelfUpdate) {
         if (Invoke-SelfUpdateIfOutdated -TargetDir $TargetDir -LauncherPath $LauncherPath) { return }
     }
@@ -5862,6 +5874,24 @@ function Confirm-Winget {
     if ($null -ne $Global:WingetOk) { return $Global:WingetOk }
 
     Write-Info "Verifica presenza di Winget..."
+
+    # Su molte immagini OEM (HP, Acer, MSI, Asus) l'alias winget.exe non e' nel PATH
+    # del processo elevato Amministratore anche se il pacchetto DesktopAppInstaller e' gia' su disco.
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        try {
+            $userWinApps = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+            if ((Test-Path -LiteralPath (Join-Path $userWinApps "winget.exe")) -and ($env:PATH -notlike "*$userWinApps*")) {
+                $env:PATH = "$userWinApps;$env:PATH"
+            }
+            if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+                $sysWg = Get-ChildItem -Path "$env:ProgramFiles\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe" -ErrorAction SilentlyContinue |
+                    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                if ($sysWg -and $sysWg.DirectoryName) {
+                    $env:PATH = "$($sysWg.DirectoryName);$env:PATH"
+                }
+            }
+        } catch {}
+    }
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         Write-OK "Winget trovato."
@@ -6689,9 +6719,19 @@ function Installa-Pacchetto {
         }
     }
 
-    # 2. Se l'offline non e' presente, serve Winget
+    # 2. Se l'offline non e' presente, prova Winget; se Winget non e' disponibile su
+    #    questo PC (es. immagine OEM di fabbrica senza VCLibs/UI.Xaml), usa SUBITO
+    #    il download diretto ufficiale (curl.exe) invece di fallire!
     if (-not (Confirm-Winget)) {
-        Write-Errore "Winget non disponibile e nessun installer offline trovato per $Nome."
+        Write-Info "Winget non disponibile su questa immagine di fabbrica: installo $Nome via download diretto ufficiale..."
+        $lnkPrimaFallback = @(Get-StartMenuLnks | ForEach-Object { $_.FullName })
+        if (Install-AppDirectFallback -Nome $Nome -WingetId $WingetId) {
+            Add-Report "$Nome (installazione)" "OK (download diretto)"
+            Add-IconaDesktop -Nome $Nome -LnkPrima $lnkPrimaFallback
+            $Global:UltimaInstallOk = $true
+            return
+        }
+        Write-Errore "Winget non disponibile e fallback diretto non riuscito per $Nome."
         Add-Report "$Nome (installazione)" "ERRORE"
         $Global:UltimaInstallOk = $false
         return
