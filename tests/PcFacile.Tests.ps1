@@ -1411,4 +1411,9 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $script:SrcBat | Should -Match 'LoadKeyboardLayout'
         $script:SrcPs1 | Should -Match 'LoadKeyboardLayout'
     }
+    It 'Installa-Pacchetto usa Install-AppDirectFallback anche quando Confirm-Winget restituisce false su immagini OEM' {
+        $fnInst = $script:AstPs1.FindAll({ $args[0] -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $args[0].Name -eq 'Installa-Pacchetto' }, $true) | Select-Object -First 1
+        $fnInst | Should -Not -BeNullOrEmpty
+        $fnInst.Extent.Text | Should -Match 'if \(-not \(Confirm-Winget\)\)[\s\S]*?Install-AppDirectFallback'
+    }
 }

@@ -128,6 +128,10 @@ allineati come flusso e funzioni.
   - **Scansione `wifi\wifi.txt` su tutte le unità USB + copia password Wi-Fi negli appunti**: `PC Facile.bat` cerca la cartella `wifi` su tutte le unità collegate (`D:\`, `E:\`, `F:\`) e copia anche la password Wi-Fi negli appunti di Windows (`Ctrl+V`).
 - **Rimozione antivirus di prova (`avprova`) come Passo #1 assoluto prima di tutte le funzionalità (Solo Windows — v13.18.4)**:
   - Spostato `avprova` (*1. Rimozione antivirus di prova* — McAfee, Norton, Avast, AVG) al **primo posto assoluto** sia all'avvio di `PC Facile.bat` sia come **Passo 1** di `$Global:Passi` e del Pannello Operatore (`setup-pc.ps1` e `pannello/pannello-operatore.html`), subito prima di *2. Unieuro Everyday Digital (Unieuro Secure + Cyber)*, *Office*, *Lingua* e *Programmi*.
+- **Affidabilità universale multi-marca (HP, MSI, Acer, Asus, Lenovo, Dell) (Solo Windows — v13.19.0)**:
+  - **Risoluzione automatica `winget.exe` in `WindowsApps` + Fallback diretto anche senza Winget**: `Confirm-Winget` cerca `winget.exe` anche in `C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*` (dove risiede sulle immagini OEM prima del primo login allo Store) e lo aggiunge al `PATH`; se `Confirm-Winget` fallisce comunque per dipendenze UWP mancanti su vecchie build di fabbrica, `Installa-Pacchetto` avvia subito `Install-AppDirectFallback` (`curl.exe`) invece di interrompersi.
+  - **Sincronizzazione immediata orologio BIOS e fuso orario prima dei download HTTPS**: `PC Facile.bat` e l'avvio di `setup-pc.ps1` sincronizzano subito `W. Europe Standard Time` e `w32tm /resync /force` prima di `Invoke-SelfUpdateIfOutdated`, evitando errori di certificato SSL su PC rimasti mesi in magazzino con orologio BIOS indietro.
+  - **Prevenzione Modern Standby anche a batteria (`-dc`)**: disattivato lo standby sia a corrente (`-ac`) sia a batteria (`-dc`) durante il setup.
 
 ## Solo Mac (Non Esiste su Windows)
 - **Rosetta 2** su Apple Silicon (arm64): serve a far girare le app solo-Intel.
