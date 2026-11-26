@@ -19,6 +19,7 @@ $fileKit = @(
     'PC Facile.bat',
     'PC Facile.command',
     'PC Facile Chromebook.html',
+    'Scarica Ultima Versione.url',
     'setup-mac.sh',
     'setup-mac.sh.sha256',
     'LEGGIMI.md',

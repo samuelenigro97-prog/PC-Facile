@@ -755,7 +755,7 @@ Describe 'manifest.txt (file della chiavetta)' {
     }
     It 'elenca tutti i file necessari alla chiavetta' {
         $nomi = $script:Voci | ForEach-Object { $_.Percorso }
-        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'PC Facile Chromebook.html', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
+        foreach ($f in @('setup-pc.ps1', 'setup-pc.ps1.sha256', 'PC Facile.bat', 'PC Facile.command', 'PC Facile Chromebook.html', 'Scarica Ultima Versione.url', 'setup-mac.sh', 'setup-mac.sh.sha256')) {
             $nomi | Should -Contain $f
         }
     }
