@@ -344,6 +344,16 @@
 
             <!-- TAB 1: CLIENTE & UNIEURO SECURE -->
             <div class="tab-pane active" id="tab-cliente">
+                <section class="section" style="margin-bottom:12px; border:1.5px solid #EE7203;">
+                    <div class="section-head">
+                        <div class="section-title">&#9889; Modalit&agrave; Operativa Iniziale</div>
+                        <span class="muted" id="badgeModalitaCb" style="font-size:12px;">Configurazione Completa</span>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <button type="button" id="btnCbCompleta" class="btn-sec" style="justify-content:center; padding:10px; border-color:#EE7203; background:#003875;" onclick="setModalitaChromebook('COMPLETA')">&#128736;&#65039; 1. Configurazione Completa</button>
+                        <button type="button" id="btnCbPostVendita" class="btn-sec" style="justify-content:center; padding:10px;" onclick="setModalitaChromebook('POSTVENDITA')">&#9889; 2. Post Vendita (Solo Essenziali)</button>
+                    </div>
+                </section>
                 <section class="section">
                     <div class="section-head">
                         <div class="section-title">Dati del Cliente &amp; Account Google</div>
@@ -641,8 +651,29 @@
     </div>
 
     <script>
-        var SCRIPT_VERSION = "13.18.0 (2026-11-25)";
+        var SCRIPT_VERSION = "13.29.0 (2026-11-27)";
         var PROFILO_CORRENTE = "BASE";
+        var MODALITA_CB = "COMPLETA";
+
+        function setModalitaChromebook(mod) {
+            MODALITA_CB = (mod === "POSTVENDITA") ? "POSTVENDITA" : "COMPLETA";
+            var b1 = document.getElementById("btnCbCompleta");
+            var b2 = document.getElementById("btnCbPostVendita");
+            var badge = document.getElementById("badgeModalitaCb");
+            if (b1) {
+                b1.style.borderColor = MODALITA_CB === "COMPLETA" ? "#EE7203" : "#38bdf8";
+                b1.style.background = MODALITA_CB === "COMPLETA" ? "#003875" : "#002b5e";
+            }
+            if (b2) {
+                b2.style.borderColor = MODALITA_CB === "POSTVENDITA" ? "#EE7203" : "#38bdf8";
+                b2.style.background = MODALITA_CB === "POSTVENDITA" ? "#003875" : "#002b5e";
+            }
+            if (badge) {
+                badge.textContent = MODALITA_CB === "POSTVENDITA" ? "Post Vendita (Solo Essenziali)" : "Configurazione Completa";
+            }
+            renderCatalogoApp();
+            aggiornaScheda();
+        }
         var APP_INSTALLATE_CB = {};
         var HW_INFO = {
             os: "ChromeOS",

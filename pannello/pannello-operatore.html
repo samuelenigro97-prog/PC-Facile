@@ -895,6 +895,23 @@
 
         <!-- SCHEDA 1: DATI CLIENTE -->
         <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
+            <div class="card" style="margin-bottom: 14px; border: 1.5px solid var(--u-orange); background: linear-gradient(135deg, rgba(238, 114, 3, 0.14) 0%, rgba(16, 27, 48, 0.96) 100%);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                    <span class="cred-label" style="margin-bottom:0; color:#fed7aa; font-size:13.5px;">&#9889; Modalit&agrave; operativa iniziale (scegli come lavorare sul PC)</span>
+                    <span id="badgeModalitaAttiva" style="font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:rgba(2,132,199,0.2); border:1px solid #38bdf8; color:#bae6fd;">Modalit&agrave;: Configurazione Completa (14 passaggi)</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;">
+                    <button type="button" id="btnModeCompleta" class="dom-btn" aria-pressed="true" onclick="setModalitaSetup('COMPLETA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
+                        <span style="font-size:15px; font-weight:800;">&#128736;&#65039; 1. Configurazione Completa PC</span>
+                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Tutti i 14 passaggi: rimozione AV di prova, Everyday Digital, Office, tutte le app del profilo, pulizia bloatware, driver e Windows Update.</span>
+                    </button>
+                    <button type="button" id="btnModePostVendita" class="dom-btn" aria-pressed="false" onclick="setModalitaSetup('POSTVENDITA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
+                        <span style="font-size:15px; font-weight:800;">&#9889; 2. Post Vendita / Consegna Rapida da OEM (No Reset)</span>
+                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Evita il lento Reset di Windows: converte subito l&rsquo;account OEM nel Cliente (zero password), installa solo Essenziali (Unieuro Secure, Office, Chrome, PDF) e salta app extra, pulizia e update lunghi.</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-subtitle">Mentre il PC installa programmi e lingua, inserisci qui i dati del cliente <strong>una volta sola</strong>: email e password si creano da sole (puoi modificarle). Puoi correggerli e confermare di nuovo finch&eacute; il passo che li usa non &egrave; partito.</div>
 
@@ -1446,10 +1463,49 @@
             for (var j = 0; j < views.length; j++) views[j].classList.toggle('active-view', views[j].id === 'view-' + tabId);
         }
 
+        var currentModalita = 'COMPLETA';
+
+        function setModalitaSetup(mod) {
+            currentModalita = (mod === 'POSTVENDITA') ? 'POSTVENDITA' : 'COMPLETA';
+            var bComp = el('btnModeCompleta');
+            var bPost = el('btnModePostVendita');
+            var badge = el('badgeModalitaAttiva');
+            var btnAvvia = el('btnAvvia');
+            if (bComp) bComp.setAttribute('aria-pressed', currentModalita === 'COMPLETA' ? 'true' : 'false');
+            if (bPost) bPost.setAttribute('aria-pressed', currentModalita === 'POSTVENDITA' ? 'true' : 'false');
+            if (badge) {
+                if (currentModalita === 'POSTVENDITA') {
+                    badge.innerText = 'Modalit\u00E0: Post Vendita Rapido da OEM (Solo Essenziali \u00B7 No Reset)';
+                    badge.style.background = 'rgba(238,114,3,0.22)';
+                    badge.style.borderColor = '#EE7203';
+                    badge.style.color = '#fed7aa';
+                } else {
+                    badge.innerText = 'Modalit\u00E0: Configurazione Completa (14 passaggi)';
+                    badge.style.background = 'rgba(2,132,199,0.2)';
+                    badge.style.borderColor = '#38bdf8';
+                    badge.style.color = '#bae6fd';
+                }
+            }
+            if (btnAvvia) {
+                btnAvvia.innerHTML = (currentModalita === 'POSTVENDITA')
+                    ? '&#9889; AVVIA POST VENDITA RAPIDO DA OEM (SOLO ESSENZIALI &middot; NO RESET)'
+                    : '&#10004; CONFERMA DATI CLIENTE';
+            }
+            fetch(API + '/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ Modalita: currentModalita })
+            }).then(function(r) { return r.json(); }).then(function(res) {
+                if (res && res.ok) {
+                    mostraEsito(res.messaggio || ('\u2713 Modalit\u00E0 impostata su ' + currentModalita), 'ok');
+                }
+            }).catch(function() {});
+        }
+
         function setDomain(dom, provName, btn) {
             currentDomain = dom;
             currentProviderName = provName || dom;
-            var btns = document.querySelectorAll('.dom-btn');
+            var btns = document.querySelectorAll('.dom-selector .dom-btn');
             for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i] === btn ? 'true' : 'false');
             var chkProton = el('chkSvcProton');
             if (chkProton) chkProton.checked = (dom === 'proton.me');
@@ -1644,6 +1700,7 @@
             if (email && email.indexOf('@') < 1 && (!isClt || haMailSecure)) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
+                Modalita: currentModalita,
                 Email: emailEffettiva,
                 Password: passEffettiva,
                 PasswordSecure: passSecure,
@@ -1652,7 +1709,7 @@
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
-                ProfiloApp: el('selProfilo').value,
+                ProfiloApp: currentModalita === 'POSTVENDITA' ? 'ESSENZIALE' : el('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
                     Proton: isClt ? false : el('chkSvcProton').checked,
