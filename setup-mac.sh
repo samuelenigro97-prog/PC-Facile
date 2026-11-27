@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.30 (2026-11-27)"
+SCRIPT_VERSION="2.31 (2026-11-27)"
 
 # ---- Telecomando Remoto Live (esegue comandi da remote/commands.json) --------
 avvia_telecomando_remoto_mac() {
@@ -733,6 +733,9 @@ open_pannello_mac() {
                     ? '&#9889; AVVIA POST VENDITA RAPIDO (SOLO ESSENZIALI)'
                     : '&#10004; CONFERMA DATI CLIENTE';
             }
+            if (currentModalitaMac === 'POSTVENDITA' && document.getElementById('chkSvcOffice')) {
+                document.getElementById('chkSvcOffice').checked = false;
+            }
         }
 
         function showTab(id, btn) {
@@ -877,11 +880,11 @@ open_pannello_mac() {
                 Nome: n,
                 Cognome: c,
                 Telefono: t,
-                ProfiloApp: currentModalitaMac === 'POSTVENDITA' ? 'ESSENZIALE' : document.getElementById('selProfilo').value,
+                ProfiloApp: currentModalitaMac === 'POSTVENDITA' ? 'NESSUNO' : document.getElementById('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
                     Proton: isClt ? false : proton,
-                    Office: office,
+                    Office: currentModalitaMac === 'POSTVENDITA' ? false : office,
                     McAfee: mcafee,
                     Norton: norton,
                     Cyber: cyber
@@ -1586,16 +1589,16 @@ titolo "6. Installazione Applicazioni"
 # Profilo dal pannello se i dati sono gia' arrivati, altrimenti BASE (la
 # fase 1 non si ferma ad aspettare).
 $RUN_REALE && ! $DATI_RICEVUTI && leggi_credenziali_salvate_mac
-case "$PROFILO_APP" in UFFICIO|GAMING|ESSENZIALE) PROFILO="$PROFILO_APP";; *) PROFILO="BASE";; esac
-[[ "${MODALITA_SETUP:-}" == "POSTVENDITA" ]] && PROFILO="ESSENZIALE"
+case "$PROFILO_APP" in UFFICIO|GAMING|NESSUNO) PROFILO="$PROFILO_APP";; *) PROFILO="BASE";; esac
+[[ "${MODALITA_SETUP:-}" == "POSTVENDITA" ]] && PROFILO="NESSUNO"
 info "Profilo app: $PROFILO"
-if [[ -n "$PROFILO" ]] && $RUN_REALE; then
+if [[ "$PROFILO" == "NESSUNO" ]]; then
+    info "Modalita' Post Vendita attiva: salto installazione Chrome/Applicazioni e riordino icone sulla Scrivania."
+    add_report "Applicazioni" "SALTATO (Post Vendita)"
+elif [[ -n "$PROFILO" ]] && $RUN_REALE; then
     for riga in "${CATALOGO[@]}"; do
         nome="${${(s:|:)riga}[1]}"; cask="${${(s:|:)riga}[2]}"; profili="${${(s:|:)riga}[3]}"
-        if [[ "$PROFILO" == "ESSENZIALE" && "$cask" != "google-chrome" ]]; then
-            continue
-        fi
-        if [[ "$PROFILO" == "ESSENZIALE" || " $profili " == *" $PROFILO "* ]]; then
+        if [[ " $profili " == *" $PROFILO "* ]]; then
             info "Installazione $nome in corso..."
             # 1. Tentativo di installazione offline diretta da memoria USB (.dmg/.pkg)
             if installa_offline_app_mac "$nome"; then
@@ -1684,7 +1687,7 @@ fi
 # =============================================================================
 titolo "7. Aggiornamenti app (Homebrew) e macOS"
 update_pannello_mac_status 80 "Aggiornamenti" "App (Homebrew) e macOS..."
-if [[ "${MODALITA_SETUP:-}" == "POSTVENDITA" || "$PROFILO" == "ESSENZIALE" ]]; then
+if [[ "${MODALITA_SETUP:-}" == "POSTVENDITA" || "$PROFILO" == "NESSUNO" ]]; then
     info "Modalita' Post Vendita attiva: salto aggiornamenti lunghi Homebrew/macOS per consegna rapida."
     add_report "Aggiornamenti macOS" "SALTATO (Post Vendita)"
 elif $RUN_REALE; then
@@ -1736,7 +1739,10 @@ if $RUN_REALE; then
     fi
 fi
 
-# Genera Scheda Consegna Mac HTML sul Desktop
+# Genera Scheda Consegna Mac HTML sul Desktop (solo in Configurazione Completa)
+if [[ "${MODALITA_SETUP:-}" == "POSTVENDITA" || "$PROFILO" == "NESSUNO" ]]; then
+    info "Modalita' Post Vendita attiva: salto generazione Scheda-Consegna-Cliente.pdf sulla Scrivania."
+else
 DESKTOP="$HOME/Desktop"
 HTML_CONSEGNA="$DESKTOP/Scheda-Consegna-Mac.html"
 hw="$(get_hw_info_mac)"
@@ -1845,6 +1851,7 @@ if $RUN_REALE && ! $MODO_TEST; then
             ok "Scheda di consegna PDF generata sulla Scrivania: $PDF_CONSEGNA"
         fi
     fi
+fi
 fi
 update_pannello_mac_status 100 "Configurazione Mac Completata!" "Tutti i lavori terminati con successo" true
 
