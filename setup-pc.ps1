@@ -68,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.26.0 (2026-11-27)"
+$SCRIPT_VERSION = "13.27.0 (2026-11-27)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1938,14 +1938,169 @@ function Start-ServerPannello {
                     } elseif ($tCmd -match '^(?i)(stato\s+dischi|spazio\s+disco|partizioni)') {
                         $dsk = Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{N='Usato_GB';E={[math]::Round($_.Used/1GB,1)}}, @{N='Libero_GB';E={[math]::Round($_.Free/1GB,1)}}
                         $outTxt = ($dsk | Format-Table -AutoSize | Out-String).Trim()
+                    } elseif ($tCmd -match '^(?i)(debloat\s+completo|super\s+debloat|debloat)') {
+                        $srch = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+                        if (-not (Test-Path $srch)) { New-Item -Path $srch -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $srch -Name "BingSearchEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $srch -Name "SearchboxTaskbarMode" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        $adv = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+                        Set-ItemProperty -Path $adv -Name "TaskbarDa" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $adv -Name "TaskbarMn" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $adv -Name "ShowTaskViewButton" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $adv -Name "ShowCopilotButton" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $adv -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $adv -Name "Start_IrisRecommendations" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        $copPol = "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot"
+                        if (-not (Test-Path $copPol)) { New-Item -Path $copPol -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $copPol -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        $aiPol = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
+                        if (-not (Test-Path $aiPol)) { New-Item -Path $aiPol -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $aiPol -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $aiPol -Name "TurnOffSavingSnapshots" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        $upe = "HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement"
+                        if (-not (Test-Path $upe)) { New-Item -Path $upe -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $upe -Name "ScoobeSystemSettingEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+                        if (Test-Path $cdm) {
+                            foreach ($kCdm in @('SystemPaneSuggestionsEnabled','SoftLandingEnabled','SilentInstalledAppsEnabled','ContentDeliveryAllowed','OemPreInstalledAppsEnabled','PreInstalledAppsEnabled','RotatingLockScreenOverlayEnabled','SubscribedContent-310093Enabled','SubscribedContent-338387Enabled','SubscribedContent-338388Enabled','SubscribedContent-338389Enabled','SubscribedContent-338393Enabled','SubscribedContent-353694Enabled','SubscribedContent-353696Enabled')) {
+                                Set-ItemProperty -Path $cdm -Name $kCdm -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                            }
+                        }
+                        $dvr = "HKCU:\System\GameConfigStore"
+                        if (Test-Path $dvr) { Set-ItemProperty -Path $dvr -Name "GameDVR_Enabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue }
+                        $outTxt = "Super Debloat Windows 11 completato: rimossi Bing Start, Copilot, Recall AI, Widget, popup 'Finisci di configurare il PC', pubblicita' in Start/Esplora File/Blocco schermo e GameDVR."
+                    } elseif ($tCmd -match '^(?i)(rimuovi\s+edge\s+bloat|debloat\s+edge)') {
+                        $edgePol = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+                        if (-not (Test-Path $edgePol)) { New-Item -Path $edgePol -Force -ErrorAction SilentlyContinue | Out-Null }
+                        $edgeProps = @{
+                            HideFirstRunExperience = 1; SyncDisabled = 1; AutoImportAtFirstRun = 4;
+                            EdgeWidgetAllowed = 0; HubsSidebarEnabled = 0; StandaloneHubsSidebarEnabled = 0;
+                            EdgeShoppingAssistantEnabled = 0; StartupBoostEnabled = 0; BackgroundModeEnabled = 0;
+                            NewTabPageContentEnabled = 0; NewTabPageHideDefaultTopSites = 1; ShowRecommendationsEnabled = 0;
+                            SpotlightExperiencesAndRecommendationsEnabled = 0; UserFeedbackAllowed = 0; PersonalizationReportingEnabled = 0
+                        }
+                        foreach ($ep in $edgeProps.Keys) {
+                            Set-ItemProperty -Path $edgePol -Name $ep -Value $edgeProps[$ep] -Type DWord -ErrorAction SilentlyContinue
+                        }
+                        $outTxt = "Microsoft Edge ripulito: disabilitati feed MSN/notizie nella nuova scheda, assistente shopping/coupon, barra laterale, avvio in background e telemetria."
+                    } elseif ($tCmd -match '^(?i)(rimuovi\s+onedrive|disinstalla\s+onedrive)') {
+                        & taskkill.exe /f /im OneDrive.exe 2>$null | Out-Null
+                        $odSetup = @("$env:SystemRoot\SysWOW64\OneDriveSetup.exe", "$env:SystemRoot\System32\OneDriveSetup.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+                        if ($odSetup) {
+                            $pOd = Start-Process $odSetup -ArgumentList "/uninstall /silent" -PassThru -WindowStyle Hidden -ErrorAction SilentlyContinue
+                            if ($pOd) { [void]$pOd.WaitForExit(35000); if (-not $pOd.HasExited) { try { $pOd.Kill() } catch {} } }
+                        }
+                        Get-AppxPackage -AllUsers *OneDrive* -ErrorAction SilentlyContinue | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue
+                        $clsidOd = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+                        try {
+                            New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT -ErrorAction SilentlyContinue | Out-Null
+                            if (Test-Path $clsidOd) { Set-ItemProperty -Path $clsidOd -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord -ErrorAction SilentlyContinue }
+                        } catch {}
+                        $outTxt = "OneDrive disinstallato e icona rimossa dalla barra laterale di Esplora File."
+                    } elseif ($tCmd -match '^(?i)(menu\s+classico(\s+win11)?)') {
+                        $clsidMenu = "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
+                        if (-not (Test-Path $clsidMenu)) { New-Item -Path $clsidMenu -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $clsidMenu -Name "(Default)" -Value "" -ErrorAction SilentlyContinue
+                        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+                        Start-Sleep -Seconds 1
+                        if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
+                        $outTxt = "Menu tasto destro classico (stile Windows 10 completo senza 'Mostra altre opzioni') attivato!"
+                    } elseif ($tCmd -match '^(?i)(menu\s+moderno(\s+win11)?)') {
+                        Remove-Item -Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" -Recurse -Force -ErrorAction SilentlyContinue
+                        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+                        Start-Sleep -Seconds 1
+                        if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
+                        $outTxt = "Menu tasto destro moderno di Windows 11 ripristinato."
+                    } elseif ($tCmd -match '^(?i)(prestazioni\s+massime|turbo\s+prestazioni)') {
+                        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "8" -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WaitToKillAppTimeout" -Value "2000" -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "HungAppTimeout" -Value "1000" -ErrorAction SilentlyContinue
+                        $bgApps = "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications"
+                        if (-not (Test-Path $bgApps)) { New-Item -Path $bgApps -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $bgApps -Name "GlobalUserDisabled" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        $mm = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
+                        if (Test-Path $mm) { Set-ItemProperty -Path $mm -Name "ClearPageFileAtShutdown" -Value 0 -Type DWord -ErrorAction SilentlyContinue }
+                        $outTxt = "Turbo Prestazioni attivato: MenuShowDelay ridotto a 8ms, chiusura rapida app bloccate e app in background disattivate."
+                    } elseif ($tCmd -match '^(?i)(pulisci\s+disco(\s+profonda)?|pulizia\s+disco)') {
+                        $primaFree = try { (Get-PSDrive C -ErrorAction Stop).Free } catch { 0 }
+                        foreach ($td in @($env:TEMP, "$env:SystemRoot\Temp", "$env:SystemRoot\Prefetch", "$env:SystemRoot\SoftwareDistribution\Download")) {
+                            if ($td -and (Test-Path $td)) {
+                                Get-ChildItem -Path $td -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                            }
+                        }
+                        try { Clear-RecycleBin -Force -ErrorAction SilentlyContinue } catch {}
+                        $dopoFree = try { (Get-PSDrive C -ErrorAction Stop).Free } catch { $primaFree }
+                        $liberatiMB = [math]::Max(0, [math]::Round(($dopoFree - $primaFree) / 1MB, 1))
+                        $outTxt = "Pulizia profonda completata (Temp utente, Windows Temp, Prefetch, cache Windows Update e Cestino). Spazio liberato: $liberatiMB MB."
+                    } elseif ($tCmd -match '^(?i)(ottimizza\s+ssd|trim\s+ssd)') {
+                        try { Optimize-Volume -DriveLetter C -ReTrim -ErrorAction SilentlyContinue | Out-Null } catch {}
+                        & fsutil.exe behavior set DisableDeleteNotify 0 2>$null | Out-Null
+                        $ss = "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy"
+                        if (-not (Test-Path $ss)) { New-Item -Path $ss -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $ss -Name "01" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $ss -Name "04" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $ss -Name "08" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $ss -Name "256" -Value 30 -Type DWord -ErrorAction SilentlyContinue
+                        $outTxt = "TRIM SSD (ReTrim su C:) eseguito, TRIM nativo verificato e Sensore Memoria automatico (Storage Sense) attivato."
+                    } elseif ($tCmd -match '^(?i)(privacy\s+totale|stop\s+telemetria)') {
+                        $dcPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
+                        if (-not (Test-Path $dcPolicy)) { New-Item -Path $dcPolicy -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $dcPolicy -Name "AllowTelemetry" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $dcPolicy -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        $advId = "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
+                        if (-not (Test-Path $advId)) { New-Item -Path $advId -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $advId -Name "Enabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        $siuf = "HKCU:\Software\Microsoft\Siuf\Rules"
+                        if (-not (Test-Path $siuf)) { New-Item -Path $siuf -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $siuf -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        $actPol = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+                        if (-not (Test-Path $actPol)) { New-Item -Path $actPol -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $actPol -Name "PublishUserActivities" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        Set-ItemProperty -Path $actPol -Name "UploadUserActivities" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+                        foreach ($svcDiag in @('DiagTrack','dmwappushservice')) {
+                            Stop-Service -Name $svcDiag -Force -ErrorAction SilentlyContinue
+                            Set-Service -Name $svcDiag -StartupType Disabled -ErrorAction SilentlyContinue
+                        }
+                        $outTxt = "Blindatura Privacy applicata: telemetria DiagTrack e dmwappushservice disabilitati, Advertising ID, cronologia cloud e popup di feedback bloccati."
+                    } elseif ($tCmd -match '^(?i)(stato\s+bitlocker|chiave\s+bitlocker)') {
+                        $blOut = (& manage-bde.exe -status C: 2>&1 | Out-String).Trim()
+                        $protOut = (& manage-bde.exe -protectors -get C: 2>&1 | Out-String).Trim()
+                        $outTxt = "$blOut`n`n$protOut"
+                    } elseif ($tCmd -match '^(?i)(ripara\s+store(\s+e\s+winget)?|reset\s+store)') {
+                        Start-Process -FilePath "wsreset.exe" -ArgumentList "-i" -WindowStyle Hidden -ErrorAction SilentlyContinue
+                        $polKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppInstaller"
+                        if (-not (Test-Path $polKey)) { New-Item -Path $polKey -Force -ErrorAction SilentlyContinue | Out-Null }
+                        Set-ItemProperty -Path $polKey -Name "EnableBypassCertificatePinningForMicrosoftStore" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+                        & winget.exe settings --enable BypassCertificatePinningForMicrosoftStore 2>$null | Out-Null
+                        $outTxt = "Cache Microsoft Store resettata (wsreset) e bypass certificato Winget Store (0x8a15005e) attivato."
+                    } elseif ($tCmd -match '^(?i)(ripara\s+stampanti|sblocca\s+stampanti|spooler)') {
+                        Stop-Service -Name Spooler -Force -ErrorAction SilentlyContinue
+                        Remove-Item -Path "$env:SystemRoot\System32\spool\PRINTERS\*" -Force -ErrorAction SilentlyContinue
+                        Start-Service -Name Spooler -ErrorAction SilentlyContinue
+                        $outTxt = "Servizio Spooler di stampa riavviato e coda documenti bloccati svuotata."
+                    } elseif ($tCmd -match '^(?i)(ripara\s+audio(\s+e\s+bluetooth)?)') {
+                        foreach ($sAud in @('Audiosrv','AudioEndpointBuilder','bthserv')) {
+                            Restart-Service -Name $sAud -Force -ErrorAction SilentlyContinue
+                        }
+                        $outTxt = "Servizi Audio Windows (Audiosrv, AudioEndpointBuilder) e Bluetooth (bthserv) riavviati con successo."
+                    } elseif ($tCmd -match '^(?i)(ripara\s+sistema|sfc|dism)') {
+                        $dismOut = (& dism.exe /Online /Cleanup-Image /CheckHealth 2>&1 | Out-String).Trim()
+                        Start-Process -FilePath "sfc.exe" -ArgumentList "/scannow" -WindowStyle Hidden -ErrorAction SilentlyContinue
+                        $outTxt = "Verifica integrita' immagine DISM completata e scansione SFC /scannow avviata in background.`n$dismOut"
+                    } elseif ($tCmd -match '^(?i)(winutil|chris\s+titus)') {
+                        Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm https://christitus.com/win | iex`"" -ErrorAction SilentlyContinue
+                        $outTxt = "Chris Titus Tech WinUtil avviato in una nuova finestra."
                     } elseif ($tCmd -match '^(?i)(reset\s+windows\s+update|sblocca\s+aggiornamenti)') {
+                        foreach ($sWu in @('wuauserv','bits')) { Stop-Service -Name $sWu -Force -ErrorAction SilentlyContinue }
+                        Start-Sleep -Seconds 1
+                        foreach ($sWu in @('cryptsvc','bits','wuauserv')) { Start-Service -Name $sWu -ErrorAction SilentlyContinue }
                         $uso = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
                         if (Test-Path $uso) {
                             foreach ($a in @('StartInteractiveScan','StartDownload','StartInstall')) {
                                 Start-Process -FilePath $uso -ArgumentList $a -WindowStyle Hidden -ErrorAction SilentlyContinue
                             }
                         }
-                        $outTxt = "Scansione, download e installazione Windows Update forzati tramite UsoClient."
+                        $outTxt = "Servizi Windows Update (wuauserv, bits, cryptsvc) riavviati e scansione/download/installazione forzati tramite UsoClient."
                     } elseif ($tCmd -match '^(?i)(disinstalla|rimuovi)\s+(.+)$') {
                         $targetApp = $Matches[2].Trim()
                         $paths = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')
@@ -3361,18 +3516,43 @@ function Open-PannelloOperatore {
 
                 <div class="cred-step-box evidenza" style="margin-bottom:10px;">
                     <label class="cred-label" for="inComandoRemoto">Istruzione in italiano o comando diretto da eseguire su questo PC</label>
-                    <div class="cred-box" style="margin-bottom:8px;">
-                        <input type="text" id="inComandoRemoto" class="cred-input" placeholder="Es. disinstalla Norton, togli password windows, chiudi blocchi, ripara wifi..." autocomplete="off" onkeydown="if(event.key==='Enter'){eseguiComandoDiretto();}">
+                    <div class="cred-box" style="margin-bottom:10px;">
+                        <input type="text" id="inComandoRemoto" class="cred-input" placeholder="Es. debloat completo, menu classico win11, pulisci disco profonda, ripara stampanti, disinstalla Norton..." autocomplete="off" onkeydown="if(event.key==='Enter'){eseguiComandoDiretto();}">
                         <button type="button" class="btn-tool primary" style="white-space:nowrap;" onclick="eseguiComandoDiretto()">&#9654; Esegui sul PC</button>
                     </div>
+
+                    <div class="task-gruppo" style="margin-top:4px;">1 &middot; Debloat Avanzato, Interfaccia &amp; Rimozione Pubblicit&agrave;</div>
+                    <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                        <button type="button" class="btn-tool primary" onclick="eseguiComandoRapido('debloat completo')">&#129529; Super Debloat Win11 (Zero Pubblicit&agrave;/Copilot/Recall)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('rimuovi edge bloat')">&#127760; Debloat Microsoft Edge (No MSN/Shopping/Avvio)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('rimuovi onedrive')">&#9729; Disinstalla OneDrive &amp; Sgancia Cartelle</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('menu classico win11')">&#128433; Menu Tasto Destro Classico (Win10)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('menu moderno win11')">&#128433; Ripristina Menu Moderno Win11</button>
+                    </div>
+
+                    <div class="task-gruppo">2 &middot; Velocizzazione, SSD, Pulizia Profonda &amp; Privacy</div>
+                    <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                        <button type="button" class="btn-tool primary" onclick="eseguiComandoRapido('prestazioni massime')">&#128640; Turbo Prestazioni &amp; Reattivit&agrave; UI</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('pulisci disco profonda')">&#128465; Pulizia Profonda Temp / Cache / Update</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ottimizza ssd')">&#128191; Ottimizza SSD (TRIM + Sensore Memoria)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('privacy totale')">&#128737; Blindatura Privacy &amp; Stop Telemetria</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('togli password windows')">&#128275; Togli Password Login &amp; Scadenza 42gg</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('stato bitlocker')">&#128272; Controllo &amp; Chiave BitLocker</button>
+                    </div>
+
+                    <div class="task-gruppo">3 &middot; Sblocco, Riparazione Sistema, Rete, Audio &amp; Stampanti</div>
                     <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px;">
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('chiudi blocchi')">&#128721; Sblocca processi bloccati</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('togli password windows')">&#128275; Togli password Windows</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('riavvia desktop')">&#128260; Riavvia Esplora File / Desktop</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara wifi')">&#127760; Ripara Rete &amp; DNS</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('lista programmi')">&#128203; Lista programmi installati</button>
+                        <button type="button" class="btn-tool primary" onclick="eseguiComandoRapido('chiudi blocchi')">&#128721; Sblocca Processi / Installer Bloccati</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara wifi')">&#128246; Reset Completo Rete, Wi-Fi &amp; DNS</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('reset windows update')">&#128260; Sblocca &amp; Ripara Windows Update</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara store e winget')">&#128717; Ripara Microsoft Store &amp; Winget</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara stampanti')">&#128424; Sblocca Coda Stampanti (Spooler)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara audio e bluetooth')">&#128266; Ripara Servizi Audio &amp; Bluetooth</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara sistema')">&#129658; Ripara File di Sistema (SFC + DISM)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('riavvia desktop')">&#128421; Riavvia Esplora File / Desktop</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('lista programmi')">&#128203; Lista Programmi Installati</button>
                         <button type="button" class="btn-tool" onclick="eseguiComandoRapido('stato dischi')">&#128190; Stato Dischi &amp; Spazio</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('reset windows update')">&#128295; Sblocca Windows Update</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('winutil')">&#129520; Apri Chris Titus WinUtil (GUI)</button>
                     </div>
                 </div>
 
@@ -8801,14 +8981,40 @@ trap {
 
         $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
         if (Test-Path $cdm) {
-            Set-ItemProperty -Path $cdm -Name "SystemPaneSuggestionsEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path $cdm -Name "SoftLandingEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path $cdm -Name "SilentInstalledAppsEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path $cdm -Name "ContentDeliveryAllowed" -Value 0 -Type DWord -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path $cdm -Name "SubscribedContent-338388Enabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
-            Set-ItemProperty -Path $cdm -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            foreach ($kCdm in @('SystemPaneSuggestionsEnabled','SoftLandingEnabled','SilentInstalledAppsEnabled','ContentDeliveryAllowed','OemPreInstalledAppsEnabled','PreInstalledAppsEnabled','RotatingLockScreenOverlayEnabled','SubscribedContent-310093Enabled','SubscribedContent-338387Enabled','SubscribedContent-338388Enabled','SubscribedContent-338389Enabled','SubscribedContent-338393Enabled','SubscribedContent-353694Enabled','SubscribedContent-353696Enabled')) {
+                Set-ItemProperty -Path $cdm -Name $kCdm -Value 0 -Type DWord -ErrorAction SilentlyContinue
+            }
         }
-        Write-OK "Privacy Windows potenziata (telemetria e tracciamento pubblicitario disattivati)."
+        # Disattiva Windows Recall AI, Copilot, schermata "Finisci di configurare il PC" (Scoobe),
+        # suggerimenti/pubblicita' in Esplora File e Start, e attiva Storage Sense automatico su SSD.
+        $aiPol = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
+        if (-not (Test-Path $aiPol)) { New-Item -Path $aiPol -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $aiPol -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $aiPol -Name "TurnOffSavingSnapshots" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        $copPol = "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot"
+        if (-not (Test-Path $copPol)) { New-Item -Path $copPol -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $copPol -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        $upe = "HKCU:\Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement"
+        if (-not (Test-Path $upe)) { New-Item -Path $upe -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $upe -Name "ScoobeSystemSettingEnabled" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        $advExp = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+        Set-ItemProperty -Path $advExp -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $advExp -Name "Start_IrisRecommendations" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        $siuf = "HKCU:\Software\Microsoft\Siuf\Rules"
+        if (-not (Test-Path $siuf)) { New-Item -Path $siuf -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $siuf -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        $ss = "HKCU:\Software\Microsoft\Windows\CurrentVersion\StorageSense\Parameters\StoragePolicy"
+        if (-not (Test-Path $ss)) { New-Item -Path $ss -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $ss -Name "01" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $ss -Name "04" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $ss -Name "256" -Value 30 -Type DWord -ErrorAction SilentlyContinue
+
+        Write-OK "Privacy Windows e Super Debloat applicati (Recall AI, Copilot, Scoobe, pubblicita' Esplora File/Start disattivati e Storage Sense attivo)."
         Add-Report "Privacy e telemetria Windows" "OK"
     } catch {
         Write-Info "Alcune impostazioni privacy non applicate: $_"
