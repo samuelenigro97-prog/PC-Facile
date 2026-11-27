@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.28 (2026-11-27)"
+SCRIPT_VERSION="2.29 (2026-11-27)"
 
 # ---- Telecomando Remoto Live (esegue comandi da remote/commands.json) --------
 avvia_telecomando_remoto_mac() {
@@ -1499,9 +1499,23 @@ if $RUN_REALE; then
     defaults write com.apple.finder ShowPathbar -bool true 2>/dev/null
     defaults write com.apple.finder ShowStatusBar -bool true 2>/dev/null
     defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv" 2>/dev/null
-    defaults write com.apple.finder AppleShowAllExtensions -bool false 2>/dev/null
+    defaults write com.apple.finder FXDefaultSearchScope -string "SCcf" 2>/dev/null
+    defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false 2>/dev/null
+    defaults write com.apple.finder _FXSortFoldersFirst -bool true 2>/dev/null
+    defaults write com.apple.finder _FXSortFoldersFirstOnDesktop -bool true 2>/dev/null
+    # Evita creazione file spazzatura .DS_Store su chiavette USB e cartelle di rete
+    defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true 2>/dev/null
+    defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true 2>/dev/null
+    # Espandi automaticamente i pannelli Salva e Stampa di macOS e disattiva dialoghi pubblicitari
+    defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true 2>/dev/null
+    defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool true 2>/dev/null
+    defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true 2>/dev/null
+    defaults write NSGlobalDomain PMPrintingExpandedStateForPrint2 -bool true 2>/dev/null
+    defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false 2>/dev/null
+    defaults write com.apple.LaunchServices LSQuarantine -bool false 2>/dev/null
     defaults write com.apple.dock autohide -bool false 2>/dev/null
     defaults write com.apple.dock show-recents -bool false 2>/dev/null
+    defaults write com.apple.dock mru-spaces -bool false 2>/dev/null
     # Auto-installazione estensione Browsing Protection by F-Secure su Chrome ed Edge
     defaults write com.google.Chrome ExtensionInstallForcelist -array "jmjjnhpacphpjmnnlnccpfmhkcloaade;https://clients2.google.com/service/update2/crx" 2>/dev/null || true
     defaults write com.microsoft.Edge ExtensionInstallForcelist -array "cpikpibllpjmpnchjajlibnmmomnnhnm;https://edge.microsoft.com/extensionwebstorebase/v1/crx" 2>/dev/null || true

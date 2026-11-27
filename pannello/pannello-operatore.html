@@ -986,18 +986,43 @@
 
                 <div class="cred-step-box evidenza" style="margin-bottom:10px;">
                     <label class="cred-label" for="inComandoRemoto">Istruzione in italiano o comando diretto da eseguire su questo PC</label>
-                    <div class="cred-box" style="margin-bottom:8px;">
-                        <input type="text" id="inComandoRemoto" class="cred-input" placeholder="Es. disinstalla Norton, togli password windows, chiudi blocchi, ripara wifi..." autocomplete="off" onkeydown="if(event.key==='Enter'){eseguiComandoDiretto();}">
+                    <div class="cred-box" style="margin-bottom:10px;">
+                        <input type="text" id="inComandoRemoto" class="cred-input" placeholder="Es. debloat completo, menu classico win11, pulisci disco profonda, ripara stampanti, disinstalla Norton..." autocomplete="off" onkeydown="if(event.key==='Enter'){eseguiComandoDiretto();}">
                         <button type="button" class="btn-tool primary" style="white-space:nowrap;" onclick="eseguiComandoDiretto()">&#9654; Esegui sul PC</button>
                     </div>
+
+                    <div class="task-gruppo" style="margin-top:4px;">1 &middot; Debloat Avanzato, Interfaccia &amp; Rimozione Pubblicit&agrave;</div>
+                    <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                        <button type="button" class="btn-tool primary" onclick="eseguiComandoRapido('debloat completo')">&#129529; Super Debloat Win11 (Zero Pubblicit&agrave;/Copilot/Recall)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('rimuovi edge bloat')">&#127760; Debloat Microsoft Edge (No MSN/Shopping/Avvio)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('rimuovi onedrive')">&#9729; Disinstalla OneDrive &amp; Sgancia Cartelle</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('menu classico win11')">&#128433; Menu Tasto Destro Classico (Win10)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('menu moderno win11')">&#128433; Ripristina Menu Moderno Win11</button>
+                    </div>
+
+                    <div class="task-gruppo">2 &middot; Velocizzazione, SSD, Pulizia Profonda &amp; Privacy</div>
+                    <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+                        <button type="button" class="btn-tool primary" onclick="eseguiComandoRapido('prestazioni massime')">&#128640; Turbo Prestazioni &amp; Reattivit&agrave; UI</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('pulisci disco profonda')">&#128465; Pulizia Profonda Temp / Cache / Update</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ottimizza ssd')">&#128191; Ottimizza SSD (TRIM + Sensore Memoria)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('privacy totale')">&#128737; Blindatura Privacy &amp; Stop Telemetria</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('togli password windows')">&#128275; Togli Password Login &amp; Scadenza 42gg</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('stato bitlocker')">&#128272; Controllo &amp; Chiave BitLocker</button>
+                    </div>
+
+                    <div class="task-gruppo">3 &middot; Sblocco, Riparazione Sistema, Rete, Audio &amp; Stampanti</div>
                     <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px;">
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('chiudi blocchi')">&#128721; Sblocca processi bloccati</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('togli password windows')">&#128275; Togli password Windows</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('riavvia desktop')">&#128260; Riavvia Esplora File / Desktop</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara wifi')">&#127760; Ripara Rete &amp; DNS</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('lista programmi')">&#128203; Lista programmi installati</button>
+                        <button type="button" class="btn-tool primary" onclick="eseguiComandoRapido('chiudi blocchi')">&#128721; Sblocca Processi / Installer Bloccati</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara wifi')">&#128246; Reset Completo Rete, Wi-Fi &amp; DNS</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('reset windows update')">&#128260; Sblocca &amp; Ripara Windows Update</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara store e winget')">&#128717; Ripara Microsoft Store &amp; Winget</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara stampanti')">&#128424; Sblocca Coda Stampanti (Spooler)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara audio e bluetooth')">&#128266; Ripara Servizi Audio &amp; Bluetooth</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara sistema')">&#129658; Ripara File di Sistema (SFC + DISM)</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('riavvia desktop')">&#128421; Riavvia Esplora File / Desktop</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('lista programmi')">&#128203; Lista Programmi Installati</button>
                         <button type="button" class="btn-tool" onclick="eseguiComandoRapido('stato dischi')">&#128190; Stato Dischi &amp; Spazio</button>
-                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('reset windows update')">&#128295; Sblocca Windows Update</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('winutil')">&#129520; Apri Chris Titus WinUtil (GUI)</button>
                     </div>
                 </div>
 
