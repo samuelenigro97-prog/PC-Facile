@@ -8,7 +8,7 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.29 (2026-11-27)"
+SCRIPT_VERSION="2.30 (2026-11-27)"
 
 # ---- Telecomando Remoto Live (esegue comandi da remote/commands.json) --------
 avvia_telecomando_remoto_mac() {
@@ -560,6 +560,13 @@ open_pannello_mac() {
         </div>
 
         <div id="tab-cred" class="section-view active-view">
+            <div class="card" style="border: 1.5px solid #EE7203; background: #001838;">
+                <span class="etichetta" style="color:#fed7aa;">&#9889; Modalit&agrave; operativa iniziale</span>
+                <div class="dom-row" style="margin-bottom:0;">
+                    <button type="button" id="btnModeMacCompleta" class="dom-btn" aria-pressed="true" onclick="setModalitaMac('COMPLETA')">&#128736;&#65039; 1. Configurazione Completa Mac</button>
+                    <button type="button" id="btnModeMacPostVendita" class="dom-btn" aria-pressed="false" onclick="setModalitaMac('POSTVENDITA')">&#9889; 2. Post Vendita / Solo Essenziali (No Reset)</button>
+                </div>
+            </div>
             <div class="card">
                 <span class="etichetta">Tipo di email</span>
                 <div class="dom-row">
@@ -712,6 +719,21 @@ open_pannello_mac() {
     <script>
         var currentDom = 'proton.me';
         var currentProv = 'Proton';
+        var currentModalitaMac = 'COMPLETA';
+
+        function setModalitaMac(mod) {
+            currentModalitaMac = (mod === 'POSTVENDITA') ? 'POSTVENDITA' : 'COMPLETA';
+            var b1 = document.getElementById('btnModeMacCompleta');
+            var b2 = document.getElementById('btnModeMacPostVendita');
+            if (b1) b1.setAttribute('aria-pressed', currentModalitaMac === 'COMPLETA' ? 'true' : 'false');
+            if (b2) b2.setAttribute('aria-pressed', currentModalitaMac === 'POSTVENDITA' ? 'true' : 'false');
+            var btn = document.getElementById('btnAvviaAuto');
+            if (btn) {
+                btn.innerHTML = (currentModalitaMac === 'POSTVENDITA')
+                    ? '&#9889; AVVIA POST VENDITA RAPIDO (SOLO ESSENZIALI)'
+                    : '&#10004; CONFERMA DATI CLIENTE';
+            }
+        }
 
         function showTab(id, btn) {
             document.querySelectorAll('.section-view').forEach(function(el){ el.classList.remove('active-view'); });
@@ -846,6 +868,7 @@ open_pannello_mac() {
             var nomeCliente = (c + ' ' + n).trim() || 'clt clt';
             var payload = {
                 Conferma: true,
+                Modalita: currentModalitaMac,
                 Email: (isClt && !haMailSecure) ? '' : (email || ('utente@' + currentDom)),
                 Password: isClt ? '' : (pass || 'Utente123!'),
                 PasswordSecure: passSecure,
@@ -854,7 +877,7 @@ open_pannello_mac() {
                 Nome: n,
                 Cognome: c,
                 Telefono: t,
-                ProfiloApp: document.getElementById('selProfilo').value,
+                ProfiloApp: currentModalitaMac === 'POSTVENDITA' ? 'ESSENZIALE' : document.getElementById('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
                     Proton: isClt ? false : proton,
@@ -947,7 +970,7 @@ try:
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         d = json.load(f)
     for k, nome in (('Email', 'EMAIL_CLIENTE'), ('Password', 'PASS_CLIENTE'),
-                    ('PasswordSecure', 'PASS_SECURE'),
+                    ('PasswordSecure', 'PASS_SECURE'), ('Modalita', 'MODALITA_SETUP'),
                     ('Cliente', 'NOME_CLIENTE'), ('Nome', 'NOME_PROPRIO_CLIENTE'),
                     ('Telefono', 'TELEFONO_CLIENTE'), ('ProfiloApp', 'PROFILO_APP')):
         if d.get(k):
@@ -967,7 +990,7 @@ PYEOF
                         chiave="${riga%%$'\t'*}"
                         valore="${riga#*$'\t'}"
                         case "$chiave" in
-                            EMAIL_CLIENTE|PASS_CLIENTE|PASS_SECURE|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_EVERYDAY|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
+                            EMAIL_CLIENTE|PASS_CLIENTE|PASS_SECURE|MODALITA_SETUP|NOME_CLIENTE|NOME_PROPRIO_CLIENTE|TELEFONO_CLIENTE|PROFILO_APP|SVC_EVERYDAY|SVC_PROTON|SVC_OFFICE|SVC_MCAFEE|SVC_NORTON|SVC_CYBER)
                                 typeset -g "$chiave=$valore" ;;
                         esac
                     done <<< "$res"
@@ -1563,12 +1586,16 @@ titolo "6. Installazione Applicazioni"
 # Profilo dal pannello se i dati sono gia' arrivati, altrimenti BASE (la
 # fase 1 non si ferma ad aspettare).
 $RUN_REALE && ! $DATI_RICEVUTI && leggi_credenziali_salvate_mac
-case "$PROFILO_APP" in UFFICIO|GAMING) PROFILO="$PROFILO_APP";; *) PROFILO="BASE";; esac
+case "$PROFILO_APP" in UFFICIO|GAMING|ESSENZIALE) PROFILO="$PROFILO_APP";; *) PROFILO="BASE";; esac
+[[ "${MODALITA_SETUP:-}" == "POSTVENDITA" ]] && PROFILO="ESSENZIALE"
 info "Profilo app: $PROFILO"
 if [[ -n "$PROFILO" ]] && $RUN_REALE; then
     for riga in "${CATALOGO[@]}"; do
         nome="${${(s:|:)riga}[1]}"; cask="${${(s:|:)riga}[2]}"; profili="${${(s:|:)riga}[3]}"
-        if [[ " $profili " == *" $PROFILO "* ]]; then
+        if [[ "$PROFILO" == "ESSENZIALE" && "$cask" != "google-chrome" ]]; then
+            continue
+        fi
+        if [[ "$PROFILO" == "ESSENZIALE" || " $profili " == *" $PROFILO "* ]]; then
             info "Installazione $nome in corso..."
             # 1. Tentativo di installazione offline diretta da memoria USB (.dmg/.pkg)
             if installa_offline_app_mac "$nome"; then
@@ -1657,7 +1684,10 @@ fi
 # =============================================================================
 titolo "7. Aggiornamenti app (Homebrew) e macOS"
 update_pannello_mac_status 80 "Aggiornamenti" "App (Homebrew) e macOS..."
-if $RUN_REALE; then
+if [[ "${MODALITA_SETUP:-}" == "POSTVENDITA" || "$PROFILO" == "ESSENZIALE" ]]; then
+    info "Modalita' Post Vendita attiva: salto aggiornamenti lunghi Homebrew/macOS per consegna rapida."
+    add_report "Aggiornamenti macOS" "SALTATO (Post Vendita)"
+elif $RUN_REALE; then
     if command -v brew >/dev/null 2>&1; then
         info "Aggiorno le app installate con Homebrew..."
         brew upgrade </dev/null >/dev/null 2>&1 && ok "App aggiornate." || info "Aggiornamento app non completato (proseguo)."

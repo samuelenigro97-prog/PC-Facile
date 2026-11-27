@@ -68,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.28.0 (2026-11-27)"
+$SCRIPT_VERSION = "13.29.0 (2026-11-27)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1862,9 +1862,13 @@ function Start-ServerPannello {
                 CodaStep    = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
                 Saltati     = [hashtable]::Synchronized(@{})
                 SkipCurrent = $false
+                Modalita    = 'COMPLETA'
                 LogComandi  = ''
                 UltimoCmdId = ''
             })
+        }
+        if (-not $Global:PannelloSync.Modalita) {
+            $Global:PannelloSync.Modalita = 'COMPLETA'
         }
         if (-not $Global:PannelloSync.CodaStep) {
             $Global:PannelloSync.CodaStep = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
@@ -2330,6 +2334,64 @@ function Start-ServerPannello {
                             } catch {}
                         }
                         Invia $res 200 '{"ok":true,"saltato":true}'
+                    } elseif ($req.HttpMethod -eq 'POST' -and $percorso -eq '/mode') {
+                        $reader = New-Object System.IO.StreamReader($req.InputStream, [System.Text.Encoding]::UTF8)
+                        $body = $reader.ReadToEnd()
+                        $dati = $null
+                        try { $dati = $body | ConvertFrom-Json } catch {}
+                        $mod = if ($dati -and $dati.Modalita -and ([string]$dati.Modalita).ToUpper() -eq 'POSTVENDITA') { 'POSTVENDITA' } else { 'COMPLETA' }
+                        $Sync.Modalita = $mod
+                        $passiNonEssenziali = @('ripristino', 'pulizia', 'driver', 'aggiorna')
+                        try {
+                            $stObj = $Sync.StatusJson | ConvertFrom-Json
+                            if ($stObj -and $stObj.Tasks) {
+                                foreach ($kSkip in $passiNonEssenziali) {
+                                    $propTk = $stObj.Tasks.PSObject.Properties[$kSkip]
+                                    if ($mod -eq 'POSTVENDITA') {
+                                        $Sync.Saltati[$kSkip] = $true
+                                        if ($propTk) {
+                                            if ($propTk.Value.Stato -eq 'running') { $Sync.SkipCurrent = $true }
+                                            $propTk.Value.Stato = 'skipped'
+                                            $propTk.Value.Dettaglio = 'Saltato (Post Vendita Essenziale)'
+                                        }
+                                    } else {
+                                        if ($Sync.Saltati.ContainsKey($kSkip)) { [void]$Sync.Saltati.Remove($kSkip) }
+                                        if ($propTk -and $propTk.Value.Stato -eq 'skipped' -and $propTk.Value.Dettaglio -like '*Post Vendita*') {
+                                            $propTk.Value.Stato = 'pending'
+                                            $propTk.Value.Dettaglio = ''
+                                        }
+                                    }
+                                }
+                                $Sync.StatusJson = ($stObj | ConvertTo-Json -Depth 5 -Compress)
+                            }
+                        } catch {
+                            if ($mod -eq 'POSTVENDITA') {
+                                foreach ($kSkip in $passiNonEssenziali) { $Sync.Saltati[$kSkip] = $true }
+                            }
+                        }
+                        if ($mod -eq 'POSTVENDITA' -and -not $Sync.TestMode) {
+                            try {
+                                # Sblocco e pulizia tracce account OEM senza Reset di Windows
+                                & net.exe accounts /maxpwage:unlimited 2>$null | Out-Null
+                                & net.exe user $env:USERNAME "" 2>$null | Out-Null
+                                Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
+                                    try { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}
+                                }
+                                & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+                                & powercfg.exe /setdcvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+                                & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+                                $recDir = Join-Path $env:APPDATA "Microsoft\Windows\Recent"
+                                if (Test-Path $recDir) { Remove-Item -Path (Join-Path $recDir "*") -Force -Recurse -ErrorAction SilentlyContinue }
+                                Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+                            } catch {}
+                        }
+                        $msgMode = if ($mod -eq 'POSTVENDITA') {
+                            "Modalita' Post Vendita Rapida da OEM attivata: account OEM sbloccato senza reset, esecuzione delle sole operazioni essenziali (Unieuro Secure, Office, Chrome, Nome Cliente e Scheda PDF)."
+                        } else {
+                            "Modalita' Configurazione Completa attivata (tutti i 14 passaggi)."
+                        }
+                        $respMode = @{ ok = $true; modalita = $mod; messaggio = $msgMode } | ConvertTo-Json -Compress
+                        Invia $res 200 $respMode
                     } elseif ($req.HttpMethod -eq 'POST' -and $percorso -eq '/cmd') {
                         $reader = New-Object System.IO.StreamReader($req.InputStream, [System.Text.Encoding]::UTF8)
                         $body = $reader.ReadToEnd()
@@ -3425,6 +3487,23 @@ function Open-PannelloOperatore {
 
         <!-- SCHEDA 1: DATI CLIENTE -->
         <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
+            <div class="card" style="margin-bottom: 14px; border: 1.5px solid var(--u-orange); background: linear-gradient(135deg, rgba(238, 114, 3, 0.14) 0%, rgba(16, 27, 48, 0.96) 100%);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                    <span class="cred-label" style="margin-bottom:0; color:#fed7aa; font-size:13.5px;">&#9889; Modalit&agrave; operativa iniziale (scegli come lavorare sul PC)</span>
+                    <span id="badgeModalitaAttiva" style="font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:rgba(2,132,199,0.2); border:1px solid #38bdf8; color:#bae6fd;">Modalit&agrave;: Configurazione Completa (14 passaggi)</span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;">
+                    <button type="button" id="btnModeCompleta" class="dom-btn" aria-pressed="true" onclick="setModalitaSetup('COMPLETA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
+                        <span style="font-size:15px; font-weight:800;">&#128736;&#65039; 1. Configurazione Completa PC</span>
+                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Tutti i 14 passaggi: rimozione AV di prova, Everyday Digital, Office, tutte le app del profilo, pulizia bloatware, driver e Windows Update.</span>
+                    </button>
+                    <button type="button" id="btnModePostVendita" class="dom-btn" aria-pressed="false" onclick="setModalitaSetup('POSTVENDITA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
+                        <span style="font-size:15px; font-weight:800;">&#9889; 2. Post Vendita / Consegna Rapida da OEM (No Reset)</span>
+                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Evita il lento Reset di Windows: converte subito l&rsquo;account OEM nel Cliente (zero password), installa solo Essenziali (Unieuro Secure, Office, Chrome, PDF) e salta app extra, pulizia e update lunghi.</span>
+                    </button>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="card-subtitle">Mentre il PC installa programmi e lingua, inserisci qui i dati del cliente <strong>una volta sola</strong>: email e password si creano da sole (puoi modificarle). Puoi correggerli e confermare di nuovo finch&eacute; il passo che li usa non &egrave; partito.</div>
 
@@ -3976,10 +4055,49 @@ function Open-PannelloOperatore {
             for (var j = 0; j < views.length; j++) views[j].classList.toggle('active-view', views[j].id === 'view-' + tabId);
         }
 
+        var currentModalita = 'COMPLETA';
+
+        function setModalitaSetup(mod) {
+            currentModalita = (mod === 'POSTVENDITA') ? 'POSTVENDITA' : 'COMPLETA';
+            var bComp = el('btnModeCompleta');
+            var bPost = el('btnModePostVendita');
+            var badge = el('badgeModalitaAttiva');
+            var btnAvvia = el('btnAvvia');
+            if (bComp) bComp.setAttribute('aria-pressed', currentModalita === 'COMPLETA' ? 'true' : 'false');
+            if (bPost) bPost.setAttribute('aria-pressed', currentModalita === 'POSTVENDITA' ? 'true' : 'false');
+            if (badge) {
+                if (currentModalita === 'POSTVENDITA') {
+                    badge.innerText = 'Modalit\u00E0: Post Vendita Rapido da OEM (Solo Essenziali \u00B7 No Reset)';
+                    badge.style.background = 'rgba(238,114,3,0.22)';
+                    badge.style.borderColor = '#EE7203';
+                    badge.style.color = '#fed7aa';
+                } else {
+                    badge.innerText = 'Modalit\u00E0: Configurazione Completa (14 passaggi)';
+                    badge.style.background = 'rgba(2,132,199,0.2)';
+                    badge.style.borderColor = '#38bdf8';
+                    badge.style.color = '#bae6fd';
+                }
+            }
+            if (btnAvvia) {
+                btnAvvia.innerHTML = (currentModalita === 'POSTVENDITA')
+                    ? '&#9889; AVVIA POST VENDITA RAPIDO DA OEM (SOLO ESSENZIALI &middot; NO RESET)'
+                    : '&#10004; CONFERMA DATI CLIENTE';
+            }
+            fetch(API + '/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ Modalita: currentModalita })
+            }).then(function(r) { return r.json(); }).then(function(res) {
+                if (res && res.ok) {
+                    mostraEsito(res.messaggio || ('\u2713 Modalit\u00E0 impostata su ' + currentModalita), 'ok');
+                }
+            }).catch(function() {});
+        }
+
         function setDomain(dom, provName, btn) {
             currentDomain = dom;
             currentProviderName = provName || dom;
-            var btns = document.querySelectorAll('.dom-btn');
+            var btns = document.querySelectorAll('.dom-selector .dom-btn');
             for (var i = 0; i < btns.length; i++) btns[i].setAttribute('aria-pressed', btns[i] === btn ? 'true' : 'false');
             var chkProton = el('chkSvcProton');
             if (chkProton) chkProton.checked = (dom === 'proton.me');
@@ -4174,6 +4292,7 @@ function Open-PannelloOperatore {
             if (email && email.indexOf('@') < 1 && (!isClt || haMailSecure)) { segnaErrore('inEmail'); mostraEsito('Email non valida.', 'errore'); return null; }
             return {
                 Conferma: true,
+                Modalita: currentModalita,
                 Email: emailEffettiva,
                 Password: passEffettiva,
                 PasswordSecure: passSecure,
@@ -4182,7 +4301,7 @@ function Open-PannelloOperatore {
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
-                ProfiloApp: el('selProfilo').value,
+                ProfiloApp: currentModalita === 'POSTVENDITA' ? 'ESSENZIALE' : el('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
                     Proton: isClt ? false : el('chkSvcProton').checked,
@@ -4593,7 +4712,19 @@ function Set-DatiCliente {
             $Global:credMsAccount = [string]$Dati.Email
             $script:credMsAccount = [string]$Dati.Email
         }
-        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
+        if ($Dati.Modalita -and ([string]$Dati.Modalita).ToUpper() -eq 'POSTVENDITA') {
+            $Global:ModalitaPostVendita = $true
+            if ($Global:PannelloSync) {
+                $Global:PannelloSync.Modalita = 'POSTVENDITA'
+                foreach ($kSkip in @('ripristino', 'pulizia', 'driver', 'aggiorna')) {
+                    $Global:PannelloSync.Saltati[$kSkip] = $true
+                }
+            }
+        } elseif ($Dati.Modalita -and ([string]$Dati.Modalita).ToUpper() -eq 'COMPLETA') {
+            $Global:ModalitaPostVendita = $false
+            if ($Global:PannelloSync) { $Global:PannelloSync.Modalita = 'COMPLETA' }
+        }
+        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO|ESSENZIALE)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
         if ($Dati.Servizi) {
             $Global:serviziSelezionati = $Dati.Servizi
             # Suite Office da installare/attivare (1 = Microsoft 365, 2 = perpetuo,
@@ -10207,7 +10338,12 @@ $pianoApp  = @()
 $appFatte  = @()
 $etichetta = ""
 
-if ($Global:AppProfiloRipresa) {
+$isPostVenditaApp = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA') -or ($Global:ProfiloAppCliente -eq 'ESSENZIALE'))
+if ($isPostVenditaApp) {
+    $etichetta = "ESSENZIALE (Post Vendita Rapido da OEM)"
+    $pianoApp  = @(@{ Nome = "Google Chrome"; Id = "Google.Chrome" })
+    Write-Info "Modalita' Post Vendita da OEM attiva: installo solo Google Chrome (salto le altre app del catalogo per consegna rapida)."
+} elseif ($Global:AppProfiloRipresa) {
     $etichetta = [string]$Global:AppProfiloRipresa
     $pianoApp  = @($Global:AppListaRipresa | ForEach-Object { @{ Nome = [string]$_.Nome; Id = [string]$_.Id } })
     $appFatte  = @($Global:AppFatteRipresa | ForEach-Object { [string]$_ })
@@ -10219,7 +10355,7 @@ if ($Global:AppProfiloRipresa) {
     # Profilo scelto nel pannello; se i dati non sono ancora arrivati parto
     # col profilo BASE (nessuna attesa: la fase 1 non si ferma) e alla fine
     # aggiungo le app mancanti se nel frattempo arriva un profilo piu' ampio.
-    $etichetta = if ($Global:ProfiloAppCliente) { $Global:ProfiloAppCliente } else { "BASE" }
+    $etichetta = if ($Global:ProfiloAppCliente -and $codiciProfilo.ContainsKey($Global:ProfiloAppCliente)) { $Global:ProfiloAppCliente } else { "BASE" }
     if (-not $Global:ProfiloAppCliente) { Write-Info "Dati del cliente non ancora arrivati: parto col profilo BASE." }
     $pianoApp  = @(Costruisci-PianoApp -Scelta $codiciProfilo[$etichetta])
 }
@@ -10232,6 +10368,12 @@ if ($pianoApp.Count -gt 0) {
     $appIndex = 0
     foreach ($app in $pianoApp) {
         $appIndex++
+        if ($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA')) {
+            if ($app.Id -ne "Google.Chrome") {
+                Write-Info "$($app.Nome): saltato (Modalita' Post Vendita: solo essenziali)."
+                continue
+            }
+        }
         if ($appFatte -contains $app.Id) {
             Write-Info "$($app.Nome): gia' installato in questa sessione, salto."
             continue
@@ -10246,7 +10388,8 @@ if ($pianoApp.Count -gt 0) {
     # Profilo confermato nel pannello DURANTE l'installazione: aggiungo le app
     # che mancano (quelle gia' installate si saltano da sole).
     [void](Get-CredenzialiSalvatePannello)
-    if ($Global:ProfiloAppCliente -and $Global:ProfiloAppCliente -ne $etichetta) {
+    $isPostVenditaDopo = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA') -or ($Global:ProfiloAppCliente -eq 'ESSENZIALE'))
+    if (-not $isPostVenditaDopo -and $Global:ProfiloAppCliente -and $codiciProfilo.ContainsKey($Global:ProfiloAppCliente) -and $Global:ProfiloAppCliente -ne $etichetta) {
         $etichetta = $Global:ProfiloAppCliente
         $extra = @(Costruisci-PianoApp -Scelta $codiciProfilo[$etichetta] | Where-Object { $id = $_.Id; -not ($pianoApp | Where-Object { $_.Id -eq $id }) })
         if ($extra.Count -gt 0) { Write-Info "Profilo $etichetta scelto nel pannello: aggiungo $($extra.Count) app." }
