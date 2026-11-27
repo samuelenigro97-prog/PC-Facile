@@ -559,6 +559,9 @@
                 <button type="button" class="tab-btn" role="tab" id="btn-tab-passaggi" aria-controls="view-tab-passaggi" aria-selected="false" onclick="apriScheda('tab-passaggi')">
                     <span><span class="tab-lungo">&#128295; </span>4. Passaggi</span>
                 </button>
+                <button type="button" class="tab-btn" role="tab" id="btn-tab-remoto" aria-controls="view-tab-remoto" aria-selected="false" onclick="apriScheda('tab-remoto')">
+                    <span><span class="tab-lungo">&#9889; </span>5. Comandi / IA</span>
+                </button>
             </div>
         </div>
 
@@ -968,6 +971,42 @@
                         </div>
                         <div id="esitoStep-diagnostica" class="step-esito"></div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCHEDA 5: COMANDI / ASSISTENTE IA & TELECOMANDO REMOTO -->
+        <div id="view-tab-remoto" class="section-view" role="tabpanel" aria-labelledby="btn-tab-remoto">
+            <div class="card">
+                <div class="step-tool-head" style="margin-bottom:8px;">
+                    <div class="step-tool-title">&#9889; Assistente Istruzioni &amp; Telecomando Remoto</div>
+                    <span id="badgeTelecomando" class="task-badge badge-done">Telecomando Cloud Attivo</span>
+                </div>
+                <div class="card-subtitle">Scrivi un&rsquo;istruzione in italiano (es. <code>togli password windows</code>, <code>disinstalla norton</code>, <code>chiudi blocchi</code>, <code>ripara wifi</code>, <code>lista programmi</code>, <code>stato dischi</code>) o un comando PowerShell diretto, oppure invia le istruzioni dalla chat sul tuo Mac/iPhone per eseguirle in automatico su questo PC.</div>
+
+                <div class="cred-step-box evidenza" style="margin-bottom:10px;">
+                    <label class="cred-label" for="inComandoRemoto">Istruzione in italiano o comando diretto da eseguire su questo PC</label>
+                    <div class="cred-box" style="margin-bottom:8px;">
+                        <input type="text" id="inComandoRemoto" class="cred-input" placeholder="Es. disinstalla Norton, togli password windows, chiudi blocchi, ripara wifi..." autocomplete="off" onkeydown="if(event.key==='Enter'){eseguiComandoDiretto();}">
+                        <button type="button" class="btn-tool primary" style="white-space:nowrap;" onclick="eseguiComandoDiretto()">&#9654; Esegui sul PC</button>
+                    </div>
+                    <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px;">
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('chiudi blocchi')">&#128721; Sblocca processi bloccati</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('togli password windows')">&#128275; Togli password Windows</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('riavvia desktop')">&#128260; Riavvia Esplora File / Desktop</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara wifi')">&#127760; Ripara Rete &amp; DNS</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('lista programmi')">&#128203; Lista programmi installati</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('stato dischi')">&#128190; Stato Dischi &amp; Spazio</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('reset windows update')">&#128295; Sblocca Windows Update</button>
+                    </div>
+                </div>
+
+                <div class="cred-step-box" style="background:#020617; border-color:#1e293b;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span class="cred-label" style="margin:0; color:#93c5fd;">Console Risultati &amp; Storico Telecomando Remoto</span>
+                        <button type="button" class="btn-sec" style="padding:3px 8px; font-size:11px;" onclick="el('outComandoRemoto').innerText='In attesa di istruzioni...'">Pulisci</button>
+                    </div>
+                    <pre id="outComandoRemoto" style="margin:0; padding:10px; background:#000814; color:#e2e8f0; border-radius:6px; font-family:Consolas,monospace; font-size:12px; max-height:280px; overflow:auto; white-space:pre-wrap; word-break:break-word;">Pronto. Scrivi un'istruzione qui sopra o inviala da remoto tramite la chat sul tuo Mac/iPhone.</pre>
                 </div>
             </div>
         </div>
@@ -1396,6 +1435,40 @@
             });
         }
 
+        function eseguiComandoRapido(cmdText) {
+            var inp = el('inComandoRemoto');
+            if (inp) inp.value = cmdText;
+            eseguiComandoDiretto(cmdText);
+        }
+
+        function eseguiComandoDiretto(overrideCmd) {
+            var cmd = (overrideCmd !== undefined ? overrideCmd : val('inComandoRemoto')).trim();
+            if (!cmd) {
+                showToast('Scrivi prima un\'istruzione o un comando', 'avviso');
+                return;
+            }
+            var out = el('outComandoRemoto');
+            if (out) out.innerText = '\u23F3 Esecuzione in corso sul PC: ' + cmd + ' ...\n\n' + (out.innerText || '');
+            fetchConTimeout(SERVER + '/cmd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ Command: cmd, Source: 'pannello' })
+            }).then(function(r) {
+                return r.json().catch(function() { return {}; });
+            }).then(function(res) {
+                if (res && res.output !== undefined) {
+                    if (out) out.innerText = res.output;
+                    showToast(res.ok === false ? 'Comando terminato con avvisi' : 'Istruzione eseguita sul PC');
+                } else {
+                    showToast('Risposta ricevuta');
+                }
+                checkConnection();
+            }).catch(function() {
+                if (out) out.innerText = '\u2717 PC Facile non risponde: verifica che la finestra dello script sia aperta.';
+                showToast('PC Facile non risponde', 'errore');
+            });
+        }
+
         // STATO DELLA CONNESSIONE E INDICATORE IN ALTO
         var ultimoStato = null;
         function aggiornaIndicatore() {
@@ -1533,6 +1606,10 @@
                 var inU = el('inStepNomeUtente'), inP = el('inStepNomePc');
                 if (inU && data.NomeUtenteAttuale) inU.value = data.NomeUtenteAttuale;
                 if (inP && data.NomePcAttuale) inP.value = data.NomePcAttuale;
+            }
+            if (data.LogComandi && el('outComandoRemoto') && data.UltimoCmdId && data.UltimoCmdId !== window._lastSeenCmdId) {
+                window._lastSeenCmdId = data.UltimoCmdId;
+                el('outComandoRemoto').innerText = data.LogComandi;
             }
 
             var completato = !!(data.Completato || data.completato);

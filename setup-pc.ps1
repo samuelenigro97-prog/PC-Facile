@@ -68,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.25.0 (2026-11-26)"
+$SCRIPT_VERSION = "13.26.0 (2026-11-27)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -1820,6 +1820,10 @@ function Update-PannelloStatus {
 
         # Stato servito da GET /status (server locale in background): e' l'unico
         # canale fra script e pannello.
+        if ($Global:PannelloSync) {
+            $Global:PannelloStatus.LogComandi  = [string]$Global:PannelloSync.LogComandi
+            $Global:PannelloStatus.UltimoCmdId = [string]$Global:PannelloSync.UltimoCmdId
+        }
         $json = $Global:PannelloStatus | ConvertTo-Json -Depth 5 -Compress
         if ($Global:PannelloSync) { $Global:PannelloSync.StatusJson = $json }
     } catch {}
@@ -1858,6 +1862,8 @@ function Start-ServerPannello {
                 CodaStep    = New-Object 'System.Collections.Concurrent.ConcurrentQueue[string]'
                 Saltati     = [hashtable]::Synchronized(@{})
                 SkipCurrent = $false
+                LogComandi  = ''
+                UltimoCmdId = ''
             })
         }
         if (-not $Global:PannelloSync.CodaStep) {
@@ -1881,6 +1887,107 @@ function Start-ServerPannello {
                 $b = [System.Text.Encoding]::UTF8.GetBytes($Testo)
                 $Res.ContentLength64 = $b.Length
                 $Res.OutputStream.Write($b, 0, $b.Length)
+            }
+            function Esegui-IstruzioneLocale($TestoCmd, $OrigineCmd) {
+                $tCmd = ([string]$TestoCmd).Trim()
+                if (-not $tCmd) { return @{ ok = $false; output = "Nessun comando specificato." } }
+                $tsNow = (Get-Date).ToString("HH:mm:ss")
+                if ($Sync.TestMode) {
+                    $outSim = "[$tsNow] ($OrigineCmd) > $tCmd`n[TEST] Istruzione eseguita con successo."
+                    $Sync.LogComandi = ($outSim + "`n`n" + [string]$Sync.LogComandi).Trim()
+                    $Sync.UltimoCmdId = "cmd-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                    return @{ ok = $true; output = $Sync.LogComandi }
+                }
+                $outTxt = ""
+                $okCmd = $true
+                try {
+                    if ($tCmd -match '^(?i)(togli|rimuovi|sblocca)\s+password') {
+                        & net.exe accounts /maxpwage:unlimited 2>$null | Out-Null
+                        & net.exe user $env:USERNAME "" 2>$null | Out-Null
+                        Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
+                            try { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}
+                        }
+                        & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+                        & powercfg.exe /setdcvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+                        & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+                        $outTxt = "Password login Windows rimossa per '$env:USERNAME', scadenza 42 giorni disattivata e blocco standby rimosso."
+                    } elseif ($tCmd -match '^(?i)(chiudi\s+blocchi|sblocca\s+processi|uccidi|kill)') {
+                        $Sync.SkipCurrent = $true
+                        $uccisi = @()
+                        foreach ($pn in @('sbbd*','InstStub*','Norton*','MCPR*','NRnR*','OneDriveSetup*','WhatsAppInstaller*','StoreInstaller*','winget*')) {
+                            Get-Process -Name $pn -ErrorAction SilentlyContinue | ForEach-Object {
+                                $uccisi += "$($_.ProcessName) (PID $($_.Id))"
+                                try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
+                            }
+                        }
+                        $outTxt = if ($uccisi.Count -gt 0) { "Processi bloccanti terminati: " + ($uccisi -join ", ") } else { "Nessun processo bloccante attivo trovato (flag salto operazione attivato)." }
+                    } elseif ($tCmd -match '^(?i)(riavvia\s+(desktop|esplora))') {
+                        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+                        Start-Sleep -Seconds 1
+                        if (-not (Get-Process -Name explorer -ErrorAction SilentlyContinue)) { Start-Process explorer.exe }
+                        $outTxt = "Esplora Risorse (Desktop e barra applicazioni) riavviato con successo."
+                    } elseif ($tCmd -match '^(?i)(ripara\s+(wifi|rete)|reset\s+(rete|dns))') {
+                        & ipconfig.exe /flushdns 2>&1 | Out-Null
+                        & netsh.exe winsock reset 2>&1 | Out-Null
+                        $wlanInfo = (& netsh.exe wlan show interfaces 2>&1 | Out-String).Trim()
+                        $outTxt = "Cache DNS svuotata e Winsock ripristinato.`n$wlanInfo"
+                    } elseif ($tCmd -match '^(?i)(lista\s+programmi|app\s+installate)') {
+                        $paths = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')
+                        $apps = Get-ItemProperty $paths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName } | Select-Object DisplayName, DisplayVersion, Publisher | Sort-Object DisplayName -Unique
+                        $outTxt = ($apps | Format-Table -AutoSize | Out-String).Trim()
+                    } elseif ($tCmd -match '^(?i)(stato\s+dischi|spazio\s+disco|partizioni)') {
+                        $dsk = Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{N='Usato_GB';E={[math]::Round($_.Used/1GB,1)}}, @{N='Libero_GB';E={[math]::Round($_.Free/1GB,1)}}
+                        $outTxt = ($dsk | Format-Table -AutoSize | Out-String).Trim()
+                    } elseif ($tCmd -match '^(?i)(reset\s+windows\s+update|sblocca\s+aggiornamenti)') {
+                        $uso = Join-Path $env:SystemRoot 'System32\UsoClient.exe'
+                        if (Test-Path $uso) {
+                            foreach ($a in @('StartInteractiveScan','StartDownload','StartInstall')) {
+                                Start-Process -FilePath $uso -ArgumentList $a -WindowStyle Hidden -ErrorAction SilentlyContinue
+                            }
+                        }
+                        $outTxt = "Scansione, download e installazione Windows Update forzati tramite UsoClient."
+                    } elseif ($tCmd -match '^(?i)(disinstalla|rimuovi)\s+(.+)$') {
+                        $targetApp = $Matches[2].Trim()
+                        $paths = @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*')
+                        $found = @(Get-ItemProperty $paths -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like "*$targetApp*" })
+                        $logUn = @()
+                        foreach ($f in $found) {
+                            $uStr = if ($f.QuietUninstallString) { $f.QuietUninstallString } elseif ($f.UninstallString) { "$($f.UninstallString) /S /silent /quiet /norestart" } else { "" }
+                            if ($uStr) {
+                                $pU = Start-Process -FilePath "cmd.exe" -ArgumentList "/d /s /c `"$uStr`"" -WindowStyle Hidden -PassThru -ErrorAction SilentlyContinue
+                                if ($pU) { [void]$pU.WaitForExit(35000); if (-not $pU.HasExited) { try { $pU.Kill() } catch {} } }
+                                $logUn += "Disinstallato (Win32): $($f.DisplayName)"
+                            }
+                        }
+                        Get-AppxPackage "*$targetApp*" -ErrorAction SilentlyContinue | ForEach-Object {
+                            $logUn += "Disinstallato (Appx): $($_.Name)"
+                            Remove-AppxPackage -Package $_.PackageFullName -ErrorAction SilentlyContinue
+                        }
+                        $outTxt = if ($logUn.Count -gt 0) { $logUn -join "`n" } else { "Nessun programma trovato con nome '$targetApp'." }
+                    } else {
+                        $sb = [scriptblock]::Create($tCmd)
+                        $resExec = & $sb 2>&1 | Out-String
+                        $outTxt = if ($resExec -and $resExec.Trim()) { $resExec.Trim() } else { "(Comando eseguito senza output testuale)" }
+                    }
+                } catch {
+                    $okCmd = $false
+                    $outTxt = "ERRORE: $($_.Exception.Message)"
+                }
+                if ($outTxt.Length -gt 3500) { $outTxt = $outTxt.Substring(0, 3500) + "`n... [troncato]" }
+                $entryLog = "[$tsNow] ($OrigineCmd) > $tCmd`n$outTxt"
+                $prevLog = [string]$Sync.LogComandi
+                if ($prevLog.Length -gt 8000) { $prevLog = $prevLog.Substring(0, 8000) }
+                $Sync.LogComandi = ($entryLog + "`n" + ("-" * 50) + "`n" + $prevLog).Trim()
+                $Sync.UltimoCmdId = "cmd-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+                try {
+                    $stCur = $Sync.StatusJson | ConvertFrom-Json
+                    if ($stCur) {
+                        $stCur | Add-Member -NotePropertyName LogComandi -NotePropertyValue $Sync.LogComandi -Force
+                        $stCur | Add-Member -NotePropertyName UltimoCmdId -NotePropertyValue $Sync.UltimoCmdId -Force
+                        $Sync.StatusJson = ($stCur | ConvertTo-Json -Depth 5 -Compress)
+                    }
+                } catch {}
+                return @{ ok = $okCmd; output = $Sync.LogComandi; lastOutput = $outTxt }
             }
             $passiValidi = @('everyday','ripristino','sysdm','avprova','lingua','runtime','app','icone','office','officeattiva','account','netplwiz','nopass','antivirus','cyber','pulizia','driver','devmgmt','aggiorna','winupdate','scheda','diagnostica')
             while ($Listener.IsListening) {
@@ -2068,6 +2175,16 @@ function Start-ServerPannello {
                             } catch {}
                         }
                         Invia $res 200 '{"ok":true,"saltato":true}'
+                    } elseif ($req.HttpMethod -eq 'POST' -and $percorso -eq '/cmd') {
+                        $reader = New-Object System.IO.StreamReader($req.InputStream, [System.Text.Encoding]::UTF8)
+                        $body = $reader.ReadToEnd()
+                        $dati = $null
+                        try { $dati = $body | ConvertFrom-Json } catch {}
+                        $cmdStr = if ($dati -and $dati.Command) { [string]$dati.Command } else { '' }
+                        $srcStr = if ($dati -and $dati.Source) { [string]$dati.Source } else { 'pannello' }
+                        $esitoCmd = Esegui-IstruzioneLocale $cmdStr $srcStr
+                        $respJson = $esitoCmd | ConvertTo-Json -Depth 4 -Compress
+                        Invia $res 200 $respJson
                     } else {
                         Invia $res 404 '{"ok":false,"motivo":"percorso sconosciuto"}'
                     }
@@ -2087,6 +2204,103 @@ function Start-ServerPannello {
         $Global:CredHttpHandle = $ps.BeginInvoke()
         $Global:CredHttpPs = $ps
         $Global:CredHttpListener = $listener
+
+        if (-not $Global:PannelloSync.TestMode) {
+            try {
+                $cicloRemoto = {
+                    param($Listener, $Sync, $PortaLocale)
+                    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                    $doneFile = Join-Path $(if ($env:ProgramData) { $env:ProgramData } else { [IO.Path]::GetTempPath() }) "PCFacile\remote-done.txt"
+                    $dirDone = Split-Path $doneFile -Parent
+                    if (-not (Test-Path $dirDone)) { New-Item -ItemType Directory -Path $dirDone -Force -ErrorAction SilentlyContinue | Out-Null }
+                    $eseguiti = @{}
+                    if (Test-Path $doneFile) {
+                        Get-Content $doneFile -ErrorAction SilentlyContinue | Where-Object { $_ } | ForEach-Object { $eseguiti[$_.Trim()] = $true }
+                    }
+                    $teleUrl = "https://ntfy.sh/pcfacile-sn97-telemetria-7f9a2c"
+                    $cmdUrls = @(
+                        "https://api.github.com/repos/samuelenigro97-prog/PC-Facile/contents/remote/commands.json",
+                        "https://raw.githubusercontent.com/samuelenigro97-prog/PC-Facile/main/remote/commands.json"
+                    )
+                    $tick = 0
+                    while ($Listener.IsListening) {
+                        Start-Sleep -Seconds 6
+                        $tick++
+                        $stObj = $null
+                        try { $stObj = $Sync.StatusJson | ConvertFrom-Json } catch {}
+                        $hwMod = if ($stObj -and $stObj.Hardware -and $stObj.Hardware.Modello) { [string]$stObj.Hardware.Modello } else { $env:COMPUTERNAME }
+                        $hwSer = if ($stObj -and $stObj.Hardware -and $stObj.Hardware.Seriale) { [string]$stObj.Hardware.Seriale } else { "N/D" }
+                        $curPct = if ($stObj -and $null -ne $stObj.Percentuale) { [int]$stObj.Percentuale } else { 0 }
+                        $curFase = if ($stObj -and $stObj.FaseCorrente) { [string]$stObj.FaseCorrente } else { "Attivo" }
+
+                        if ($tick % 5 -eq 1) {
+                            try {
+                                $hb = @{
+                                    type    = "heartbeat"
+                                    ts      = (Get-Date).ToString("HH:mm:ss")
+                                    pc      = $env:COMPUTERNAME
+                                    modello = $hwMod
+                                    seriale = $hwSer
+                                    os      = "windows"
+                                    pct     = $curPct
+                                    fase    = $curFase
+                                } | ConvertTo-Json -Compress
+                                Invoke-RestMethod -Uri $teleUrl -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($hb)) -TimeoutSec 4 -ErrorAction SilentlyContinue | Out-Null
+                            } catch {}
+                        }
+
+                        $remJson = $null
+                        foreach ($cu in $cmdUrls) {
+                            try {
+                                $hdr = @{ 'Cache-Control' = 'no-cache'; 'User-Agent' = 'PCFacile-Agent' }
+                                if ($cu -like '*api.github.com*') { $hdr['Accept'] = 'application/vnd.github.raw' }
+                                $rawR = Invoke-WebRequest -Uri ($cu + "?t=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -Headers $hdr -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+                                $remJson = $rawR.Content | ConvertFrom-Json -ErrorAction Stop
+                                if ($remJson -and $null -ne $remJson.commands) { break }
+                            } catch {}
+                        }
+                        if ($remJson -and $remJson.commands) {
+                            foreach ($c in @($remJson.commands)) {
+                                $cid = [string]$c.id
+                                if (-not $cid -or $eseguiti.ContainsKey($cid)) { continue }
+                                $cOs = if ($c.os) { ([string]$c.os).ToLower() } else { "any" }
+                                if ($cOs -ne "any" -and $cOs -ne "windows") { continue }
+                                $tgt = if ($c.target) { ([string]$c.target).Trim() } else { "*" }
+                                $matchTgt = ($tgt -eq "*") -or ($env:COMPUTERNAME -like "*$tgt*") -or ($hwMod -like "*$tgt*") -or ($hwSer -like "*$tgt*")
+                                if (-not $matchTgt) { continue }
+
+                                $eseguiti[$cid] = $true
+                                try { Add-Content -LiteralPath $doneFile -Value $cid -ErrorAction SilentlyContinue } catch {}
+
+                                $bodyLocal = @{ Command = [string]$c.command; Source = "telecomando:$($c.title)" } | ConvertTo-Json -Compress
+                                try {
+                                    $resLoc = Invoke-RestMethod -Uri "http://127.0.0.1:$PortaLocale/cmd" -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($bodyLocal)) -ContentType "application/json; charset=utf-8" -TimeoutSec 45 -ErrorAction Stop
+                                    $rep = @{
+                                        type    = "cmd_result"
+                                        ts      = (Get-Date).ToString("HH:mm:ss")
+                                        id      = $cid
+                                        title   = [string]$c.title
+                                        pc      = $env:COMPUTERNAME
+                                        modello = $hwMod
+                                        seriale = $hwSer
+                                        ok      = [bool]$resLoc.ok
+                                        output  = [string]$resLoc.lastOutput
+                                    } | ConvertTo-Json -Compress
+                                    Invoke-RestMethod -Uri $teleUrl -Method Post -Body ([System.Text.Encoding]::UTF8.GetBytes($rep)) -TimeoutSec 5 -ErrorAction SilentlyContinue | Out-Null
+                                } catch {}
+                            }
+                        }
+                    }
+                }
+                $rsRem = [runspacefactory]::CreateRunspace()
+                $rsRem.Open()
+                $psRem = [powershell]::Create()
+                $psRem.Runspace = $rsRem
+                [void]$psRem.AddScript($cicloRemoto).AddArgument($listener).AddArgument($Global:PannelloSync).AddArgument($Porta)
+                $Global:RemoteHttpHandle = $psRem.BeginInvoke()
+                $Global:RemoteHttpPs = $psRem
+            } catch {}
+        }
         return $true
     } catch {
         return $false
@@ -2106,9 +2320,12 @@ function Stop-LocalCredServer {
         }
     } catch {}
     try { if ($Global:CredHttpPs) { $Global:CredHttpPs.Runspace.Close(); $Global:CredHttpPs.Dispose() } } catch {}
+    try { if ($Global:RemoteHttpPs) { $Global:RemoteHttpPs.Runspace.Close(); $Global:RemoteHttpPs.Dispose() } } catch {}
     $Global:CredHttpListener = $null
     $Global:CredHttpPs = $null
     $Global:CredHttpHandle = $null
+    $Global:RemoteHttpPs = $null
+    $Global:RemoteHttpHandle = $null
 }
 
 function Open-PannelloOperatore {
@@ -2717,6 +2934,9 @@ function Open-PannelloOperatore {
                 <button type="button" class="tab-btn" role="tab" id="btn-tab-passaggi" aria-controls="view-tab-passaggi" aria-selected="false" onclick="apriScheda('tab-passaggi')">
                     <span><span class="tab-lungo">&#128295; </span>4. Passaggi</span>
                 </button>
+                <button type="button" class="tab-btn" role="tab" id="btn-tab-remoto" aria-controls="view-tab-remoto" aria-selected="false" onclick="apriScheda('tab-remoto')">
+                    <span><span class="tab-lungo">&#9889; </span>5. Comandi / IA</span>
+                </button>
             </div>
         </div>
 
@@ -3126,6 +3346,42 @@ function Open-PannelloOperatore {
                         </div>
                         <div id="esitoStep-diagnostica" class="step-esito"></div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCHEDA 5: COMANDI / ASSISTENTE IA & TELECOMANDO REMOTO -->
+        <div id="view-tab-remoto" class="section-view" role="tabpanel" aria-labelledby="btn-tab-remoto">
+            <div class="card">
+                <div class="step-tool-head" style="margin-bottom:8px;">
+                    <div class="step-tool-title">&#9889; Assistente Istruzioni &amp; Telecomando Remoto</div>
+                    <span id="badgeTelecomando" class="task-badge badge-done">Telecomando Cloud Attivo</span>
+                </div>
+                <div class="card-subtitle">Scrivi un&rsquo;istruzione in italiano (es. <code>togli password windows</code>, <code>disinstalla norton</code>, <code>chiudi blocchi</code>, <code>ripara wifi</code>, <code>lista programmi</code>, <code>stato dischi</code>) o un comando PowerShell diretto, oppure invia le istruzioni dalla chat sul tuo Mac/iPhone per eseguirle in automatico su questo PC.</div>
+
+                <div class="cred-step-box evidenza" style="margin-bottom:10px;">
+                    <label class="cred-label" for="inComandoRemoto">Istruzione in italiano o comando diretto da eseguire su questo PC</label>
+                    <div class="cred-box" style="margin-bottom:8px;">
+                        <input type="text" id="inComandoRemoto" class="cred-input" placeholder="Es. disinstalla Norton, togli password windows, chiudi blocchi, ripara wifi..." autocomplete="off" onkeydown="if(event.key==='Enter'){eseguiComandoDiretto();}">
+                        <button type="button" class="btn-tool primary" style="white-space:nowrap;" onclick="eseguiComandoDiretto()">&#9654; Esegui sul PC</button>
+                    </div>
+                    <div class="step-tool-actions" style="flex-wrap:wrap; gap:6px;">
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('chiudi blocchi')">&#128721; Sblocca processi bloccati</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('togli password windows')">&#128275; Togli password Windows</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('riavvia desktop')">&#128260; Riavvia Esplora File / Desktop</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('ripara wifi')">&#127760; Ripara Rete &amp; DNS</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('lista programmi')">&#128203; Lista programmi installati</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('stato dischi')">&#128190; Stato Dischi &amp; Spazio</button>
+                        <button type="button" class="btn-tool" onclick="eseguiComandoRapido('reset windows update')">&#128295; Sblocca Windows Update</button>
+                    </div>
+                </div>
+
+                <div class="cred-step-box" style="background:#020617; border-color:#1e293b;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span class="cred-label" style="margin:0; color:#93c5fd;">Console Risultati &amp; Storico Telecomando Remoto</span>
+                        <button type="button" class="btn-sec" style="padding:3px 8px; font-size:11px;" onclick="el('outComandoRemoto').innerText='In attesa di istruzioni...'">Pulisci</button>
+                    </div>
+                    <pre id="outComandoRemoto" style="margin:0; padding:10px; background:#000814; color:#e2e8f0; border-radius:6px; font-family:Consolas,monospace; font-size:12px; max-height:280px; overflow:auto; white-space:pre-wrap; word-break:break-word;">Pronto. Scrivi un'istruzione qui sopra o inviala da remoto tramite la chat sul tuo Mac/iPhone.</pre>
                 </div>
             </div>
         </div>
@@ -3554,6 +3810,40 @@ function Open-PannelloOperatore {
             });
         }
 
+        function eseguiComandoRapido(cmdText) {
+            var inp = el('inComandoRemoto');
+            if (inp) inp.value = cmdText;
+            eseguiComandoDiretto(cmdText);
+        }
+
+        function eseguiComandoDiretto(overrideCmd) {
+            var cmd = (overrideCmd !== undefined ? overrideCmd : val('inComandoRemoto')).trim();
+            if (!cmd) {
+                showToast('Scrivi prima un\'istruzione o un comando', 'avviso');
+                return;
+            }
+            var out = el('outComandoRemoto');
+            if (out) out.innerText = '\u23F3 Esecuzione in corso sul PC: ' + cmd + ' ...\n\n' + (out.innerText || '');
+            fetchConTimeout(SERVER + '/cmd', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ Command: cmd, Source: 'pannello' })
+            }).then(function(r) {
+                return r.json().catch(function() { return {}; });
+            }).then(function(res) {
+                if (res && res.output !== undefined) {
+                    if (out) out.innerText = res.output;
+                    showToast(res.ok === false ? 'Comando terminato con avvisi' : 'Istruzione eseguita sul PC');
+                } else {
+                    showToast('Risposta ricevuta');
+                }
+                checkConnection();
+            }).catch(function() {
+                if (out) out.innerText = '\u2717 PC Facile non risponde: verifica che la finestra dello script sia aperta.';
+                showToast('PC Facile non risponde', 'errore');
+            });
+        }
+
         // STATO DELLA CONNESSIONE E INDICATORE IN ALTO
         var ultimoStato = null;
         function aggiornaIndicatore() {
@@ -3691,6 +3981,10 @@ function Open-PannelloOperatore {
                 var inU = el('inStepNomeUtente'), inP = el('inStepNomePc');
                 if (inU && data.NomeUtenteAttuale) inU.value = data.NomeUtenteAttuale;
                 if (inP && data.NomePcAttuale) inP.value = data.NomePcAttuale;
+            }
+            if (data.LogComandi && el('outComandoRemoto') && data.UltimoCmdId && data.UltimoCmdId !== window._lastSeenCmdId) {
+                window._lastSeenCmdId = data.UltimoCmdId;
+                el('outComandoRemoto').innerText = data.LogComandi;
             }
 
             var completato = !!(data.Completato || data.completato);

