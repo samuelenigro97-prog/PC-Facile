@@ -789,7 +789,9 @@
 
         @media (max-width: 860px) {
             body { padding: 10px 12px 24px; }
-            .campi-3, .campi-2, .step-tool-list, .links-grid { grid-template-columns: 1fr; }
+            .campi-2, .step-tool-list, .links-grid { grid-template-columns: 1fr; }
+            .campi-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .campi-3 > :last-child { grid-column: 1 / -1; }
             .brand-titles p { display: none; }
             .brand-titles h1 { font-size: 18px; }
             .progress-pct { font-size: 23px; }

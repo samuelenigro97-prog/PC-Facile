@@ -3319,7 +3319,9 @@ function Open-PannelloOperatore {
 
         @media (max-width: 860px) {
             body { padding: 10px 12px 24px; }
-            .campi-3, .campi-2, .step-tool-list, .links-grid { grid-template-columns: 1fr; }
+            .campi-2, .step-tool-list, .links-grid { grid-template-columns: 1fr; }
+            .campi-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .campi-3 > :last-child { grid-column: 1 / -1; }
             .brand-titles p { display: none; }
             .brand-titles h1 { font-size: 18px; }
             .progress-pct { font-size: 23px; }
@@ -6574,16 +6576,20 @@ if ($PreparaUSB) {
 
 if (-not $Diagnostica) {
     try { Clear-Host } catch {}
-    $larg = 64
     $titoloB = "PC FACILE   -   versione $SCRIPT_VERSION"
+    $r1Vis = "   UNIEURO   PC FACILE  -  Assistenza & Configurazione PC"
+    $r2Vis = "   Batte. Forte. Sempre. - Setup Tecnico Dedicato v$SCRIPT_VERSION"
+    $larg = [Math]::Max(64, [Math]::Max($r1Vis.Length + 2, [Math]::Max($r2Vis.Length + 2, $titoloB.Length + 4)))
+    $pad1 = " " * ($larg - $r1Vis.Length)
+    $pad2 = " " * ($larg - $r2Vis.Length)
     $padSx = [int](($larg - $titoloB.Length) / 2)
     $padDx = $larg - $padSx - $titoloB.Length
     $boxLine = ([string][char]0x2550) * $larg
     Write-Host ""
     if ($vtOn) {
         Write-Host "  $U_ORANGE$([char]0x2554)$boxLine$([char]0x2557)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE_BG UNIEURO $U_RESET $U_WHITE PC FACILE  -  Assistenza & Configurazione PC      $U_ORANGE$([char]0x2551)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH - Setup Tecnico Dedicato v$SCRIPT_VERSION      $U_ORANGE$([char]0x2551)$U_RESET"
+        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE_BG UNIEURO $U_RESET $U_WHITE PC FACILE  -  Assistenza & Configurazione PC$pad1$U_ORANGE$([char]0x2551)$U_RESET"
+        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH- Setup Tecnico Dedicato v$SCRIPT_VERSION$pad2$U_ORANGE$([char]0x2551)$U_RESET"
         Write-Host "  $U_ORANGE$([char]0x255A)$boxLine$([char]0x255D)$U_RESET"
         Write-Host ""
         Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (DATI CLIENTE, OFFICE E ATTIVAZIONI)$U_RESET"
@@ -9263,6 +9269,11 @@ trap {
         }
         $run = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
         if (Get-ItemProperty -Path $run -Name "OneDrive" -ErrorAction SilentlyContinue) { Remove-ItemProperty -Path $run -Name "OneDrive" -ErrorAction SilentlyContinue }
+        $clsidOd = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+        try {
+            New-PSDrive -Name HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT -ErrorAction SilentlyContinue | Out-Null
+            if (Test-Path $clsidOd) { Set-ItemProperty -Path $clsidOd -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord -ErrorAction SilentlyContinue }
+        } catch {}
         if (Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") {
             Write-Info "OneDrive forse non rimosso del tutto (riprova dopo il riavvio)."
             Add-Report "Rimozione OneDrive" "AVVISO"
@@ -9281,6 +9292,17 @@ trap {
         $dcPolicy = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
         if (-not (Test-Path $dcPolicy)) { New-Item -Path $dcPolicy -Force | Out-Null }
         Set-ItemProperty -Path $dcPolicy -Name "AllowTelemetry" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $dcPolicy -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord -ErrorAction SilentlyContinue
+
+        $actPol = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+        if (-not (Test-Path $actPol)) { New-Item -Path $actPol -Force -ErrorAction SilentlyContinue | Out-Null }
+        Set-ItemProperty -Path $actPol -Name "PublishUserActivities" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path $actPol -Name "UploadUserActivities" -Value 0 -Type DWord -ErrorAction SilentlyContinue
+
+        foreach ($svcDiag in @('DiagTrack','dmwappushservice')) {
+            Stop-Service -Name $svcDiag -Force -ErrorAction SilentlyContinue
+            Set-Service -Name $svcDiag -StartupType Disabled -ErrorAction SilentlyContinue
+        }
 
         $advId = "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
         if (-not (Test-Path $advId)) { New-Item -Path $advId -Force | Out-Null }
@@ -9347,6 +9369,29 @@ trap {
             Add-Report "Ottimizzazione spazio SSD (ibernazione off)" "OK"
         }
     } catch {}
+
+    # --- REATTIVITA' UI & PRESTAZIONI ---
+    try {
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "MenuShowDelay" -Value "8" -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "WaitToKillAppTimeout" -Value "2000" -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "HungAppTimeout" -Value "1000" -ErrorAction SilentlyContinue
+        $mm = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management"
+        if (Test-Path $mm) { Set-ItemProperty -Path $mm -Name "ClearPageFileAtShutdown" -Value 0 -Type DWord -ErrorAction SilentlyContinue }
+        Write-OK "Reattivita' UI ottimizzata (MenuShowDelay=8ms, chiusura rapida app bloccate, ClearPageFileAtShutdown=0)."
+        Add-Report "Reattivita' UI e prestazioni" "OK"
+    } catch {
+        Write-Info "Alcune impostazioni di reattivita' UI non applicate: $_"
+    }
+
+    # --- VERIFICA TRIM NATIVO & RETRIM SSD ---
+    try {
+        & fsutil.exe behavior set DisableDeleteNotify 0 2>$null | Out-Null
+        Optimize-Volume -DriveLetter C -ReTrim -ErrorAction SilentlyContinue | Out-Null
+        Write-OK "TRIM SSD nativo verificato ed eseguito su C: (ReTrim)."
+        Add-Report "Ottimizzazione TRIM SSD (C:)" "OK"
+    } catch {
+        Write-Info "TRIM SSD su C: non eseguito: $_"
+    }
 
     # Nota: NON avviamo dism.exe /StartComponentCleanup prima di Driver e Windows Update,
     # perche' blocca il Windows Servicing Stack (TiWorker/CBS) e rallenta l'SSD su PC nuovi.
