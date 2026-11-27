@@ -68,7 +68,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.29.0 (2026-11-27)"
+$SCRIPT_VERSION = "13.29.1 (2026-11-27)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2341,7 +2341,7 @@ function Start-ServerPannello {
                         try { $dati = $body | ConvertFrom-Json } catch {}
                         $mod = if ($dati -and $dati.Modalita -and ([string]$dati.Modalita).ToUpper() -eq 'POSTVENDITA') { 'POSTVENDITA' } else { 'COMPLETA' }
                         $Sync.Modalita = $mod
-                        $passiNonEssenziali = @('ripristino', 'pulizia', 'driver', 'aggiorna')
+                        $passiNonEssenziali = @('office', 'app', 'ripristino', 'pulizia', 'driver', 'aggiorna', 'diagnostica')
                         try {
                             $stObj = $Sync.StatusJson | ConvertFrom-Json
                             if ($stObj -and $stObj.Tasks) {
@@ -2352,7 +2352,7 @@ function Start-ServerPannello {
                                         if ($propTk) {
                                             if ($propTk.Value.Stato -eq 'running') { $Sync.SkipCurrent = $true }
                                             $propTk.Value.Stato = 'skipped'
-                                            $propTk.Value.Dettaglio = 'Saltato (Post Vendita Essenziale)'
+                                            $propTk.Value.Dettaglio = 'Saltato (Post Vendita)'
                                         }
                                     } else {
                                         if ($Sync.Saltati.ContainsKey($kSkip)) { [void]$Sync.Saltati.Remove($kSkip) }
@@ -2386,7 +2386,7 @@ function Start-ServerPannello {
                             } catch {}
                         }
                         $msgMode = if ($mod -eq 'POSTVENDITA') {
-                            "Modalita' Post Vendita Rapida da OEM attivata: account OEM sbloccato senza reset, esecuzione delle sole operazioni essenziali (Unieuro Secure, Office, Chrome, Nome Cliente e Scheda PDF)."
+                            "Modalita' Post Vendita Rapida da OEM attivata: account OEM sbloccato senza reset, esecuzione delle sole operazioni essenziali (Rimozione AV prova, Unieuro Everyday Digital, Lingua Italiana e Nome Cliente). Saltati Office, Chrome/App, riordino icone e Scheda PDF."
                         } else {
                             "Modalita' Configurazione Completa attivata (tutti i 14 passaggi)."
                         }
@@ -3499,7 +3499,7 @@ function Open-PannelloOperatore {
                     </button>
                     <button type="button" id="btnModePostVendita" class="dom-btn" aria-pressed="false" onclick="setModalitaSetup('POSTVENDITA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
                         <span style="font-size:15px; font-weight:800;">&#9889; 2. Post Vendita / Consegna Rapida da OEM (No Reset)</span>
-                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Evita il lento Reset di Windows: converte subito l&rsquo;account OEM nel Cliente (zero password), installa solo Essenziali (Unieuro Secure, Office, Chrome, PDF) e salta app extra, pulizia e update lunghi.</span>
+                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Senza configurazione a pagamento: sblocca subito l&rsquo;account OEM (zero password), rimuove AV di prova, installa solo Unieuro Everyday Digital e Lingua Italiana (salta Office, Chrome/App, riordino icone, PDF consegna, pulizia e update).</span>
                     </button>
                 </div>
             </div>
@@ -4083,6 +4083,9 @@ function Open-PannelloOperatore {
                     ? '&#9889; AVVIA POST VENDITA RAPIDO DA OEM (SOLO ESSENZIALI &middot; NO RESET)'
                     : '&#10004; CONFERMA DATI CLIENTE';
             }
+            if (currentModalita === 'POSTVENDITA' && el('selOffice')) {
+                el('selOffice').value = 'no';
+            }
             fetch(API + '/mode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -4301,12 +4304,12 @@ function Open-PannelloOperatore {
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
-                ProfiloApp: currentModalita === 'POSTVENDITA' ? 'ESSENZIALE' : el('selProfilo').value,
+                ProfiloApp: currentModalita === 'POSTVENDITA' ? 'NESSUNO' : el('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
                     Proton: isClt ? false : el('chkSvcProton').checked,
-                    Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
-                    OfficeTipo: el('selOffice').value,
+                    Office: currentModalita === 'POSTVENDITA' ? false : (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
+                    OfficeTipo: currentModalita === 'POSTVENDITA' ? 'no' : el('selOffice').value,
                     McAfee: el('chkSvcMcAfee').checked,
                     Norton: el('chkSvcNorton').checked,
                     Cyber: cyber
@@ -4714,9 +4717,10 @@ function Set-DatiCliente {
         }
         if ($Dati.Modalita -and ([string]$Dati.Modalita).ToUpper() -eq 'POSTVENDITA') {
             $Global:ModalitaPostVendita = $true
+            $Global:SceltaOffice = '5'
             if ($Global:PannelloSync) {
                 $Global:PannelloSync.Modalita = 'POSTVENDITA'
-                foreach ($kSkip in @('ripristino', 'pulizia', 'driver', 'aggiorna')) {
+                foreach ($kSkip in @('office', 'app', 'ripristino', 'pulizia', 'driver', 'aggiorna', 'diagnostica')) {
                     $Global:PannelloSync.Saltati[$kSkip] = $true
                 }
             }
@@ -4724,19 +4728,23 @@ function Set-DatiCliente {
             $Global:ModalitaPostVendita = $false
             if ($Global:PannelloSync) { $Global:PannelloSync.Modalita = 'COMPLETA' }
         }
-        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO|ESSENZIALE)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
+        if ($Dati.ProfiloApp -and [string]$Dati.ProfiloApp -match '^(BASE|UFFICIO|GAMING|COMPLETO|ESSENZIALE|NESSUNO)$') { $Global:ProfiloAppCliente = [string]$Dati.ProfiloApp }
         if ($Dati.Servizi) {
             $Global:serviziSelezionati = $Dati.Servizi
-            # Suite Office da installare/attivare (1 = Microsoft 365, 2 = perpetuo,
-            # 4 = LibreOffice, 5 = nessuna). Senza OfficeTipo (pannelli vecchi)
-            # la spunta "card Office" vale Microsoft 365.
-            $tipo = [string]$Dati.Servizi.OfficeTipo
-            $Global:SceltaOffice = switch ($tipo) {
-                'm365'        { '1' }
-                'perpetuo'    { '2' }
-                'libreoffice' { '4' }
-                'no'          { '5' }
-                default       { if ($Dati.Servizi.Office) { '1' } else { '5' } }
+            if ($Global:ModalitaPostVendita) {
+                $Global:SceltaOffice = '5'
+            } else {
+                # Suite Office da installare/attivare (1 = Microsoft 365, 2 = perpetuo,
+                # 4 = LibreOffice, 5 = nessuna). Senza OfficeTipo (pannelli vecchi)
+                # la spunta "card Office" vale Microsoft 365.
+                $tipo = [string]$Dati.Servizi.OfficeTipo
+                $Global:SceltaOffice = switch ($tipo) {
+                    'm365'        { '1' }
+                    'perpetuo'    { '2' }
+                    'libreoffice' { '4' }
+                    'no'          { '5' }
+                    default       { if ($Dati.Servizi.Office) { '1' } else { '5' } }
+                }
             }
         }
         # Rinomina subito l'utente Windows e il PC col nome del cliente (o 'Utente' se clt clt)
@@ -10338,11 +10346,11 @@ $pianoApp  = @()
 $appFatte  = @()
 $etichetta = ""
 
-$isPostVenditaApp = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA') -or ($Global:ProfiloAppCliente -eq 'ESSENZIALE'))
+$isPostVenditaApp = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA') -or ($Global:ProfiloAppCliente -in @('ESSENZIALE', 'NESSUNO')))
 if ($isPostVenditaApp) {
-    $etichetta = "ESSENZIALE (Post Vendita Rapido da OEM)"
-    $pianoApp  = @(@{ Nome = "Google Chrome"; Id = "Google.Chrome" })
-    Write-Info "Modalita' Post Vendita da OEM attiva: installo solo Google Chrome (salto le altre app del catalogo per consegna rapida)."
+    $etichetta = "NESSUNO (Post Vendita - senza configurazione app)"
+    $pianoApp  = @()
+    Write-Info "Modalita' Post Vendita attiva: salto installazione Chrome e applicazioni del catalogo."
 } elseif ($Global:AppProfiloRipresa) {
     $etichetta = [string]$Global:AppProfiloRipresa
     $pianoApp  = @($Global:AppListaRipresa | ForEach-Object { @{ Nome = [string]$_.Nome; Id = [string]$_.Id } })
@@ -10369,10 +10377,8 @@ if ($pianoApp.Count -gt 0) {
     foreach ($app in $pianoApp) {
         $appIndex++
         if ($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA')) {
-            if ($app.Id -ne "Google.Chrome") {
-                Write-Info "$($app.Nome): saltato (Modalita' Post Vendita: solo essenziali)."
-                continue
-            }
+            Write-Info "$($app.Nome): saltato (Modalita' Post Vendita)."
+            continue
         }
         if ($appFatte -contains $app.Id) {
             Write-Info "$($app.Nome): gia' installato in questa sessione, salto."
@@ -10388,7 +10394,7 @@ if ($pianoApp.Count -gt 0) {
     # Profilo confermato nel pannello DURANTE l'installazione: aggiungo le app
     # che mancano (quelle gia' installate si saltano da sole).
     [void](Get-CredenzialiSalvatePannello)
-    $isPostVenditaDopo = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA') -or ($Global:ProfiloAppCliente -eq 'ESSENZIALE'))
+    $isPostVenditaDopo = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA') -or ($Global:ProfiloAppCliente -in @('ESSENZIALE', 'NESSUNO')))
     if (-not $isPostVenditaDopo -and $Global:ProfiloAppCliente -and $codiciProfilo.ContainsKey($Global:ProfiloAppCliente) -and $Global:ProfiloAppCliente -ne $etichetta) {
         $etichetta = $Global:ProfiloAppCliente
         $extra = @(Costruisci-PianoApp -Scelta $codiciProfilo[$etichetta] | Where-Object { $id = $_.Id; -not ($pianoApp | Where-Object { $_.Id -eq $id }) })
@@ -11456,11 +11462,22 @@ if ($RunReale) {
     }
     # Qui il report e' completo (verifica finale, BitLocker e scheda compresi).
     Send-ReportGitHub -ReportVoci $Report
-    Repair-DesktopShortcuts
-    Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
+    $isPostVenditaFine = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA'))
+    if (-not $isPostVenditaFine) {
+        Repair-DesktopShortcuts
+        Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "Configurazione PC Completata!" -Dettaglio "Tutti i lavori terminati con successo" -Completato
+    } else {
+        Update-PannelloStatus -TaskId "diagnostica" -Stato "skipped" -Percentuale 100 -FaseCorrente "Post Vendita PC Completato!" -Dettaglio "Saltato (Post Vendita)" -Completato
     }
-    Invoke-SchedaConsegnaFinale
-    Set-DesktopIconOrder
+    }
+    $isPostVenditaConsegna = [bool]($Global:ModalitaPostVendita -or ($Global:PannelloSync -and $Global:PannelloSync.Modalita -eq 'POSTVENDITA'))
+    if (-not $isPostVenditaConsegna) {
+        Invoke-SchedaConsegnaFinale
+        Set-DesktopIconOrder
+    } else {
+        Write-Info "Modalita' Post Vendita attiva: salto generazione Scheda-Consegna-Cliente.pdf e riordino icone Desktop."
+        Update-PannelloStatus -TaskId "diagnostica" -Stato "skipped" -Percentuale 100 -FaseCorrente "Post Vendita PC Completato!" -Dettaglio "Saltato (Post Vendita)" -Completato
+    }
 }
 
 # -----------------------------------------------------------------------------

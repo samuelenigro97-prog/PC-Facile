@@ -907,7 +907,7 @@
                     </button>
                     <button type="button" id="btnModePostVendita" class="dom-btn" aria-pressed="false" onclick="setModalitaSetup('POSTVENDITA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
                         <span style="font-size:15px; font-weight:800;">&#9889; 2. Post Vendita / Consegna Rapida da OEM (No Reset)</span>
-                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Evita il lento Reset di Windows: converte subito l&rsquo;account OEM nel Cliente (zero password), installa solo Essenziali (Unieuro Secure, Office, Chrome, PDF) e salta app extra, pulizia e update lunghi.</span>
+                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Senza configurazione a pagamento: sblocca subito l&rsquo;account OEM (zero password), rimuove AV di prova, installa solo Unieuro Everyday Digital e Lingua Italiana (salta Office, Chrome/App, riordino icone, PDF consegna, pulizia e update).</span>
                     </button>
                 </div>
             </div>
@@ -1491,6 +1491,9 @@
                     ? '&#9889; AVVIA POST VENDITA RAPIDO DA OEM (SOLO ESSENZIALI &middot; NO RESET)'
                     : '&#10004; CONFERMA DATI CLIENTE';
             }
+            if (currentModalita === 'POSTVENDITA' && el('selOffice')) {
+                el('selOffice').value = 'no';
+            }
             fetch(API + '/mode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1709,12 +1712,12 @@
                 Nome: nome,
                 Cognome: cognome,
                 Telefono: telefono,
-                ProfiloApp: currentModalita === 'POSTVENDITA' ? 'ESSENZIALE' : el('selProfilo').value,
+                ProfiloApp: currentModalita === 'POSTVENDITA' ? 'NESSUNO' : el('selProfilo').value,
                 Servizi: {
                     Everyday: everyday,
                     Proton: isClt ? false : el('chkSvcProton').checked,
-                    Office: (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
-                    OfficeTipo: el('selOffice').value,
+                    Office: currentModalita === 'POSTVENDITA' ? false : (el('selOffice').value === 'm365' || el('selOffice').value === 'perpetuo'),
+                    OfficeTipo: currentModalita === 'POSTVENDITA' ? 'no' : el('selOffice').value,
                     McAfee: el('chkSvcMcAfee').checked,
                     Norton: el('chkSvcNorton').checked,
                     Cyber: cyber

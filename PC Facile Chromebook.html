@@ -651,7 +651,7 @@
     </div>
 
     <script>
-        var SCRIPT_VERSION = "13.29.0 (2026-11-27)";
+        var SCRIPT_VERSION = "13.29.1 (2026-11-27)";
         var PROFILO_CORRENTE = "BASE";
         var MODALITA_CB = "COMPLETA";
 
@@ -670,6 +670,14 @@
             }
             if (badge) {
                 badge.textContent = MODALITA_CB === "POSTVENDITA" ? "Post Vendita (Solo Essenziali)" : "Configurazione Completa";
+            }
+            if (MODALITA_CB === "POSTVENDITA" && document.getElementById("chkOffice")) {
+                document.getElementById("chkOffice").checked = false;
+                toggleCard("lblOffice", false);
+            }
+            var docBox = document.getElementById("schedaConsegnaDoc");
+            if (docBox) {
+                docBox.style.display = MODALITA_CB === "POSTVENDITA" ? "none" : "block";
             }
             renderCatalogoApp();
             aggiornaScheda();
