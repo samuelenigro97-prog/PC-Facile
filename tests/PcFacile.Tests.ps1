@@ -1423,4 +1423,13 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         $script:SrcPs1 | Should -Match "/skip"
         $script:SrcPs1 | Should -Match "SkipCurrent"
     }
+    It 'include la scheda 5. Comandi / IA nel pannello, endpoint POST /cmd e il telecomando remoto' {
+        $html = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'pannello/pannello-operatore.html') -Raw
+        $html | Should -Match 'function eseguiComandoDiretto'
+        $html | Should -Match 'view-tab-remoto'
+        $script:SrcPs1 | Should -Match 'Esegui-IstruzioneLocale'
+        $script:SrcPs1 | Should -Match "percorso -eq '/cmd'"
+        Test-Path -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'tools/telecomando.ps1') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'remote/commands.json') | Should -BeTrue
+    }
 }
