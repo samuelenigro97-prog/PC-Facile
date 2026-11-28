@@ -75,7 +75,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.30.1 (2026-11-28)"
+$SCRIPT_VERSION = "13.30.2 (2026-11-28)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -2672,59 +2672,14 @@ function Open-PannelloOperatore {
             font-size: 14.5px;
             line-height: 1.5;
         }
-        body.post-vendita {
-            --bg-canvas: #EE7203;
-            --bg-surface: #ffa24d;
-            --bg-elevated: #ffb066;
-            --bg-interactive: #ffc285;
-            --bg-input: #fff3e6;
-            --border-subtle: rgba(0, 18, 43, 0.22);
-            --border-strong: rgba(0, 18, 43, 0.38);
-            --border-highlight: rgba(255, 255, 255, 0.35);
-            --text-primary: #00122B;
-            --text-secondary: #002352;
-            --text-muted: #0a336b;
-            background-color: #EE7203;
-            background-image:
-                radial-gradient(1100px 420px at 12% -5%, rgba(255, 255, 255, 0.22), transparent 65%),
-                radial-gradient(900px 380px at 88% 0%, rgba(0, 18, 43, 0.14), transparent 60%);
-            color: #00122B;
-        }
-        body.post-vendita .header,
-        body.post-vendita .card,
-        body.post-vendita .progress-card,
-        body.post-vendita .tab-bar {
-            background: linear-gradient(180deg, rgba(255, 176, 102, 0.94) 0%, rgba(255, 148, 54, 0.96) 100%);
-            border-color: rgba(0, 18, 43, 0.32);
-            color: #00122B;
-        }
-        body.post-vendita .u-logo { background: #00122B; color: #EE7203; }
-        body.post-vendita .brand-titles h1,
-        body.post-vendita .current-fase,
-        body.post-vendita .progress-pct,
-        body.post-vendita .cred-label,
-        body.post-vendita .cred-step-title,
-        body.post-vendita .task-name { color: #00122B; }
-        body.post-vendita .cred-step-box,
-        body.post-vendita .task-item,
-        body.post-vendita .svc-item,
-        body.post-vendita .portal-btn {
-            background: rgba(255, 243, 230, 0.78);
-            border-color: rgba(0, 18, 43, 0.28);
-            color: #00122B;
-        }
-        body.post-vendita .cred-input { background: #fff8f0; color: #00122B; border-color: rgba(0, 18, 43, 0.35); }
-        body.post-vendita .btn-avvia { background: #00122B; color: #ff9d3b; border-color: #00122B; }
-        body.post-vendita .progress-bar-bg { background: #00122B; }
-        body.post-vendita .tab-btn[aria-selected="true"] { background: #00122B; color: #ff9d3b; }
-        body.post-vendita .tab-btn { color: #00122B; }
         body.post-vendita #task-office,
         body.post-vendita #task-ripristino,
         body.post-vendita #task-runtime,
         body.post-vendita #task-app,
         body.post-vendita #task-pulizia,
         body.post-vendita #task-driver,
-        body.post-vendita #task-aggiorna { display: none !important; }
+        body.post-vendita #task-aggiorna,
+        body.post-vendita #task-cyber { display: none !important; }
 
         .container {
             max-width: 1680px;
@@ -3480,7 +3435,7 @@ function Open-PannelloOperatore {
             <div class="brand-box">
                 <div class="u-logo">UNIEURO</div>
                 <div class="brand-titles">
-                    <h1>PC Facile &middot; Pannello operatore</h1>
+                    <h1 id="titoloPannello">PC Facile &middot; Pannello operatore</h1>
                     <p id="versioneText">Script PC Facile non collegato</p>
                 </div>
             </div>
@@ -4131,6 +4086,10 @@ function Open-PannelloOperatore {
             var banner = el('bannerPostVendita');
             var btnAvvia = el('btnAvvia');
             if (banner) banner.style.display = (currentModalita === 'POSTVENDITA') ? 'block' : 'none';
+            var titolo = el('titoloPannello');
+            var nomePannello = (currentModalita === 'POSTVENDITA') ? 'Post Vendita' : 'Pannello operatore';
+            if (titolo) titolo.textContent = 'PC Facile \u00B7 ' + nomePannello;
+            document.title = 'PC Facile - ' + nomePannello;
             if (btnAvvia) {
                 btnAvvia.innerHTML = (currentModalita === 'POSTVENDITA')
                     ? '&#9889; AVVIA POST VENDITA RAPIDO DA OEM (SOLO ESSENZIALI &middot; NO RESET)'
@@ -4700,11 +4659,14 @@ function Open-PannelloOperatore {
     </script>
 </body>
 </html>
+
 "@
         $html = $html.Replace('Script PC Facile non collegato', "Script PC Facile v$SCRIPT_VERSION")
         if ($Global:ModalitaPostVendita) {
             $html = $html.Replace('<body>', '<body class="post-vendita">')
             $html = $html.Replace("var currentModalita = 'COMPLETA';", "var currentModalita = 'POSTVENDITA';")
+            $html = $html.Replace('PC Facile &middot; Pannello operatore', 'PC Facile &middot; Post Vendita')
+            $html = $html.Replace('<title>PC Facile - Pannello operatore</title>', '<title>PC Facile - Post Vendita</title>')
         }
         $html | Set-Content -Path $pannelloFile -Encoding UTF8
         $Global:PannelloFile = $pannelloFile
@@ -6772,13 +6734,6 @@ if ($PreparaUSB) {
 }
 
 if (-not $Diagnostica) {
-    if ($Global:ModalitaPostVendita) {
-        try {
-            if ($vtOn) { [Console]::Write("$([char]27)]11;#EE7203$([char]7)$([char]27)]10;#00122B$([char]7)") }
-            $host.UI.RawUI.BackgroundColor = 'DarkYellow'
-            $host.UI.RawUI.ForegroundColor = 'DarkBlue'
-        } catch {}
-    }
     try { Clear-Host } catch {}
     $titoloB = if ($Global:ModalitaPostVendita) { "PC FACILE  -  POST VENDITA (v$SCRIPT_VERSION)" } else { "PC FACILE   -   versione $SCRIPT_VERSION" }
     $r1Vis = "   UNIEURO   PC FACILE  -  Assistenza & Configurazione PC"
