@@ -481,6 +481,7 @@ function Invoke-SelfUpdateIfOutdated {
             return $false
         }
         $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $tmpScript, '-NoSelfUpdate')
+        if ($Global:ModalitaPostVendita) { $argList += '-PostVendita' }
         if ($TargetDir) { $argList += @('-TargetDir', $TargetDir) }
         if ($LauncherPath) { $argList += @('-LauncherPath', $LauncherPath) }
         if ($CreaRipristino) { $argList += '-CreaRipristino' }
@@ -4776,7 +4777,7 @@ function Set-DatiCliente {
                     $Global:PannelloSync.Saltati[$kSkip] = $true
                 }
             }
-        } elseif ($Dati.Modalita -and ([string]$Dati.Modalita).ToUpper() -eq 'COMPLETA') {
+        } elseif (-not $PostVendita -and $Dati.Modalita -and ([string]$Dati.Modalita).ToUpper() -eq 'COMPLETA') {
             $Global:ModalitaPostVendita = $false
             if ($Global:PannelloSync) { $Global:PannelloSync.Modalita = 'COMPLETA' }
         }
@@ -8328,7 +8329,10 @@ if ($RunReale) {
                     }
                 } catch {}
 
-                if ($isOld) {
+                if ($Global:ModalitaPostVendita) {
+                    Remove-Item $Global:StatoFile -Force -ErrorAction SilentlyContinue
+                    Write-Info "Avvio Post Vendita dedicato: ignoro eventuali sessioni precedenti di Configurazione Completa."
+                } elseif ($isOld) {
                     Remove-Item $Global:StatoFile -Force -ErrorAction SilentlyContinue
                     Write-Info "Sessione precedente obsoleta (> 2 ore) rimossa: si parte da zero."
                 } else {
