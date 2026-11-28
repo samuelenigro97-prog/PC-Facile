@@ -1019,6 +1019,9 @@ function Set-NomeUtenteEPc {
     if ($Global:PannelloStatus) {
         $Global:PannelloStatus.NomeUtenteAttuale = $NomeUtente
         $Global:PannelloStatus.NomePcAttuale = $NomePc
+        if ($Global:PannelloStatus.Tasks -and $Global:PannelloStatus.Tasks.Contains('account')) {
+            $Global:PannelloStatus.Tasks['account'].Dettaglio = "Utente: $NomeUtente | PC: $NomePc | Password rimossa"
+        }
     }
     return [pscustomobject]@{
         Ok         = ($esitoUtente -or $esitoPc)
@@ -1782,7 +1785,7 @@ function Update-PannelloStatus {
                     "pulizia"     = [ordered]@{ Nome = "Pulizia Bloatware OEM & Ottimizzazione SSD"; Stato = "pending"; Dettaglio = "In attesa" }
                     "driver"      = [ordered]@{ Nome = "Driver Hardware (Windows Update)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "aggiorna"    = [ordered]@{ Nome = "Aggiornamenti App e Windows"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "diagnostica" = [ordered]@{ Nome = "Diagnostica Hardware, BitLocker & Scheda Consegna"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "diagnostica" = [ordered]@{ Nome = "Controllo finale, scheda consegna e riavvio"; Stato = "pending"; Dettaglio = "In attesa" }
                 }
             }
         }
@@ -1874,10 +1877,6 @@ function Start-ServerPannello {
         }
         if ($Global:ModalitaPostVendita) {
             $Global:PannelloSync.Modalita = 'POSTVENDITA'
-            if ($Global:PannelloStatus -and $Global:PannelloStatus.Tasks -and $Global:PannelloStatus.Tasks.Contains('account')) {
-                $Global:PannelloStatus.Tasks['account'].Stato = 'done'
-                $Global:PannelloStatus.Tasks['account'].Dettaglio = 'Utente (password rimossa, accesso diretto)'
-            }
             foreach ($kSkip in @('office', 'app', 'runtime', 'ripristino', 'pulizia', 'driver', 'aggiorna', 'diagnostica')) {
                 $Global:PannelloSync.Saltati[$kSkip] = $true
                 if ($Global:PannelloStatus -and $Global:PannelloStatus.Tasks -and $Global:PannelloStatus.Tasks.Contains($kSkip)) {
@@ -3682,7 +3681,7 @@ function Open-PannelloOperatore {
                     <li id="task-pulizia" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">11. Pulizia programmi inutili e velocizzazione</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('pulizia')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li id="task-driver" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">12. Driver hardware</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('driver')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li id="task-aggiorna" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">13. Aggiornamenti app e Windows</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('aggiorna')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
-                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale e scheda di consegna</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('diagnostica')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-diagnostica" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">14. Controllo finale, scheda consegna e riavvio</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('diagnostica')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                 </ul>
             </div>
         </div>
@@ -10511,6 +10510,7 @@ trap {
 
 
 Write-Titolo "Nome Cliente e PC"
+Update-PannelloStatus -TaskId "account" -Stato "running" -FaseCorrente "Nome PC, account e rimozione password" -Dettaglio "Rimozione password, scadenza e impostazione nome PC/utente..."
 
 # Legge il nome visualizzato attuale: prima LocalAccounts, poi ADSI (che
 # funziona anche in PowerShell x86, dove il modulo LocalAccounts non c'e').
@@ -10559,17 +10559,19 @@ if (-not $RunReale) {
     }
     $cleanPc = ($nomeDaUsare -replace '[^A-Za-z0-9]', '')
     if (-not $cleanPc -or $oemNames -contains $cleanPc.ToUpper()) { $cleanPc = "Utente" }
-    $pcNuovo = "PC-$cleanPc"
+    $pcNuovo = if ($Global:ModalitaPostVendita -and $cleanPc -eq "Utente") { "Utente" } else { "PC-$cleanPc" }
     if ($pcNuovo.Length -gt 15) { $pcNuovo = $pcNuovo.Substring(0, 15) }
 
-    $resNome = Set-NomeUtenteEPc -NomeUtente $nomeCliente -NomePc $pcNuovo -Silenzioso
+    $resNome = Set-NomeUtenteEPc -NomeUtente $nomeCliente -NomePc $pcNuovo
     Write-OK "Nome account utente impostato su: $($resNome.NomeUtente)"
     Add-Report "Nome cliente ($($resNome.NomeUtente))" "OK"
     Write-OK "Nome PC aggiornato in '$($resNome.NomePc)' (attivo dopo il riavvio)."
     Add-Report "Nome PC ($($resNome.NomePc))" "OK"
+    Update-PannelloStatus -TaskId "account" -Stato "done" -Dettaglio "Utente: $($resNome.NomeUtente) | PC: $($resNome.NomePc) | Password rimossa"
 } else {
     Write-Info "Nome account e PC mantenuti ($env:USERNAME / $env:COMPUTERNAME)."
     Add-Report "Nome cliente" "MANTENUTO ($env:USERNAME)"
+    Update-PannelloStatus -TaskId "account" -Stato "done" -Dettaglio "Mantenuto ($env:USERNAME) | Password rimossa"
 }
 
 
