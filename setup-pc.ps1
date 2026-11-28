@@ -37,6 +37,11 @@ param(
     [object[]]$ParametriIgnorati
 )
 
+if ($PostVendita -or ($LauncherPath -and $LauncherPath -match '(?i)Post[\s\-_]*Vendita') -or ($ParametriIgnorati -and ($ParametriIgnorati -join ' ') -match '(?i)PostVendita')) {
+    $PostVendita = [switch]$true
+    $Global:ModalitaPostVendita = $true
+    $Global:SceltaOffice = '5'
+}
 if ($TargetDir) {
     $TargetDir = ($TargetDir -replace '["'']', '').Trim().TrimEnd('\').TrimEnd('/')
     $Global:TargetDir = $TargetDir
@@ -8343,10 +8348,8 @@ if ($RunReale) {
                     if ($st.NomeCliente) { Write-Host "  Cliente                 : $($st.NomeCliente)" -ForegroundColor White }
                     Write-Host ""
 
-                    # Automatico: riprende da solo (i passi gia' fatti si saltano
-                    # comunque); N entro 15 secondi = ricomincia da capo.
-                    $rRip = Attendi-Risposta -Prompt "Riprendo tra 2 secondi (N = ricomincia da capo)" -TimeoutSec 2 -Default "S"
-                    $vuoiRiprendere = ($rRip -notmatch '^[Nn]')
+                    $rRip = Attendi-Risposta -Prompt "Vuoi riprendere la sessione interrotta? (S = riprendi, INVIO/N = ricomincia da capo tra 3s)" -TimeoutSec 3 -Default "N"
+                    $vuoiRiprendere = ($rRip -match '^[Ss]')
 
                     if ($vuoiRiprendere) {
                         $Global:FaseRipresa = [int]$st.Fase
