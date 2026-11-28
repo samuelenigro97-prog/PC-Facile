@@ -56,6 +56,52 @@
             font-size: 14.5px;
             line-height: 1.5;
         }
+        body.post-vendita {
+            --bg-canvas: #EE7203;
+            --bg-surface: #ffa24d;
+            --bg-elevated: #ffb066;
+            --bg-interactive: #ffc285;
+            --bg-input: #fff3e6;
+            --border-subtle: rgba(0, 18, 43, 0.22);
+            --border-strong: rgba(0, 18, 43, 0.38);
+            --border-highlight: rgba(255, 255, 255, 0.35);
+            --text-primary: #00122B;
+            --text-secondary: #002352;
+            --text-muted: #0a336b;
+            background-color: #EE7203;
+            background-image:
+                radial-gradient(1100px 420px at 12% -5%, rgba(255, 255, 255, 0.22), transparent 65%),
+                radial-gradient(900px 380px at 88% 0%, rgba(0, 18, 43, 0.14), transparent 60%);
+            color: #00122B;
+        }
+        body.post-vendita .header,
+        body.post-vendita .card,
+        body.post-vendita .progress-card,
+        body.post-vendita .tab-bar {
+            background: linear-gradient(180deg, rgba(255, 176, 102, 0.94) 0%, rgba(255, 148, 54, 0.96) 100%);
+            border-color: rgba(0, 18, 43, 0.32);
+            color: #00122B;
+        }
+        body.post-vendita .u-logo { background: #00122B; color: #EE7203; }
+        body.post-vendita .brand-titles h1,
+        body.post-vendita .current-fase,
+        body.post-vendita .progress-pct,
+        body.post-vendita .cred-label,
+        body.post-vendita .cred-step-title,
+        body.post-vendita .task-name { color: #00122B; }
+        body.post-vendita .cred-step-box,
+        body.post-vendita .task-item,
+        body.post-vendita .svc-item,
+        body.post-vendita .portal-btn {
+            background: rgba(255, 243, 230, 0.78);
+            border-color: rgba(0, 18, 43, 0.28);
+            color: #00122B;
+        }
+        body.post-vendita .cred-input { background: #fff8f0; color: #00122B; border-color: rgba(0, 18, 43, 0.35); }
+        body.post-vendita .btn-avvia { background: #00122B; color: #ff9d3b; border-color: #00122B; }
+        body.post-vendita .progress-bar-bg { background: #00122B; }
+        body.post-vendita .tab-btn[aria-selected="true"] { background: #00122B; color: #ff9d3b; }
+        body.post-vendita .tab-btn { color: #00122B; }
 
         .container {
             max-width: 1680px;
@@ -1458,6 +1504,7 @@
 
         function applicaUiModalita(mod) {
             currentModalita = (mod === 'POSTVENDITA') ? 'POSTVENDITA' : 'COMPLETA';
+            document.body.classList.toggle('post-vendita', currentModalita === 'POSTVENDITA');
             var banner = el('bannerPostVendita');
             var btnAvvia = el('btnAvvia');
             if (banner) banner.style.display = (currentModalita === 'POSTVENDITA') ? 'block' : 'none';
