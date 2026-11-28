@@ -1971,6 +1971,7 @@
                     var nome = row.querySelector('.task-name').innerText.replace(/^\d+\.\s*/, '');
                     if (stato === 'error') errori.push(nome + (dettaglio ? ': ' + dettaglio : ''));
                     row.className = 'task-item ' + stato;
+                    if (key === 'cyber') row.style.display = /Everyday/i.test(dettaglio) ? 'none' : '';
                     var badge = row.querySelector('.task-badge');
                     var badgeClass = 'badge-pending', badgeText = 'In attesa';
                     if (stato === 'done') { badgeClass = 'badge-done-task'; badgeText = 'Fatto'; }
