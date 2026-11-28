@@ -8785,13 +8785,16 @@ function Invoke-EverydayDigital {
                     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
                     if (Test-Path -LiteralPath $curlBin) {
                         & $curlBin -fL --retry 2 --connect-timeout 15 --max-time 180 -sS -A "Mozilla/5.0" -o $exePath $exeUrl 2>$null
-                    } else {
+                    }
+                    if (-not ((Test-Path -LiteralPath $exePath) -and ((Get-Item -LiteralPath $exePath).Length -gt 200KB))) {
                         Invoke-WebRequest -Uri $exeUrl -OutFile $exePath -UseBasicParsing -TimeoutSec 180 -ErrorAction Stop
                     }
                     if ((Test-Path -LiteralPath $exePath) -and ((Get-Item -LiteralPath $exePath).Length -gt 200KB)) {
                         $scaricato = $true
                     }
-                } catch {}
+                } catch {
+                    Write-Info "Download diretto Unieuro Secure non riuscito: $_"
+                }
             } else {
                 Add-Report "Unieuro Secure (F-Secure)" "OK (test)"
                 $scaricato = $true
@@ -8805,9 +8808,12 @@ function Invoke-EverydayDigital {
                 $lnkPrimaFs = @(Get-StartMenuLnks | ForEach-Object { $_.FullName })
                 $pFs = $null
                 try {
-                    $pFs = Start-Process -FilePath $exePath -ArgumentList "--silent --accept-eult" -PassThru -ErrorAction Stop
+                    $pFs = Start-Process -FilePath $exePath -ArgumentList "--silent --accept-eula" -PassThru -ErrorAction Stop
                     $tFs = 0
-                    while (-not $pFs.HasExited -and $tFs -lt 240) {
+                    while ($tFs -lt 240) {
+                        $childFs = Get-Process -Name 'UnieuroSecure*','fs_installer*','fs-*' -ErrorAction SilentlyContinue
+                        if ($pFs.HasExited -and -not $childFs) { break }
+                        if ((& $testFsInstalled)) { break }
                         Start-Sleep -Seconds 2
                         $tFs += 2
                         if ($tFs % 10 -eq 0) {
@@ -8820,10 +8826,18 @@ function Invoke-EverydayDigital {
                     Add-IconaDesktop -Nome "Unieuro Secure" -LnkPrima $lnkPrimaFs
                     Add-Report "Unieuro Secure (F-Secure)" "OK (installazione automatica)"
                 } else {
-                    # Se la modalita' silenziosa non ha completato (es. conflitto da confermare), apro l'installer guidato
-                    try { Start-Process -FilePath $exePath } catch {}
-                    Write-OK "Installer Unieuro Secure avviato: completa l'installazione guidata."
-                    Add-Report "Unieuro Secure (F-Secure)" "OK (avviato)"
+                    Write-Info "Installazione silenziosa non completata: avvio installer Unieuro Secure in primo piano..."
+                    try {
+                        Start-Process -FilePath $exePath -Wait -ErrorAction Stop
+                    } catch {}
+                    if (& $testFsInstalled) {
+                        Write-OK "Unieuro Secure (F-Secure) installato!"
+                        Add-IconaDesktop -Nome "Unieuro Secure" -LnkPrima $lnkPrimaFs
+                        Add-Report "Unieuro Secure (F-Secure)" "OK"
+                    } else {
+                        Write-Info "Unieuro Secure non rilevato dopo l'avvio: controlla l'installer a schermo."
+                        Add-Report "Unieuro Secure (F-Secure)" "AVVISO (verifica installazione)"
+                    }
                 }
             } elseif (-not $scaricato) {
                 Installa-Antivirus -Nome "Unieuro Secure (F-Secure)" -UrlRiscatto "https://safeavenue.f-secure.com/iframe/-installers/unieuro/" -Utente $Utente -Password $Password
