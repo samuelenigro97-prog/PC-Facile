@@ -11601,60 +11601,44 @@ if ($RunReale -and ($Global:JobWinUpdate -or $Global:AvviaWinUpdateDopoDriver)) 
     } catch {}
 }
 
-# MENU DI CHIUSURA: Check Salute PC oppure Riavvio (il pannello web resta collegato!)
+# RIAVVIO OBBLIGATORIO A FINE PROCEDURA
 if ($RunReale) {
     Set-PreventSleep $false
     try { $host.UI.RawUI.WindowTitle = "PC Facile [100%] - CONFIGURAZIONE COMPLETATA!" } catch {}
-    Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "CONFIGURAZIONE COMPLETATA!" -Dettaglio "Tutte le procedure sono terminate. Puoi chiudere o riavviare." -Completato
+    Update-PannelloStatus -TaskId "diagnostica" -Stato "done" -Percentuale 100 -FaseCorrente "CONFIGURAZIONE COMPLETATA!" -Dettaglio "Tutte le procedure sono terminate. Riavvio obbligatorio del PC in corso..." -Completato
     Write-Titolo "COMPLETAMENTO PC FACILE"
     Write-OK "TUTTE LE PROCEDURE SONO TERMINATE: CONFIGURAZIONE COMPLETATA AL 100%!"
     Beep-Completato   # melodia "tutto finito" subito appena termina l'ultima procedura
     Write-Host "Configurazione e ottimizzazione completate con successo!" -ForegroundColor Green
-    Write-Host "  (Il Pannello Operatore resta attivo: puoi usare la scheda '4. Passaggi' per ripetere qualsiasi operazione)" -ForegroundColor Cyan
     Write-Host ""
-    
-    $linguaOk = @($Report | Where-Object { $_.Voce -like "Lingua italiana (it-IT*" -and $_.Esito -eq "OK" }).Count -gt 0
-    
-    do {
-        Write-Host "Scegli come procedere:" -ForegroundColor White
-        Write-Host "  1) Esegui Check Completo Salute PC (SSD SMART, Batteria, Licenza, Driver, BitLocker)" -ForegroundColor Cyan
-        Write-Host "  2) Riavvia il PC adesso (Consigliato per rendere attive tutte le modifiche)" -ForegroundColor Green
-        Write-Host "  3) Esci senza riavviare (Riavvio manuale in seguito)" -ForegroundColor Yellow
-        Write-Host ""
+    Write-Host "  [!] RIAVVIO OBBLIGATORIO: il PC si riavviera' automaticamente tra 8 secondi" -ForegroundColor Yellow
+    Write-Host "      per rendere attive tutte le modifiche (lingua, nome PC, driver, ottimizzazioni)." -ForegroundColor Yellow
+    Write-Host ""
 
-        $sceltaFine = Attendi-Risposta "Scelta (1-3, INVIO = 3 Esci)"
-        if ([string]::IsNullOrWhiteSpace($sceltaFine)) { $sceltaFine = "3" }
-        switch ($sceltaFine) {
-            "1" {
-                Invoke-PcFacileDiagnostics -MostraDettagli | Out-Null
-                Write-Host ""
-            }
-            "2" {
-                try {
-                    Stop-LocalCredServer
-                    $tmpPannello = Join-Path $(if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }) "Pannello-Operatore.html"
-                    Remove-Item -LiteralPath $tmpPannello -Force -ErrorAction SilentlyContinue
-                } catch {}
-                Write-Info "Riavvio del PC in corso..."
-                Restart-Computer -Force
+    for ($secR = 8; $secR -gt 0; $secR--) {
+        Write-Host "`r  Riavvio tra $secR secondi... (premi un tasto per riavviare subito) " -NoNewline -ForegroundColor Cyan
+        Start-Sleep -Seconds 1
+        try {
+            if ([Console]::KeyAvailable) {
+                [void][Console]::ReadKey($true)
                 break
             }
-            "3" {
-                try {
-                    Stop-LocalCredServer
-                    $tmpPannello = Join-Path $(if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }) "Pannello-Operatore.html"
-                    Remove-Item -LiteralPath $tmpPannello -Force -ErrorAction SilentlyContinue
-                } catch {}
-                if ($linguaOk) {
-                    Write-Info "Ricordati di riavviare prima di consegnare il PC per applicare lingua e nuove impostazioni."
-                }
-                break
-            }
-            default {
-                Write-Info "Opzione non valida. Inserisci 1, 2 o 3."
-            }
-        }
-    } while ($sceltaFine -ne "2" -and $sceltaFine -ne "3")
+        } catch {}
+    }
+    Write-Host ""
+
+    try {
+        Stop-LocalCredServer
+        $tmpPannello = Join-Path $(if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }) "Pannello-Operatore.html"
+        Remove-Item -LiteralPath $tmpPannello -Force -ErrorAction SilentlyContinue
+    } catch {}
+
+    Write-Info "Riavvio del PC in corso..."
+    try {
+        Restart-Computer -Force -ErrorAction Stop
+    } catch {
+        & shutdown.exe /r /t 0 /f 2>$null | Out-Null
+    }
 }
 
 Write-Host ""
