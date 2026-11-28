@@ -4602,7 +4602,7 @@ function Open-PannelloOperatore {
                 applicaUiModalita(data.Modalita);
             }
             if (v) {
-                var modLbl = (currentModalita === 'POSTVENDITA') ? ' · Post Vendita' : ' · Configurazione Completa';
+                var modLbl = (currentModalita === 'POSTVENDITA') ? ' \u00B7 Post Vendita' : ' \u00B7 Configurazione Completa';
                 v.innerText = (data.Versione ? ('Script PC Facile v' + data.Versione) : 'Script PC Facile collegato') + modLbl;
             }
 
