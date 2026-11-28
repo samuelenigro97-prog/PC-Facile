@@ -1772,7 +1772,7 @@ function Update-PannelloStatus {
                     "avprova"     = [ordered]@{ Nome = "Rimozione Antivirus di Prova"; Stato = "pending"; Dettaglio = "In attesa" }
                     "everyday"    = [ordered]@{ Nome = "Unieuro Everyday Digital (Secure + Cyber)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "office"      = [ordered]@{ Nome = "Office: installazione e attivazione"; Stato = "pending"; Dettaglio = "In attesa" }
-                    "account"     = [ordered]@{ Nome = "Nome PC e account cliente"; Stato = "pending"; Dettaglio = "In attesa" }
+                    "account"     = [ordered]@{ Nome = "Nome PC, account e rimozione password"; Stato = "pending"; Dettaglio = "In attesa" }
                     "antivirus"   = [ordered]@{ Nome = "Sicurezza & Antivirus Definitivo (Defender / Card)"; Stato = "pending"; Dettaglio = "In attesa" }
                     "cyber"       = [ordered]@{ Nome = "Servizio Unieuro Cyber Protection"; Stato = "pending"; Dettaglio = "In attesa" }
                     "lingua"      = [ordered]@{ Nome = "Forzatura Lingua & Regione Italiana (it-IT)"; Stato = "pending"; Dettaglio = "In attesa" }
@@ -1871,6 +1871,20 @@ function Start-ServerPannello {
                 LogComandi  = ''
                 UltimoCmdId = ''
             })
+        }
+        if ($Global:ModalitaPostVendita) {
+            $Global:PannelloSync.Modalita = 'POSTVENDITA'
+            if ($Global:PannelloStatus -and $Global:PannelloStatus.Tasks -and $Global:PannelloStatus.Tasks.Contains('account')) {
+                $Global:PannelloStatus.Tasks['account'].Stato = 'done'
+                $Global:PannelloStatus.Tasks['account'].Dettaglio = 'Utente (password rimossa, accesso diretto)'
+            }
+            foreach ($kSkip in @('office', 'app', 'runtime', 'ripristino', 'pulizia', 'driver', 'aggiorna', 'diagnostica')) {
+                $Global:PannelloSync.Saltati[$kSkip] = $true
+                if ($Global:PannelloStatus -and $Global:PannelloStatus.Tasks -and $Global:PannelloStatus.Tasks.Contains($kSkip)) {
+                    $Global:PannelloStatus.Tasks[$kSkip].Stato = 'skipped'
+                    $Global:PannelloStatus.Tasks[$kSkip].Dettaglio = 'Saltato (Post Vendita)'
+                }
+            }
         }
         if (-not $Global:PannelloSync.Modalita) {
             $Global:PannelloSync.Modalita = 'COMPLETA'
@@ -3611,7 +3625,7 @@ function Open-PannelloOperatore {
                     <li id="task-avprova" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">1. Rimozione antivirus di prova</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('avprova')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li id="task-everyday" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">2. Unieuro Everyday Digital (Secure + Cyber)</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('everyday')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li id="task-office" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">3. Office: installazione e attivazione</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('office')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
-                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Nome PC e account cliente</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('account')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
+                    <li id="task-account" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">4. Nome PC, account e rimozione password</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('account')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li id="task-antivirus" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">5. Protezione antivirus</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('antivirus')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li id="task-cyber" class="task-item pending"><div class="task-left"><span class="task-icon">&#9675;</span><span class="task-name">6. Unieuro Cyber Protection</span><span class="task-detail"></span></div><div class="task-right"><button type="button" class="btn-skip-task" onclick="saltaOperazione('cyber')">Salta &#10140;</button><span class="task-badge badge-pending">In attesa</span></div></li>
                     <li class="task-gruppo">Fase 2 &middot; Lingua, programmi, pulizia e aggiornamenti (automatico)</li>
@@ -6749,6 +6763,8 @@ if ($RunReale) {
             if (Get-Command Set-NomeUtenteEPc -ErrorAction SilentlyContinue) {
                 [void](Set-NomeUtenteEPc -NomeUtente "Utente" -NomePc "Utente" -Silenzioso)
             }
+            Write-OK "Account OEM sbloccato: password rimossa, scadenza disattivata, nome PC e accesso impostati su Utente."
+            Add-Report "Sblocco OEM (zero password, Utente)" "OK"
         } catch {}
     }
     # Attiva SUBITO la tastiera italiana (00000410) a secondo 0 (prima di Wi-Fi e Pannello)
