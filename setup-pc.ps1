@@ -70,7 +70,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Versione del programma (mostrata nell'header e nel riepilogo).
 # Bump ad ogni modifica cosi' capisci se la USB e' aggiornata.
-$SCRIPT_VERSION = "13.29.1 (2026-11-27)"
+$SCRIPT_VERSION = "13.30.0 (2026-11-28)"
 
 # Versione SEMPRE VISIBILE: la scrivo nella barra del titolo della finestra, che
 # resta a video in QUALSIASI schermata (a differenza dell'header, che scorre via).
@@ -3448,7 +3448,7 @@ function Open-PannelloOperatore {
             .campi-2, .step-tool-list, .links-grid { grid-template-columns: 1fr; }
             .campi-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .campi-3 > :last-child { grid-column: 1 / -1; }
-            .brand-titles p { display: none; }
+            .brand-titles p { font-size: 12px; }
             .brand-titles h1 { font-size: 18px; }
             .progress-pct { font-size: 23px; }
             .tab-btn { font-size: 12.5px; padding: 6px 8px; }
@@ -4554,6 +4554,9 @@ function Open-PannelloOperatore {
                     if (Date.now() - lastStatusPing > 12000) setConnected(false);
                 });
         }
+        if (document.body.classList.contains('post-vendita') || currentModalita === 'POSTVENDITA') {
+            applicaUiModalita('POSTVENDITA');
+        }
         setInterval(checkConnection, 1500);
         checkConnection();
 
@@ -4582,9 +4585,12 @@ function Open-PannelloOperatore {
             if (data.Inizio) inizioLavori = Number(data.Inizio) || 0;
 
             var v = el('versioneText');
-            if (v) v.innerText = data.Versione ? ('Script PC Facile v' + data.Versione) : 'Script PC Facile collegato';
             if (data.Modalita && data.Modalita !== currentModalita) {
                 applicaUiModalita(data.Modalita);
+            }
+            if (v) {
+                var modLbl = (currentModalita === 'POSTVENDITA') ? ' · Post Vendita' : ' · Configurazione Completa';
+                v.innerText = (data.Versione ? ('Script PC Facile v' + data.Versione) : 'Script PC Facile collegato') + modLbl;
             }
 
             var hw = data.Hardware;
@@ -4682,6 +4688,11 @@ function Open-PannelloOperatore {
 </body>
 </html>
 "@
+        $html = $html.Replace('Script PC Facile non collegato', "Script PC Facile v$SCRIPT_VERSION")
+        if ($Global:ModalitaPostVendita) {
+            $html = $html.Replace('<body>', '<body class="post-vendita">')
+            $html = $html.Replace("var currentModalita = 'COMPLETA';", "var currentModalita = 'POSTVENDITA';")
+        }
         $html | Set-Content -Path $pannelloFile -Encoding UTF8
         $Global:PannelloFile = $pannelloFile
         if (-not $serverOk) {
