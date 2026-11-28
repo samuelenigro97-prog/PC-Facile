@@ -17,6 +17,7 @@ $fileKit = @(
     'setup-pc.ps1',
     'setup-pc.ps1.sha256',
     'PC Facile Windows.bat',
+    'PC Facile Post Vendita.bat',
     'PC Facile Mac.command',
     'PC Facile Chromebook.html',
     'Scarica Ultima Versione.url',

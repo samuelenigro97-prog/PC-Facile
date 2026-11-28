@@ -1432,12 +1432,14 @@ Describe 'Integrita'' chiamate funzioni, parametri winget e fallback catalogo ap
         Test-Path -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'tools/telecomando.ps1') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'remote/commands.json') | Should -BeTrue
     }
-    It 'espone il selettore iniziale Configurazione Completa vs Post Vendita da OEM (POST /mode) per eseguire solo le operazioni essenziali senza Reset' {
+    It 'espone il launcher dedicato PC Facile Post Vendita.bat nella cartella e supporta -PostVendita senza doppio selettore nel pannello' {
         $html = Get-Content -LiteralPath (Join-Path (Split-Path $PSScriptRoot -Parent) 'pannello/pannello-operatore.html') -Raw
-        $html | Should -Match 'function setModalitaSetup'
-        $html | Should -Match 'btnModeCompleta'
-        $html | Should -Match 'btnModePostVendita'
-        $script:SrcPs1 | Should -Match "percorso -eq '/mode'"
+        $launcherPv = Join-Path (Split-Path $PSScriptRoot -Parent) 'PC Facile Post Vendita.bat'
+        Test-Path -LiteralPath $launcherPv | Should -BeTrue
+        (Get-Content -LiteralPath $launcherPv -Raw) | Should -Match '-PostVendita'
+        $html | Should -Not -Match 'btnModePostVendita'
+        $html | Should -Match 'bannerPostVendita'
+        $script:SrcPs1 | Should -Match '\[switch\]\$PostVendita'
         $script:SrcPs1 | Should -Match 'POSTVENDITA'
         $script:SrcPs1 | Should -Match 'ModalitaPostVendita'
     }

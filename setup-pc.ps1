@@ -29,6 +29,8 @@ param(
     [string]$LauncherPath,
     # Evita loop infiniti dopo un auto-aggiornamento post-connessione.
     [switch]$NoSelfUpdate,
+    # Avvio dedicato dalla cartella ("PC Facile Post Vendita.bat"): solo operazioni essenziali da OEM.
+    [switch]$PostVendita,
     # Parametri delle vecchie modalita' (-Espresso, -Manuale, -Menu, -AgenteIA,
     # -Migrazione, -Veloce...): accettati e IGNORATI, il flusso e' uno solo.
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -1759,6 +1761,7 @@ function Update-PannelloStatus {
                 Inizio        = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
                 InAttesaDati  = $false
                 Versione      = [string]$versione
+                Modalita      = if ($Global:ModalitaPostVendita) { 'POSTVENDITA' } else { 'COMPLETA' }
                 Hardware      = $null
                 # Stesso ordine dei passi ($Global:Passi): fase 1 lingua, app, pulizia, driver e aggiornamenti;
                 # fase 1: dati cliente, Office e attivazioni operatore;
@@ -3487,21 +3490,12 @@ function Open-PannelloOperatore {
 
         <!-- SCHEDA 1: DATI CLIENTE -->
         <div id="view-tab-cred" class="section-view active-view" role="tabpanel" aria-labelledby="btn-tab-cred">
-            <div class="card" style="margin-bottom: 14px; border: 1.5px solid var(--u-orange); background: linear-gradient(135deg, rgba(238, 114, 3, 0.14) 0%, rgba(16, 27, 48, 0.96) 100%);">
-                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-                    <span class="cred-label" style="margin-bottom:0; color:#fed7aa; font-size:13.5px;">&#9889; Modalit&agrave; operativa iniziale (scegli come lavorare sul PC)</span>
-                    <span id="badgeModalitaAttiva" style="font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:rgba(2,132,199,0.2); border:1px solid #38bdf8; color:#bae6fd;">Modalit&agrave;: Configurazione Completa (14 passaggi)</span>
+            <div id="bannerPostVendita" class="card" style="display:none; margin-bottom: 14px; border: 1.5px solid var(--u-orange); background: linear-gradient(135deg, rgba(238, 114, 3, 0.14) 0%, rgba(16, 27, 48, 0.96) 100%);">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                    <span class="cred-label" style="margin-bottom:0; color:#fed7aa; font-size:13.5px;">&#9889; Modalit&agrave; Post Vendita Rapida da OEM attiva (No Reset)</span>
+                    <span style="font-size:12px; font-weight:800; padding:3px 10px; border-radius:999px; background:rgba(238,114,3,0.22); border:1px solid #EE7203; color:#fed7aa;">Solo Essenziali</span>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px;">
-                    <button type="button" id="btnModeCompleta" class="dom-btn" aria-pressed="true" onclick="setModalitaSetup('COMPLETA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
-                        <span style="font-size:15px; font-weight:800;">&#128736;&#65039; 1. Configurazione Completa PC</span>
-                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Tutti i 14 passaggi: rimozione AV di prova, Everyday Digital, Office, tutte le app del profilo, pulizia bloatware, driver e Windows Update.</span>
-                    </button>
-                    <button type="button" id="btnModePostVendita" class="dom-btn" aria-pressed="false" onclick="setModalitaSetup('POSTVENDITA')" style="display:flex; flex-direction:column; align-items:flex-start; text-align:left; padding:12px 14px; gap:4px; min-height:68px;">
-                        <span style="font-size:15px; font-weight:800;">&#9889; 2. Post Vendita / Consegna Rapida da OEM (No Reset)</span>
-                        <span style="font-size:12px; font-weight:500; opacity:0.88;">Senza configurazione a pagamento: sblocca subito l&rsquo;account OEM (zero password), rimuove AV di prova, installa solo Unieuro Everyday Digital e Lingua Italiana (salta Office, Chrome/App, riordino icone, PDF consegna, pulizia e update).</span>
-                    </button>
-                </div>
+                <div style="font-size:12.5px; color:#cbd5e1; margin-top:6px;">Account OEM sbloccato (zero password), rimozione AV di prova, Unieuro Everyday Digital e Lingua Italiana. Saltati Office, Chrome/App, riordino icone, PDF consegna, pulizia e update.</div>
             </div>
 
             <div class="card">
@@ -4057,27 +4051,11 @@ function Open-PannelloOperatore {
 
         var currentModalita = 'COMPLETA';
 
-        function setModalitaSetup(mod) {
+        function applicaUiModalita(mod) {
             currentModalita = (mod === 'POSTVENDITA') ? 'POSTVENDITA' : 'COMPLETA';
-            var bComp = el('btnModeCompleta');
-            var bPost = el('btnModePostVendita');
-            var badge = el('badgeModalitaAttiva');
+            var banner = el('bannerPostVendita');
             var btnAvvia = el('btnAvvia');
-            if (bComp) bComp.setAttribute('aria-pressed', currentModalita === 'COMPLETA' ? 'true' : 'false');
-            if (bPost) bPost.setAttribute('aria-pressed', currentModalita === 'POSTVENDITA' ? 'true' : 'false');
-            if (badge) {
-                if (currentModalita === 'POSTVENDITA') {
-                    badge.innerText = 'Modalit\u00E0: Post Vendita Rapido da OEM (Solo Essenziali \u00B7 No Reset)';
-                    badge.style.background = 'rgba(238,114,3,0.22)';
-                    badge.style.borderColor = '#EE7203';
-                    badge.style.color = '#fed7aa';
-                } else {
-                    badge.innerText = 'Modalit\u00E0: Configurazione Completa (14 passaggi)';
-                    badge.style.background = 'rgba(2,132,199,0.2)';
-                    badge.style.borderColor = '#38bdf8';
-                    badge.style.color = '#bae6fd';
-                }
-            }
+            if (banner) banner.style.display = (currentModalita === 'POSTVENDITA') ? 'block' : 'none';
             if (btnAvvia) {
                 btnAvvia.innerHTML = (currentModalita === 'POSTVENDITA')
                     ? '&#9889; AVVIA POST VENDITA RAPIDO DA OEM (SOLO ESSENZIALI &middot; NO RESET)'
@@ -4086,15 +4064,6 @@ function Open-PannelloOperatore {
             if (currentModalita === 'POSTVENDITA' && el('selOffice')) {
                 el('selOffice').value = 'no';
             }
-            fetch(API + '/mode', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ Modalita: currentModalita })
-            }).then(function(r) { return r.json(); }).then(function(res) {
-                if (res && res.ok) {
-                    mostraEsito(res.messaggio || ('\u2713 Modalit\u00E0 impostata su ' + currentModalita), 'ok');
-                }
-            }).catch(function() {});
         }
 
         function setDomain(dom, provName, btn) {
@@ -4552,6 +4521,9 @@ function Open-PannelloOperatore {
 
             var v = el('versioneText');
             if (v) v.innerText = data.Versione ? ('Script PC Facile v' + data.Versione) : 'Script PC Facile collegato';
+            if (data.Modalita && data.Modalita !== currentModalita) {
+                applicaUiModalita(data.Modalita);
+            }
 
             var hw = data.Hardware;
             if (hw && (hw.Modello || hw.Cpu || hw.Seriale)) {
@@ -6715,9 +6687,9 @@ if ($PreparaUSB) {
 
 if (-not $Diagnostica) {
     try { Clear-Host } catch {}
-    $titoloB = "PC FACILE   -   versione $SCRIPT_VERSION"
+    $titoloB = if ($Global:ModalitaPostVendita) { "PC FACILE  -  POST VENDITA (v$SCRIPT_VERSION)" } else { "PC FACILE   -   versione $SCRIPT_VERSION" }
     $r1Vis = "   UNIEURO   PC FACILE  -  Assistenza & Configurazione PC"
-    $r2Vis = "   Batte. Forte. Sempre. - Setup Tecnico Dedicato v$SCRIPT_VERSION"
+    $r2Vis = if ($Global:ModalitaPostVendita) { "   Batte. Forte. Sempre. - Post Vendita Rapido v$SCRIPT_VERSION" } else { "   Batte. Forte. Sempre. - Setup Tecnico Dedicato v$SCRIPT_VERSION" }
     $larg = [Math]::Max(64, [Math]::Max($r1Vis.Length + 2, [Math]::Max($r2Vis.Length + 2, $titoloB.Length + 4)))
     $pad1 = " " * ($larg - $r1Vis.Length)
     $pad2 = " " * ($larg - $r2Vis.Length)
@@ -6728,10 +6700,18 @@ if (-not $Diagnostica) {
     if ($vtOn) {
         Write-Host "  $U_ORANGE$([char]0x2554)$boxLine$([char]0x2557)$U_RESET"
         Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE_BG UNIEURO $U_RESET $U_WHITE PC FACILE  -  Assistenza & Configurazione PC$pad1$U_ORANGE$([char]0x2551)$U_RESET"
-        Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH- Setup Tecnico Dedicato v$SCRIPT_VERSION$pad2$U_ORANGE$([char]0x2551)$U_RESET"
+        if ($Global:ModalitaPostVendita) {
+            Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH- Post Vendita Rapido v$SCRIPT_VERSION$pad2$U_ORANGE$([char]0x2551)$U_RESET"
+        } else {
+            Write-Host "  $U_ORANGE$([char]0x2551)$U_RESET  $U_ORANGE Batte. Forte. Sempre.$U_RESET $U_PEACH- Setup Tecnico Dedicato v$SCRIPT_VERSION$pad2$U_ORANGE$([char]0x2551)$U_RESET"
+        }
         Write-Host "  $U_ORANGE$([char]0x255A)$boxLine$([char]0x255D)$U_RESET"
         Write-Host ""
-        Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (DATI CLIENTE, OFFICE E ATTIVAZIONI)$U_RESET"
+        if ($Global:ModalitaPostVendita) {
+            Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE POST VENDITA RAPIDO DA OEM: SOLO OPERAZIONI ESSENZIALI (NO RESET)$U_RESET"
+        } else {
+            Write-Host "  $U_GREEN$SYM_OK$U_RESET $U_WHITE CONFIGURAZIONE AVVIATA: FASE 1 (DATI CLIENTE, OFFICE E ATTIVAZIONI)$U_RESET"
+        }
         Write-Host "  $U_ORANGE$SYM_INFO$U_RESET $U_PEACH Inserisci i dati del cliente nel pannello operatore (una volta sola).$U_RESET"
         Write-Host "  $U_BLUE$SYM_INFO$U_RESET $U_WHITE Poi la Fase 2 prosegue dritta in automatico fino alla fine.$U_RESET"
         Write-Host ""
@@ -6751,6 +6731,21 @@ $RunReale = (-not $Test -and -not $Diagnostica)
 if ($RunReale) {
     try { Enable-SilentElevation } catch {}
     try { Set-PreventSleep $true } catch {}
+    if ($Global:ModalitaPostVendita) {
+        try {
+            & net.exe accounts /maxpwage:unlimited 2>$null | Out-Null
+            & net.exe user $env:USERNAME "" 2>$null | Out-Null
+            Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled } | ForEach-Object {
+                try { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true -ErrorAction SilentlyContinue } catch {}
+            }
+            & powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+            & powercfg.exe /setdcvalueindex SCHEME_CURRENT SUB_NONE CONSOLELOCK 0 2>$null | Out-Null
+            & powercfg.exe /setactive SCHEME_CURRENT 2>$null | Out-Null
+            $recDir = Join-Path $env:APPDATA "Microsoft\Windows\Recent"
+            if (Test-Path $recDir) { Remove-Item -Path (Join-Path $recDir "*") -Force -Recurse -ErrorAction SilentlyContinue }
+            Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+        } catch {}
+    }
     # Attiva SUBITO la tastiera italiana (00000410) a secondo 0 (prima di Wi-Fi e Pannello)
     # cosi' la chiocciola (@ = AltGr+o') funziona subito anche su PC nuovi partiti in inglese.
     try {
