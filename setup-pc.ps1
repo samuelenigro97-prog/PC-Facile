@@ -1762,6 +1762,8 @@ function Update-PannelloStatus {
                 InAttesaDati  = $false
                 Versione      = [string]$versione
                 Modalita      = if ($Global:ModalitaPostVendita) { 'POSTVENDITA' } else { 'COMPLETA' }
+                NomeUtenteAttuale = if ($Global:ModalitaPostVendita) { 'Utente' } else { $null }
+                NomePcAttuale     = if ($Global:ModalitaPostVendita) { 'Utente' } else { $null }
                 Hardware      = $null
                 # Stesso ordine dei passi ($Global:Passi): fase 1 lingua, app, pulizia, driver e aggiornamenti;
                 # fase 1: dati cliente, Office e attivazioni operatore;
@@ -6744,6 +6746,9 @@ if ($RunReale) {
             $recDir = Join-Path $env:APPDATA "Microsoft\Windows\Recent"
             if (Test-Path $recDir) { Remove-Item -Path (Join-Path $recDir "*") -Force -Recurse -ErrorAction SilentlyContinue }
             Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+            if (Get-Command Set-NomeUtenteEPc -ErrorAction SilentlyContinue) {
+                [void](Set-NomeUtenteEPc -NomeUtente "Utente" -NomePc "Utente" -Silenzioso)
+            }
         } catch {}
     }
     # Attiva SUBITO la tastiera italiana (00000410) a secondo 0 (prima di Wi-Fi e Pannello)
